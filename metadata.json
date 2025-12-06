@@ -1,0 +1,5 @@
+{
+  "name": "React Auto Theft",
+  "description": "A top-down open-world city game inspired by classic GTA. Features driving, walking, dynamic missions powered by Gemini, and a living city simulation.",
+  "requestFramePermissions": []
+}
