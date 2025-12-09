@@ -4,6 +4,9 @@ import { TileType } from "../types";
 
 export const generateMap = (): number[][] => {
   const map: number[][] = [];
+  const centerX = MAP_WIDTH / 2;
+  const centerY = MAP_HEIGHT / 2;
+
   for (let y = 0; y < MAP_HEIGHT; y++) {
     const row: number[] = [];
     for (let x = 0; x < MAP_WIDTH; x++) {
@@ -30,8 +33,25 @@ export const generateMap = (): number[][] => {
         if (x % 6 === 1 || x % 6 === 5 || y % 6 === 1 || y % 6 === 5) {
             row.push(TileType.SIDEWALK);
         } else {
-             // 10% chance of park/grass in the middle of blocks, otherwise building
-            row.push(Math.random() > 0.9 ? TileType.GRASS : TileType.BUILDING);
+             const dist = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+             const rand = Math.random();
+             
+             // Park Logic (10% chance generally)
+             if (rand > 0.9) {
+                 row.push(TileType.GRASS);
+             } else {
+                 // Zoning
+                 if (dist < 12) {
+                     // Downtown: Skyscrapers
+                     row.push(TileType.SKYSCRAPER);
+                 } else if (dist < 22 && rand > 0.4) {
+                     // Commercial Ring: Shops
+                     row.push(TileType.SHOP);
+                 } else {
+                     // Suburbs: Standard Buildings
+                     row.push(TileType.BUILDING);
+                 }
+             }
         }
       }
     }
@@ -88,7 +108,12 @@ export const getTileAt = (map: number[][], x: number, y: number): number => {
 }
 
 export const isSolid = (tile: number): boolean => {
-    return tile === TileType.BUILDING || tile === TileType.WATER || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION;
+    return tile === TileType.BUILDING || 
+           tile === TileType.WATER || 
+           tile === TileType.HOSPITAL || 
+           tile === TileType.POLICE_STATION ||
+           tile === TileType.SKYSCRAPER || 
+           tile === TileType.SHOP;
 }
 
 export const createNoiseTexture = (color: string, alpha: number = 0.1, density: number = 0.5) => {

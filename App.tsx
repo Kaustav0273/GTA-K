@@ -20,6 +20,7 @@ const App: React.FC = () => {
     pedestrians: [],
     bullets: [],
     particles: [],
+    drops: [],
     map: [],
     camera: { x: 0, y: 0 },
     money: 50,

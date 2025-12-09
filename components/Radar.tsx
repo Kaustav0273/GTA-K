@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { GameState, TileType, EntityType } from '../types';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT } from '../constants';
@@ -64,6 +65,10 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
                         case TileType.WATER: color = '#1e3a8a'; break; // Blue-900
                         case TileType.SIDEWALK: color = '#52525b'; break; // Zinc-600
                         case TileType.BUILDING: color = '#000000'; break;
+                        case TileType.SKYSCRAPER: color = '#1e293b'; break; // Slate-800
+                        case TileType.SHOP: color = '#78350f'; break; // Amber-900 (Brownish)
+                        case TileType.HOSPITAL: color = '#ef4444'; break; // Red
+                        case TileType.POLICE_STATION: color = '#3b82f6'; break; // Blue
                         case TileType.ROAD_V:
                         case TileType.ROAD_H:
                         case TileType.ROAD_CROSS:

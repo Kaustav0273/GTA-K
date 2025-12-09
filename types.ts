@@ -1,5 +1,4 @@
 
-
 export enum EntityType {
   PLAYER = 'PLAYER',
   PEDESTRIAN = 'PEDESTRIAN',
@@ -80,12 +79,22 @@ export interface Particle {
   type: 'smoke' | 'blood' | 'spark' | 'muzzle' | 'debris' | 'fire' | 'explosion';
 }
 
+export interface Drop {
+  id: string;
+  pos: Vector2;
+  type: 'cash' | 'weapon';
+  value?: number;
+  weapon?: WeaponType;
+  life: number;
+}
+
 export interface GameState {
   player: Pedestrian;
   vehicles: Vehicle[];
   pedestrians: Pedestrian[];
   bullets: Bullet[];
   particles: Particle[];
+  drops: Drop[];
   map: number[][]; // Grid representation
   camera: Vector2;
   money: number;
@@ -115,5 +124,7 @@ export enum TileType {
   WATER = 5,
   SIDEWALK = 6,
   HOSPITAL = 7,
-  POLICE_STATION = 8
+  POLICE_STATION = 8,
+  SKYSCRAPER = 9,
+  SHOP = 10
 }

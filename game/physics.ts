@@ -1,6 +1,6 @@
 
 import { 
-    Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType 
+    Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType, Drop 
 } from '../types';
 import { 
     TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, 
@@ -15,6 +15,7 @@ export interface MutableGameState {
     pedestrians: Pedestrian[];
     bullets: Bullet[];
     particles: Particle[];
+    drops: Drop[];
     map: number[][];
     camera: Vector2;
     money: number;
@@ -24,6 +25,8 @@ export interface MutableGameState {
     timeTicker: number;
     hospitalPos: Vector2;
     isWeaponWheelOpen: boolean;
+    lastDamageTaken: number; // Timestamp for health regen
+    lastWantedTime: number; // Timestamp for wanted level decay
 }
 
 // Helper: Check if a point is inside a rotated vehicle
@@ -65,10 +68,51 @@ export const spawnParticle = (state: MutableGameState, pos: Vector2, type: Parti
     }
 };
 
+const spawnDrops = (state: MutableGameState, p: Pedestrian) => {
+    // Cash Drop: $50 - $5000
+    const cash = Math.floor(Math.random() * 4951) + 50;
+    state.drops.push({
+        id: `d-c-${Date.now()}-${Math.random()}`,
+        pos: { x: p.pos.x + (Math.random()-0.5)*10, y: p.pos.y + (Math.random()-0.5)*10 },
+        type: 'cash',
+        value: cash,
+        life: 1800 // 30 seconds
+    });
+
+    // Police Weapons
+    if (p.role === 'police') {
+        if (Math.random() < 0.5) { // 50% chance pistol
+             state.drops.push({
+                id: `d-w-p-${Date.now()}-${Math.random()}`,
+                pos: { x: p.pos.x + (Math.random()-0.5)*20, y: p.pos.y + (Math.random()-0.5)*20 },
+                type: 'weapon',
+                weapon: 'pistol',
+                life: 1800
+            });
+        }
+        if (Math.random() < 0.25) { // 25% chance uzi
+             state.drops.push({
+                id: `d-w-u-${Date.now()}-${Math.random()}`,
+                pos: { x: p.pos.x + (Math.random()-0.5)*20, y: p.pos.y + (Math.random()-0.5)*20 },
+                type: 'weapon',
+                weapon: 'uzi',
+                life: 1800
+            });
+        }
+    }
+};
+
 export const createExplosion = (state: MutableGameState, pos: Vector2, radius: number) => {
     spawnParticle(state, pos, 'explosion', 20, { color: '#f59e0b', speed: 4, size: 8 });
     spawnParticle(state, pos, 'smoke', 15, { color: '#4b5563', speed: 2, size: 6 });
     
+    // Damage Player?
+    const pDist = Math.sqrt((state.player.pos.x - pos.x)**2 + (state.player.pos.y - pos.y)**2);
+    if (pDist < radius) {
+         state.player.health -= 200 * (1 - pDist/radius);
+         state.lastDamageTaken = state.timeTicker;
+    }
+
     // Damage Peds
     state.pedestrians.forEach(p => {
          if (p.state === 'dead') return;
@@ -81,6 +125,7 @@ export const createExplosion = (state: MutableGameState, pos: Vector2, radius: n
              
              if (p.health <= 0) {
                  p.state = 'dead';
+                 spawnDrops(state, p);
              } else {
                  p.state = 'fleeing';
              }
@@ -101,6 +146,7 @@ export const createExplosion = (state: MutableGameState, pos: Vector2, radius: n
     });
     
     state.wantedLevel = Math.min(state.wantedLevel + 2, 5);
+    state.lastWantedTime = state.timeTicker;
 };
 
 export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
@@ -120,6 +166,7 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
              if (dist < 20) {
                  const damage = source.role === 'police' ? 10 : weaponStats.damage;
                  state.player.health -= damage;
+                 state.lastDamageTaken = state.timeTicker;
                  spawnParticle(state, state.player.pos, 'blood', 2, { color: '#7f1d1d', speed: 1.5 });
              }
          }
@@ -135,7 +182,11 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
                  spawnParticle(state, p.pos, 'blood', 2, { color: '#7f1d1d', speed: 1.5 });
                  if (p.health <= 0) {
                      p.state = 'dead';
-                     if (source.id === 'player') state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                     spawnDrops(state, p);
+                     if (source.id === 'player') {
+                         state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                         state.lastWantedTime = state.timeTicker;
+                     }
                  } else {
                      p.state = 'fleeing';
                      p.actionTimer = 180;
@@ -188,6 +239,7 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
     
     if (source.id === 'player' && Math.random() > 0.8 && source.weapon !== 'flame') {
          state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+         state.lastWantedTime = state.timeTicker;
     }
     
     state.pedestrians.forEach(p => {
@@ -265,12 +317,29 @@ const isDrivable = (tile: number) => tile === TileType.ROAD_H || tile === TileTy
 export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
     state.timeTicker++;
 
+    // Health Regeneration: 1% per second after 10 seconds of no damage
+    if (state.player.health > 0 && state.player.health < state.player.maxHealth) {
+        if (state.timeTicker - state.lastDamageTaken > 600) { // 600 frames = 10s
+             const healAmount = state.player.maxHealth * 0.01 / 60; // 1% per sec distributed over 60 frames
+             state.player.health = Math.min(state.player.maxHealth, state.player.health + healAmount);
+        }
+    }
+
+    // Wanted Level Decay: Decrease by 1 star after 20 seconds of no wanted increase
+    if (state.wantedLevel > 0) {
+        if (state.timeTicker - state.lastWantedTime > 1200) { // 1200 frames = 20s
+            state.wantedLevel--;
+            state.lastWantedTime = state.timeTicker; // Reset timer to count down for next star
+        }
+    }
+
     if (state.player.health <= 0) {
         state.player.health = 100;
         state.player.state = 'idle';
         state.player.pos = { ...state.hospitalPos };
         state.player.vehicleId = null;
         state.wantedLevel = 0;
+        state.lastDamageTaken = state.timeTicker; // Reset regen timer
         state.money = Math.max(0, state.money - 500);
         state.pedestrians.forEach(p => {
             if(p.role === 'police') {
@@ -284,6 +353,32 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
     if (state.isWeaponWheelOpen) {
         if (Math.random() > 0.1) return; 
     }
+
+    // Drops Physics & Pickup
+    state.drops.forEach(d => {
+       const dx = state.player.pos.x - d.pos.x;
+       const dy = state.player.pos.y - d.pos.y;
+       const dist = Math.sqrt(dx*dx + dy*dy);
+       
+       // Magnet Effect
+       if (dist < 30) {
+           d.pos.x += dx * 0.1;
+           d.pos.y += dy * 0.1;
+       }
+
+       // Pickup
+       if (dist < 10) {
+           d.life = 0; // Remove
+           if (d.type === 'cash' && d.value) {
+               state.money += d.value;
+               spawnParticle(state, d.pos, 'spark', 5, { color: '#4ade80', speed: 1.5, size: 2 });
+           } else if (d.type === 'weapon' && d.weapon) {
+               state.player.weapon = d.weapon; // Auto-equip
+               spawnParticle(state, d.pos, 'spark', 5, { color: '#fbbf24', speed: 1.5, size: 2 });
+           }
+       }
+    });
+    state.drops = state.drops.filter(d => d.life-- > 0);
 
     // Particles
     state.particles.forEach(p => {
@@ -636,6 +731,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             const dist = Math.sqrt((state.player.pos.x - b.pos.x)**2 + (state.player.pos.y - b.pos.y)**2);
             if (dist < 15) {
                 state.player.health -= b.damage;
+                state.lastDamageTaken = state.timeTicker;
                 spawnParticle(state, state.player.pos, 'blood', 6, { color: '#7f1d1d', speed: 2, spread: 3 });
                 hit = true;
             }
@@ -651,7 +747,11 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                     if (b.type !== 'fire') spawnParticle(state, p.pos, 'blood', 6, { color: '#7f1d1d', speed: 2, spread: 3 });
                     if (p.health <= 0) {
                         p.state = 'dead';
-                        if (b.ownerId === 'player') state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                        spawnDrops(state, p);
+                        if (b.ownerId === 'player') {
+                            state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                            state.lastWantedTime = state.timeTicker;
+                        }
                     } else {
                         if (p.role !== 'police') { p.state = 'fleeing'; p.actionTimer = 180; }
                     }

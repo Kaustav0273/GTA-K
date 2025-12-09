@@ -1,5 +1,4 @@
 
-
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType 
@@ -49,6 +48,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         pedestrians: [],
         bullets: [],
         particles: [],
+        drops: [],
         map: [],
         camera: { x: 0, y: 0 },
         money: 50,
@@ -57,7 +57,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         lastShotTime: 0,
         timeTicker: 0,
         hospitalPos: { x: 0, y: 0 },
-        isWeaponWheelOpen: false
+        isWeaponWheelOpen: false,
+        lastDamageTaken: 0,
+        lastWantedTime: 0
     });
 
     // Sync Props
@@ -237,6 +239,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 player.state = 'driving';
                 player.pos = { ...v.pos };
                 state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                state.lastWantedTime = state.timeTicker; // Updated logic
                 spawnParticle(state, v.pos, 'smoke', 5, { color: '#555', speed: 1, spread: 20 });
             }
         }
