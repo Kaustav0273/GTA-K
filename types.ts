@@ -1,4 +1,5 @@
 
+
 export enum EntityType {
   PLAYER = 'PLAYER',
   PEDESTRIAN = 'PEDESTRIAN',
@@ -38,6 +39,7 @@ export interface Vehicle extends Entity {
       windows: [boolean, boolean]; // Front, Rear
   };
   stuckTimer?: number; // Frames stuck at 0 speed
+  targetAngle: number;
 }
 
 export type WeaponType = 'fist' | 'pistol' | 'uzi' | 'shotgun' | 'sniper' | 'rocket' | 'flame';

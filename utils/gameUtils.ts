@@ -39,11 +39,7 @@ export const generateMap = (): number[][] => {
   }
 
   // Force Spawn Hospital (Top Left area)
-  // We need a 2x2 or 3x3 block ideally, but we'll just set a block of tiles
-  // Position around 4,4 (inside a block)
   if (MAP_WIDTH > 10 && MAP_HEIGHT > 10) {
-      // Hospital - Aligned to block (2,2) to (4,4) which corresponds to block starting at 0
-      // Block 0: Roads at 0 and 6. Interior: 2,3,4.
       for(let y=2; y<=4; y++) {
           for(let x=2; x<=4; x++) {
               map[y][x] = TileType.HOSPITAL;
@@ -51,15 +47,11 @@ export const generateMap = (): number[][] => {
       }
 
       // Police Station (Bottom Right area)
-      // Align to the last full block before edge
-      // Last road at 48. Previous road at 42.
-      // Block interior is 44, 45, 46.
       const startX = 44;
       const startY = 44;
       
       for(let y=startY; y<=startY+2; y++) {
           for(let x=startX; x<=startX+2; x++) {
-              // Ensure we are within bounds
               if (y < MAP_HEIGHT && x < MAP_WIDTH) {
                   map[y][x] = TileType.POLICE_STATION;
               }
@@ -98,3 +90,27 @@ export const getTileAt = (map: number[][], x: number, y: number): number => {
 export const isSolid = (tile: number): boolean => {
     return tile === TileType.BUILDING || tile === TileType.WATER || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION;
 }
+
+export const createNoiseTexture = (color: string, alpha: number = 0.1, density: number = 0.5) => {
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, size, size);
+
+    for (let i = 0; i < size * size * density; i++) {
+        const x = Math.random() * size;
+        const y = Math.random() * size;
+        ctx.fillStyle = `rgba(0,0,0,${Math.random() * alpha})`;
+        ctx.fillRect(x, y, 1, 1);
+        if (Math.random() > 0.5) {
+            ctx.fillStyle = `rgba(255,255,255,${Math.random() * (alpha/2)})`;
+            ctx.fillRect(x, y, 1, 1);
+        }
+    }
+    return canvas;
+};
