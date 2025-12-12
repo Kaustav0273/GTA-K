@@ -410,18 +410,46 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fillRect(-length/2 + 2, -width/2 + 2, length, width);
 
+    // Wheels - Draw underneath body
+    ctx.fillStyle = '#171717';
+    // Front Left
+    ctx.fillRect(length/2 - 8, -width/2 - 1, 6, 2);
+    // Front Right
+    ctx.fillRect(length/2 - 8, width/2 - 1, 6, 2);
+    // Rear Left
+    ctx.fillRect(-length/2 + 4, -width/2 - 1, 6, 2);
+    // Rear Right
+    ctx.fillRect(-length/2 + 4, width/2 - 1, 6, 2);
+
     // Body
     ctx.fillStyle = v.color;
-    // Rounded rect for car body
     ctx.beginPath();
     ctx.roundRect(-length/2, -width/2, length, width, 4);
     ctx.fill();
 
+    // Body Highlight (Top)
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(-length/2 + 2, -width/4, length - 4, width/2);
+
+    // Bumpers
+    if (v.model !== 'supercar') {
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        // Front
+        ctx.fillRect(length/2 - 1, -width/2 + 1, 2, width - 2);
+        // Rear
+        ctx.fillRect(-length/2 - 1, -width/2 + 1, 2, width - 2);
+    }
+
     // Model specific details (Bottom layer)
     if (v.model === 'pickup') {
          // Truck Bed
-         ctx.fillStyle = '#00000044';
+         ctx.fillStyle = '#0f172a'; // Darker bed
          ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, width - 4);
+         // Bed rails
+         ctx.fillStyle = '#334155';
+         ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, 2);
+         ctx.fillRect(-length/2 + 2, width/2 - 4, length/3, 2);
+         ctx.fillRect(-length/2 + 2, -width/2 + 2, 2, width - 4);
     }
 
     // Roof / Windshield Area
@@ -437,22 +465,21 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
          roofW = width - 6;
     } else if (v.model === 'bus') {
          roofL = length - 10;
+    } else if (v.model === 'compact') {
+         roofL = length - 14;
     }
 
-    // Draw Roof/Cab
-    if (v.model !== 'compact') { // Compacts are just one blob mostly
-         ctx.fillStyle = 'rgba(0,0,0,0.2)';
-         if (v.model === 'pickup' || v.model === 'truck') {
-             // Cab only
-             ctx.fillRect(roofOffset - roofL/2, -roofW/2, roofL, roofW);
-         } else {
-             ctx.fillRect(-roofL/2, -roofW/2, roofL, roofW);
-         }
+    // Shadow/Dark trim around roof (Glass/Cabin base)
+    ctx.fillStyle = '#1f2937'; // Dark Cabin
+    if (v.model === 'pickup' || v.model === 'truck') {
+         ctx.fillRect(roofOffset - roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
+    } else {
+         ctx.fillRect(-roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
     }
 
-    // Windshield
-    const windshieldColor = v.damage.windows[0] ? '#9ca3af' : '#7dd3fc';
-    const rearWindowColor = v.damage.windows[1] ? '#9ca3af' : '#7dd3fc';
+    // Windshield Color
+    const windshieldColor = v.damage.windows[0] ? '#e5e7eb' : '#38bdf8'; 
+    const rearWindowColor = v.damage.windows[1] ? '#e5e7eb' : '#38bdf8';
     
     // Front Windshield
     ctx.fillStyle = windshieldColor;
@@ -467,29 +494,72 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     // Rear Window
     if (v.model !== 'truck' && v.model !== 'pickup' && v.model !== 'van' && v.model !== 'ambulance' && v.model !== 'swat' && v.model !== 'firetruck' && v.model !== 'bus') {
         ctx.fillStyle = rearWindowColor;
-        ctx.fillRect(-roofL/2, -roofW/2 + 1, 4, roofW - 2);
+        ctx.fillRect(-roofL/2, -roofW/2 + 1, 3, roofW - 2);
+    }
+
+    // Painted Roof Top (Metal part)
+    ctx.fillStyle = v.color;
+    
+    let rtL = roofL - 6; 
+    let rtW = roofW - 2;
+    let rtX = 0;
+    
+    if (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
+         rtL = roofL - 6;
+         rtX = roofOffset - 1; 
+    } else if (v.model === 'supercar') {
+         rtL = roofL - 8;
+    } else if (v.model === 'bus') {
+         rtL = length - 16;
+    } else {
+         rtL = roofL - 8;
+    }
+
+    // Draw the metal roof plate
+    ctx.fillRect(rtX - rtL/2, -rtW/2, rtL, rtW);
+    
+    // Side Mirrors
+    ctx.fillStyle = v.color;
+    if (v.model !== 'bus' && v.model !== 'firetruck') {
+        const mirrorX = (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance') 
+            ? roofOffset + roofL/2 - 2 
+            : roofL/2 - 2;
+            
+        ctx.beginPath();
+        // Left Mirror
+        ctx.moveTo(mirrorX, -width/2);
+        ctx.lineTo(mirrorX + 2, -width/2 - 3);
+        ctx.lineTo(mirrorX - 2, -width/2 - 3);
+        ctx.fill();
+        // Right Mirror
+        ctx.moveTo(mirrorX, width/2);
+        ctx.lineTo(mirrorX + 2, width/2 + 3);
+        ctx.lineTo(mirrorX - 2, width/2 + 3);
+        ctx.fill();
     }
     
-    // Headlights (Front Right)
-    ctx.fillStyle = '#fef08a';
-    ctx.shadowColor = '#fef08a'; ctx.shadowBlur = 8;
-    ctx.fillRect(length/2 - 2, -width/2 + 1, 2, 4);
-    ctx.fillRect(length/2 - 2, width/2 - 5, 2, 4);
+    // Headlights (Front Right/Left)
+    ctx.fillStyle = '#fef08a'; // Yellowish
+    ctx.shadowColor = '#fef08a'; ctx.shadowBlur = 6;
+    ctx.fillRect(length/2 - 1, -width/2 + 2, 1, 5);
+    ctx.fillRect(length/2 - 1, width/2 - 7, 1, 5);
     ctx.shadowBlur = 0;
 
-    // Taillights (Rear Left)
+    // Taillights (Rear Right/Left)
     ctx.fillStyle = '#ef4444';
-    ctx.fillRect(-length/2, -width/2 + 1, 2, 4);
-    ctx.fillRect(-length/2, width/2 - 5, 2, 4);
+    ctx.fillRect(-length/2, -width/2 + 2, 1, 5);
+    ctx.fillRect(-length/2, width/2 - 7, 1, 5);
     
     // Special Models
     if (v.model === 'supercar') {
         // Spoiler
         ctx.fillStyle = v.color;
-        ctx.fillRect(-length/2, -width/2, 4, width);
+        ctx.fillRect(-length/2 + 2, -width/2, 4, width);
         // Engine cover vents
-        ctx.fillStyle = '#00000033';
-        ctx.fillRect(-length/2 + 6, -width/4, 10, width/2);
+        ctx.fillStyle = '#171717';
+        for(let i=0; i<3; i++) {
+             ctx.fillRect(-length/2 + 8 + i*3, -width/4, 2, width/2);
+        }
     } else if (v.model === 'police' || v.model === 'swat' || v.model === 'ambulance' || v.model === 'firetruck') {
         // Sirens
         const time = Date.now() / 150;
@@ -510,33 +580,36 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
              ctx.fillRect(roofOffset + 10, width/2 - 6, 4, 4);
              
              // Ladder
-             ctx.fillStyle = '#cccccc';
-             ctx.fillRect(-length/2 + 5, -3, length - 20, 6);
-             for(let i=0; i<length-20; i+=5) {
-                 ctx.fillStyle = '#999';
-                 ctx.fillRect(-length/2 + 5 + i, -3, 1, 6);
+             ctx.fillStyle = '#cbd5e1';
+             ctx.fillRect(-length/2 + 5, -5, length - 20, 10);
+             // Ladder rungs
+             ctx.fillStyle = '#64748b';
+             for(let i=0; i<length-20; i+=4) {
+                 ctx.fillRect(-length/2 + 5 + i, -4, 1, 8);
              }
         } else {
             // Standard lightbar
-            ctx.fillRect(-2, -width/2 + 4, 4, width - 8);
+            ctx.fillRect(-2, -width/2 + 6, 4, width - 12);
         }
         ctx.shadowBlur = 0;
     } else if (v.model === 'taxi') {
         // Taxi Sign
         ctx.fillStyle = '#facc15';
         ctx.shadowColor = '#facc15'; ctx.shadowBlur = 5;
-        ctx.fillRect(-2, -6, 6, 12);
+        ctx.fillRect(-3, -6, 6, 12);
+        // Checker pattern
         ctx.fillStyle = '#000';
-        ctx.font = 'bold 8px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('TAXI', 1, 3);
+        ctx.fillRect(-3, -6, 2, 2); ctx.fillRect(-1, -6, 2, 2); ctx.fillRect(1, -6, 2, 2);
+        ctx.fillRect(-2, -4, 2, 2); ctx.fillRect(0, -4, 2, 2); ctx.fillRect(2, -4, 2, 2);
         ctx.shadowBlur = 0;
     } else if (v.model === 'bus') {
         // Side Windows
-        ctx.fillStyle = '#9ca3af';
-        for(let i=0; i<5; i++) {
-             ctx.fillRect(-length/2 + 10 + i * 14, -width/2 + 1, 10, 2);
-             ctx.fillRect(-length/2 + 10 + i * 14, width/2 - 3, 10, 2);
+        ctx.fillStyle = '#9ca3af'; // Glass color
+        const wins = 6;
+        const spacing = (length - 20) / wins;
+        for(let i=0; i<wins; i++) {
+             ctx.fillRect(-length/2 + 10 + i * spacing, -width/2 + 1, spacing - 2, 2);
+             ctx.fillRect(-length/2 + 10 + i * spacing, width/2 - 3, spacing - 2, 2);
         }
     }
     

@@ -663,6 +663,74 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 }
             }
 
+            // Entity Collisions
+            
+            // 1. Pedestrians
+            state.pedestrians.forEach(p => {
+                if (p.state === 'dead' || p.vehicleId) return;
+                
+                if (checkPointInVehicle(p.pos.x, p.pos.y, car, 2)) {
+                    const impactSpeed = Math.abs(car.speed);
+                    
+                    // Push out
+                    const angleToPed = Math.atan2(p.pos.y - car.pos.y, p.pos.x - car.pos.x);
+                    p.pos.x += Math.cos(angleToPed) * 5;
+                    p.pos.y += Math.sin(angleToPed) * 5;
+
+                    if (impactSpeed > 2) {
+                        const damage = impactSpeed * 15;
+                        p.health -= damage;
+                        spawnParticle(state, p.pos, 'blood', 4, { color: '#7f1d1d', speed: 2 });
+                        
+                        // Knockback
+                        p.velocity.x += Math.cos(car.angle) * impactSpeed;
+                        p.velocity.y += Math.sin(car.angle) * impactSpeed;
+
+                        if (p.health <= 0) {
+                            p.state = 'dead';
+                            spawnDrops(state, p);
+                            state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                            state.lastWantedTime = state.timeTicker;
+                        } else {
+                            p.state = 'fleeing';
+                            p.actionTimer = 120;
+                        }
+                    }
+                }
+            });
+
+            // 2. Other Vehicles
+            state.vehicles.forEach(other => {
+                if (other.id === car.id) return;
+                
+                const dist = Math.sqrt((car.pos.x - other.pos.x)**2 + (car.pos.y - other.pos.y)**2);
+                if (dist < 40) { 
+                    // Elastic Bounce
+                    const angle = Math.atan2(other.pos.y - car.pos.y, other.pos.x - car.pos.x);
+                    const overlap = 40 - dist;
+                    
+                    const pushX = Math.cos(angle) * overlap * 0.5;
+                    const pushY = Math.sin(angle) * overlap * 0.5;
+                    
+                    car.pos.x -= pushX;
+                    car.pos.y -= pushY;
+                    other.pos.x += pushX;
+                    other.pos.y += pushY;
+                    
+                    const impact = Math.abs(car.speed) + Math.abs(other.speed);
+                    if (impact > 2) {
+                        car.speed *= -0.5;
+                        other.speed *= -0.5;
+                        
+                        car.health -= impact * 2;
+                        other.health -= impact * 2;
+                        
+                        spawnParticle(state, {x: (car.pos.x+other.pos.x)/2, y: (car.pos.y+other.pos.y)/2}, 'spark', 3, { color: '#fbbf24', speed: 3 });
+                        spawnParticle(state, {x: (car.pos.x+other.pos.x)/2, y: (car.pos.y+other.pos.y)/2}, 'debris', 2, { color: '#9ca3af', speed: 2 });
+                    }
+                }
+            });
+
             state.player.pos.x = car.pos.x;
             state.player.pos.y = car.pos.y;
             state.player.angle = car.angle;
