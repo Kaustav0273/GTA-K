@@ -27,7 +27,7 @@ export interface Entity {
 export interface Vehicle extends Entity {
   type: EntityType.VEHICLE;
   driverId: string | null; // ID of the entity driving, or null
-  model: 'sedan' | 'sport' | 'truck' | 'taxi' | 'police' | 'muscle' | 'van' | 'limo' | 'ambulance';
+  model: 'sedan' | 'sport' | 'truck' | 'taxi' | 'police' | 'muscle' | 'van' | 'limo' | 'ambulance' | 'supercar' | 'compact' | 'suv' | 'pickup' | 'swat' | 'firetruck' | 'bus';
   speed: number;
   maxSpeed: number;
   acceleration: number;

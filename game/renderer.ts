@@ -4,6 +4,23 @@ import { MutableGameState } from './physics';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS } from '../constants';
 import { getTileAt, isSolid } from '../utils/gameUtils'; // Added import for helper
 
+// Helper to calculate building height consistently for drawing and occlusion checks
+const getBuildingHeight = (tileType: TileType, px: number, py: number): number => {
+    const seed = px * 13 + py * 7;
+    if (tileType === TileType.SKYSCRAPER) {
+        return 100 + (seed % 60);
+    } else if (tileType === TileType.SHOP) {
+        return 35 + (seed % 15);
+    } else if (tileType === TileType.BUILDING) {
+        return 40 + (seed % 20);
+    } else if (tileType === TileType.HOSPITAL) {
+        return 70;
+    } else if (tileType === TileType.POLICE_STATION) {
+        return 70;
+    }
+    return 50;
+};
+
 // Helper to draw light glow
 const drawLightGlow = (ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string) => {
     ctx.save();
@@ -142,44 +159,44 @@ export const drawTrafficLight = (ctx: CanvasRenderingContext2D, x: number, y: nu
     });
 };
 
-export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number, tileType: TileType, textures: any) => {
+export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number, tileType: TileType, textures: any, opacity: number = 1) => {
+    ctx.save();
+    if (opacity < 1) ctx.globalAlpha = opacity;
+
     // Generate Building Properties based on TileType and Random Seed
     const w = TILE_SIZE;
     const seed = x * 13 + y * 7;
     const centerX = x + w/2;
     const centerY = y + w/2; // w=h for tile
 
-    let height = 50;
+    // Use shared height logic
+    const height = getBuildingHeight(tileType, x, y);
+    
     let baseColor = '#262626';
     let roofColor = '#3f3f46';
     let windowColor = '#1e293b'; // Default dark windows
 
     if (tileType === TileType.SKYSCRAPER) {
-        height = 100 + (seed % 60); // Taller: 100 - 160
         // Glassy Corporate Look
         baseColor = (seed % 2 === 0) ? '#0f172a' : '#1e3a8a'; // Slate-900 or Blue-900
         roofColor = '#020617';
         windowColor = '#38bdf8'; // Bright blue reflections
     } else if (tileType === TileType.SHOP) {
-        height = 35 + (seed % 15); // Shorter: 35 - 50
         // Vibrant Shop Colors
         const shopColors = ['#991b1b', '#065f46', '#1e40af', '#854d0e'];
         baseColor = shopColors[seed % shopColors.length];
         roofColor = '#404040';
         windowColor = '#fef08a'; // Lit up windows (Yellow)
     } else if (tileType === TileType.BUILDING) {
-        height = 40 + (seed % 20); // Standard: 40 - 60
         // Residential Brick/Concrete
         const resColors = ['#57534e', '#44403c', '#78716c', '#292524'];
         baseColor = resColors[seed % resColors.length];
         roofColor = '#1c1917';
     } else if (tileType === TileType.HOSPITAL) {
-        height = 70;
         baseColor = '#d1d5db'; // Light Grey
         roofColor = '#f3f4f6';
         windowColor = '#bae6fd';
     } else if (tileType === TileType.POLICE_STATION) {
-        height = 70;
         baseColor = '#1e3a8a'; // Dark Blue
         roofColor = '#334155';
     }
@@ -196,9 +213,6 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
 
     // -- South Wall (Front Face) --
     // Connects bottom of Roof (y + w - height) to bottom of Base (y + w)
-    const wallHeight = height; 
-    // The visual top of the south wall is at (y + w - height)
-    // The visual bottom is at (y + w)
     
     const wallGrad = ctx.createLinearGradient(x, y + w - height, x, y + w);
     wallGrad.addColorStop(0, roofColor); // Top is darker/roof color
@@ -328,6 +342,8 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
             ctx.stroke();
         }
     }
+    
+    ctx.restore();
 };
 
 const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: TileType, textures: any) => {
@@ -401,20 +417,58 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     ctx.roundRect(-length/2, -width/2, length, width, 4);
     ctx.fill();
 
-    // Roof / Windshield Area
-    const roofL = length - 20;
-    const roofW = width - 4;
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.fillRect(-roofL/2, -roofW/2, roofL, roofW);
+    // Model specific details (Bottom layer)
+    if (v.model === 'pickup') {
+         // Truck Bed
+         ctx.fillStyle = '#00000044';
+         ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, width - 4);
+    }
 
-    // Windshield (Front is Right side for angle 0?)
-    // Assuming 0 rad is Right (East), and velocity is +X.
-    ctx.fillStyle = v.damage.windows[0] ? '#9ca3af' : '#7dd3fc';
-    ctx.fillRect(roofL/2 - 4, -roofW/2 + 1, 4, roofW - 2);
+    // Roof / Windshield Area
+    let roofL = length - 20;
+    let roofW = width - 4;
+    let roofOffset = 0; // Center offset
+
+    if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
+         roofL = length * 0.4;
+         roofOffset = length * 0.2; // Cab forward
+    } else if (v.model === 'supercar') {
+         roofL = length * 0.5;
+         roofW = width - 6;
+    } else if (v.model === 'bus') {
+         roofL = length - 10;
+    }
+
+    // Draw Roof/Cab
+    if (v.model !== 'compact') { // Compacts are just one blob mostly
+         ctx.fillStyle = 'rgba(0,0,0,0.2)';
+         if (v.model === 'pickup' || v.model === 'truck') {
+             // Cab only
+             ctx.fillRect(roofOffset - roofL/2, -roofW/2, roofL, roofW);
+         } else {
+             ctx.fillRect(-roofL/2, -roofW/2, roofL, roofW);
+         }
+    }
+
+    // Windshield
+    const windshieldColor = v.damage.windows[0] ? '#9ca3af' : '#7dd3fc';
+    const rearWindowColor = v.damage.windows[1] ? '#9ca3af' : '#7dd3fc';
+    
+    // Front Windshield
+    ctx.fillStyle = windshieldColor;
+    if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
+         ctx.fillRect(roofOffset + roofL/2 - 3, -roofW/2 + 1, 3, roofW - 2);
+    } else if (v.model === 'bus') {
+         ctx.fillRect(length/2 - 6, -width/2 + 2, 4, width - 4);
+    } else {
+         ctx.fillRect(roofL/2 - 4, -roofW/2 + 1, 4, roofW - 2);
+    }
 
     // Rear Window
-    ctx.fillStyle = v.damage.windows[1] ? '#9ca3af' : '#7dd3fc';
-    ctx.fillRect(-roofL/2, -roofW/2 + 1, 4, roofW - 2);
+    if (v.model !== 'truck' && v.model !== 'pickup' && v.model !== 'van' && v.model !== 'ambulance' && v.model !== 'swat' && v.model !== 'firetruck' && v.model !== 'bus') {
+        ctx.fillStyle = rearWindowColor;
+        ctx.fillRect(-roofL/2, -roofW/2 + 1, 4, roofW - 2);
+    }
     
     // Headlights (Front Right)
     ctx.fillStyle = '#fef08a';
@@ -429,14 +483,61 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     ctx.fillRect(-length/2, width/2 - 5, 2, 4);
     
     // Special Models
-    if (v.model === 'police') {
-        // Lightbar
+    if (v.model === 'supercar') {
+        // Spoiler
+        ctx.fillStyle = v.color;
+        ctx.fillRect(-length/2, -width/2, 4, width);
+        // Engine cover vents
+        ctx.fillStyle = '#00000033';
+        ctx.fillRect(-length/2 + 6, -width/4, 10, width/2);
+    } else if (v.model === 'police' || v.model === 'swat' || v.model === 'ambulance' || v.model === 'firetruck') {
+        // Sirens
         const time = Date.now() / 150;
         const blink = Math.floor(time) % 2;
-        ctx.fillStyle = blink ? '#2563eb' : '#dc2626';
-        ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
-        ctx.fillRect(-2, -width/2 + 4, 4, width - 8);
+        const color1 = blink ? '#2563eb' : '#dc2626';
+        const color2 = blink ? '#dc2626' : '#2563eb';
+        
+        ctx.shadowColor = color1; ctx.shadowBlur = 10;
+        ctx.fillStyle = color1;
+        
+        if (v.model === 'ambulance' || v.model === 'swat') {
+            ctx.fillRect(roofOffset, -width/2 + 2, 4, 4);
+            ctx.shadowColor = color2; ctx.fillStyle = color2;
+            ctx.fillRect(roofOffset, width/2 - 6, 4, 4);
+        } else if (v.model === 'firetruck') {
+             ctx.fillRect(roofOffset + 10, -width/2 + 2, 4, 4);
+             ctx.shadowColor = color2; ctx.fillStyle = color2;
+             ctx.fillRect(roofOffset + 10, width/2 - 6, 4, 4);
+             
+             // Ladder
+             ctx.fillStyle = '#cccccc';
+             ctx.fillRect(-length/2 + 5, -3, length - 20, 6);
+             for(let i=0; i<length-20; i+=5) {
+                 ctx.fillStyle = '#999';
+                 ctx.fillRect(-length/2 + 5 + i, -3, 1, 6);
+             }
+        } else {
+            // Standard lightbar
+            ctx.fillRect(-2, -width/2 + 4, 4, width - 8);
+        }
         ctx.shadowBlur = 0;
+    } else if (v.model === 'taxi') {
+        // Taxi Sign
+        ctx.fillStyle = '#facc15';
+        ctx.shadowColor = '#facc15'; ctx.shadowBlur = 5;
+        ctx.fillRect(-2, -6, 6, 12);
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 8px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('TAXI', 1, 3);
+        ctx.shadowBlur = 0;
+    } else if (v.model === 'bus') {
+        // Side Windows
+        ctx.fillStyle = '#9ca3af';
+        for(let i=0; i<5; i++) {
+             ctx.fillRect(-length/2 + 10 + i * 14, -width/2 + 1, 10, 2);
+             ctx.fillRect(-length/2 + 10 + i * 14, width/2 - 3, 10, 2);
+        }
     }
     
     ctx.restore();
@@ -629,9 +730,27 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                 } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP) {
                      ctx.fillStyle = '#171717'; // Base plate (Ground level)
                      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+
+                     // Occlusion Check
+                     let opacity = 1;
+                     const height = getBuildingHeight(tile, px, py);
+                     const p = state.player;
+
+                     // Check collision with bounding box of the building's facade
+                     // Horizontal: within tile width
+                     // Vertical: between roof top (py - height) and base (py + TILE_SIZE)
+                     // Render Order: Building (py + TILE_SIZE) > Player (p.pos.y) means building is drawn on top
+                     
+                     if (p.pos.x >= px && p.pos.x <= px + TILE_SIZE &&
+                         p.pos.y >= py - height && p.pos.y <= py + TILE_SIZE) {
+                            if ((py + TILE_SIZE) > p.pos.y) {
+                                opacity = 0.4;
+                            }
+                     }
+
                      renderList.push({
                         y: py + TILE_SIZE, // Sort by bottom of the building BASE
-                        draw: () => drawBuilding(ctx, px, py, tile, textures)
+                        draw: () => drawBuilding(ctx, px, py, tile, textures, opacity)
                      });
                 } else if (tile === TileType.WATER) {
                     ctx.fillStyle = COLORS.water; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);

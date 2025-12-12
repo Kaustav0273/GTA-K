@@ -533,6 +533,36 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             else car.stuckTimer = 0;
             if ((car.stuckTimer || 0) > 300) respawnVehicle(state, car);
         }
+
+        // Damage & Destruction Logic
+        const maxHealth = (CAR_MODELS[car.model] as any)?.health || 100;
+        const healthRatio = car.health / maxHealth;
+
+        if (healthRatio < 0.5) {
+             if (Math.random() > 0.8) spawnParticle(state, car.pos, 'smoke', 1, { color: 'rgba(100,100,100,0.5)', speed: 0.5, size: 2 + Math.random() * 2 });
+             if (!car.damage.windows[0] && Math.random() > 0.995) car.damage.windows[0] = true;
+        }
+        
+        if (healthRatio < 0.25) {
+             if (Math.random() > 0.7) spawnParticle(state, car.pos, 'smoke', 1, { color: 'rgba(50,50,50,0.7)', speed: 0.8, size: 3 + Math.random() * 3 });
+             if (Math.random() > 0.9) spawnParticle(state, car.pos, 'fire', 1, { speed: 0.5, size: 2 });
+             if (Math.random() > 0.99) {
+                 const tire = Math.floor(Math.random() * 4);
+                 if (!car.damage.tires[tire]) car.damage.tires[tire] = true;
+             }
+        }
+
+        if (car.health <= 0) {
+            createExplosion(state, car.pos, 80);
+            
+            // Handle Player inside
+            if (state.player.vehicleId === car.id) {
+                state.player.health = 0;
+                // Force ejection/death handled at start of updatePhysics next frame
+            }
+            
+            respawnVehicle(state, car);
+        }
     });
 
     // Player Vehicle

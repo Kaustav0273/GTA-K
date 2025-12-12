@@ -1,4 +1,5 @@
 
+
 export const TILE_SIZE = 64;
 export const MAP_WIDTH = 50; // In tiles
 export const MAP_HEIGHT = 50; // In tiles
@@ -69,5 +70,14 @@ export const CAR_MODELS = {
   muscle: { color: '#ea580c', maxSpeed: 19, acceleration: 0.40, handling: 0.04, health: 110 }, // Orange
   van: { color: '#64748b', maxSpeed: 9, acceleration: 0.12, handling: 0.03, health: 140, size: { x: 32, y: 64 } },
   limo: { color: '#000000', maxSpeed: 12, acceleration: 0.15, handling: 0.02, health: 130, size: { x: 30, y: 90 } },
-  ambulance: { color: '#ffffff', maxSpeed: 13, acceleration: 0.20, handling: 0.03, health: 160, size: { x: 34, y: 70 } }
+  ambulance: { color: '#ffffff', maxSpeed: 13, acceleration: 0.20, handling: 0.03, health: 160, size: { x: 34, y: 70 } },
+  
+  // New Models
+  supercar: { color: '#8b5cf6', maxSpeed: 26, acceleration: 0.55, handling: 0.08, health: 70, size: { x: 26, y: 56 } },
+  compact: { color: '#06b6d4', maxSpeed: 12, acceleration: 0.30, handling: 0.07, health: 60, size: { x: 22, y: 44 } },
+  suv: { color: '#166534', maxSpeed: 11, acceleration: 0.20, handling: 0.04, health: 140, size: { x: 30, y: 66 } },
+  pickup: { color: '#78350f', maxSpeed: 12, acceleration: 0.18, handling: 0.035, health: 130, size: { x: 30, y: 68 } },
+  swat: { color: '#111827', maxSpeed: 14, acceleration: 0.15, handling: 0.03, health: 300, size: { x: 34, y: 70 } },
+  firetruck: { color: '#b91c1c', maxSpeed: 11, acceleration: 0.10, handling: 0.02, health: 400, size: { x: 36, y: 90 } },
+  bus: { color: '#0ea5e9', maxSpeed: 8, acceleration: 0.08, handling: 0.015, health: 350, size: { x: 36, y: 100 } }
 };
