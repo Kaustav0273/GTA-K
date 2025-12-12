@@ -4,8 +4,9 @@ import {
 } from '../types';
 import { 
     TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, 
-    ACCELERATION_WALK, MAX_SPEED_WALK, BULLET_SPEED, BULLET_LIFETIME, 
-    PEDESTRIAN_SPEED, PEDESTRIAN_RUN_SPEED, PANIC_DISTANCE, PHYSICS, WEAPON_STATS 
+    ACCELERATION_WALK, MAX_SPEED_WALK, MAX_SPEED_SPRINT, BULLET_SPEED, BULLET_LIFETIME, 
+    PEDESTRIAN_SPEED, PEDESTRIAN_RUN_SPEED, PANIC_DISTANCE, PHYSICS, WEAPON_STATS,
+    STAMINA_REGEN_DELAY, STAMINA_REGEN_RATE
 } from '../constants';
 import { isSolid, getTileAt } from '../utils/gameUtils';
 
@@ -335,6 +336,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
 
     if (state.player.health <= 0) {
         state.player.health = 100;
+        state.player.stamina = state.player.maxStamina; // Reset stamina
         state.player.state = 'idle';
         state.player.pos = { ...state.hospitalPos };
         state.player.vehicleId = null;
@@ -577,7 +579,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             const poppedTires = car.damage.tires.filter(t => t).length;
             if (poppedTires > 0) {
                 grip *= (1 - poppedTires * 0.15);
-                drag *= (1 + poppedTires * 0.1);
+                drag *= (1 - poppedTires * 0.05); // Reduce retention to increase drag (0.96 -> smaller)
             }
 
             const isGas = (keys.has('KeyW') || keys.has('ArrowUp')) && !state.isWeaponWheelOpen;
@@ -734,9 +736,16 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             state.player.pos.x = car.pos.x;
             state.player.pos.y = car.pos.y;
             state.player.angle = car.angle;
+            
+            // While driving, stamina regenerates slowly if timer allows
+            if (state.player.stamina < state.player.maxStamina) {
+                 if (state.player.staminaRechargeDelay > 0) state.player.staminaRechargeDelay--;
+                 else state.player.stamina += STAMINA_REGEN_RATE;
+            }
+
         }
     } else {
-        // Walking
+        // Walking / Sprinting Logic
         if (!state.isWeaponWheelOpen) {
             let dx = 0, dy = 0;
             if (keys.has('KeyW') || keys.has('ArrowUp')) dy = -1;
@@ -744,15 +753,45 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             if (keys.has('KeyA') || keys.has('ArrowLeft')) dx = -1;
             if (keys.has('KeyD') || keys.has('ArrowRight')) dx = 1;
 
+            const isSprinting = (keys.has('ShiftLeft') || keys.has('ShiftRight')) && state.player.stamina > 0;
+            const currentMaxSpeed = isSprinting ? MAX_SPEED_SPRINT : MAX_SPEED_WALK;
+            const acceleration = isSprinting ? ACCELERATION_WALK * 2.5 : ACCELERATION_WALK;
+
             if (dx !== 0 || dy !== 0) {
                 const angle = Math.atan2(dy, dx);
-                state.player.velocity.x += Math.cos(angle) * ACCELERATION_WALK;
-                state.player.velocity.y += Math.sin(angle) * ACCELERATION_WALK;
+                state.player.velocity.x += Math.cos(angle) * acceleration;
+                state.player.velocity.y += Math.sin(angle) * acceleration;
                 state.player.angle = angle;
-                if (state.player.state !== 'punching') state.player.state = 'walking';
+                
+                if (state.player.state !== 'punching') {
+                    state.player.state = isSprinting ? 'running' : 'walking';
+                }
+
+                // Stamina Logic
+                if (isSprinting) {
+                    state.player.stamina = Math.max(0, state.player.stamina - 1);
+                    state.player.staminaRechargeDelay = STAMINA_REGEN_DELAY;
+                }
             } else {
                 if (state.player.state !== 'punching') state.player.state = 'idle';
             }
+            
+            // Limit speed
+            const speed = Math.sqrt(state.player.velocity.x ** 2 + state.player.velocity.y ** 2);
+            if (speed > currentMaxSpeed) {
+                const ratio = currentMaxSpeed / speed;
+                state.player.velocity.x *= ratio;
+                state.player.velocity.y *= ratio;
+            }
+        }
+        
+        // Regenerate Stamina
+        if (state.player.stamina < state.player.maxStamina) {
+             if (state.player.staminaRechargeDelay > 0) {
+                 state.player.staminaRechargeDelay--;
+             } else {
+                 state.player.stamina = Math.min(state.player.maxStamina, state.player.stamina + STAMINA_REGEN_RATE);
+             }
         }
 
         if (state.player.state === 'punching') {
@@ -770,15 +809,8 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
         }
         if (state.lastShotTime > 0) state.lastShotTime--;
 
-        const speed = Math.sqrt(state.player.velocity.x ** 2 + state.player.velocity.y ** 2);
-        if (speed > MAX_SPEED_WALK) {
-            const ratio = MAX_SPEED_WALK / speed;
-            state.player.velocity.x *= ratio;
-            state.player.velocity.y *= ratio;
-        }
-
-        state.player.velocity.x *= 0.8;
-        state.player.velocity.y *= 0.8;
+        state.player.velocity.x *= 0.9;
+        state.player.velocity.y *= 0.9;
 
         const nextX = state.player.pos.x + state.player.velocity.x;
         const nextY = state.player.pos.y + state.player.velocity.y;

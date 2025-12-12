@@ -26,8 +26,14 @@ export const COLORS = {
 // Physics
 export const FRICTION = 0.92;
 export const ACCELERATION_WALK = 0.5;
-export const MAX_SPEED_WALK = 4;
+export const MAX_SPEED_WALK = 2;
+export const MAX_SPEED_SPRINT = 3;
 export const ROTATION_SPEED_WALK = 0.15;
+
+// Stamina (60 FPS assumption)
+export const STAMINA_MAX = 600; // 10 seconds
+export const STAMINA_REGEN_DELAY = 300; // 5 seconds
+export const STAMINA_REGEN_RATE = 600 / 900; // Fully regen (600) in 15 seconds (900 frames)
 
 // Vehicle Physics
 export const PHYSICS = {

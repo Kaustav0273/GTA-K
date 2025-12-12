@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { GameState } from '../types';
 import Radar from './Radar';
@@ -18,6 +19,9 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick }) => {
   if (healthPercent < 20) healthColor = 'bg-red-600 animate-pulse';
 
   const armorPercent = player.armor || 0;
+  
+  // Calculate Stamina
+  const staminaPercent = (player.stamina / (player.maxStamina || 1)) * 100;
 
   return (
     <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between font-gta text-white">
@@ -72,6 +76,13 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick }) => {
                         ></div>
                     </div>
                 )}
+                {/* Stamina Bar */}
+                 <div className="w-full h-2 bg-black/60 rounded overflow-hidden border border-gray-600">
+                    <div 
+                        className="h-full bg-yellow-500 transition-all duration-300"
+                        style={{ width: `${Math.max(0, staminaPercent)}%` }}
+                    ></div>
+                </div>
              </div>
 
             <div className="w-56 h-36 bg-black/80 border-4 border-gray-600 rounded-lg shadow-2xl overflow-hidden relative">
@@ -85,6 +96,7 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick }) => {
         <div className="hidden md:block text-white/60 text-xs font-sans text-center mb-2">
             <div className="flex gap-4">
                 <span><b className="text-white">WASD</b> Move</span>
+                <span><b className="text-white">SHIFT</b> Sprint</span>
                 <span><b className="text-white">F</b> Car</span>
                 <span><b className="text-white">TAB</b> Weapon</span>
                 <span><b className="text-white">SPACE</b> Action</span>

@@ -1,10 +1,11 @@
 
+
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType 
 } from '../types';
 import { 
-    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, COLORS, CAR_MODELS 
+    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, COLORS, CAR_MODELS, STAMINA_MAX 
 } from '../constants';
 import { generateMap, getTileAt, createNoiseTexture, isSolid } from '../utils/gameUtils';
 import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle } from '../game/physics';
@@ -42,6 +43,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             pos: { x: TILE_SIZE * 5, y: TILE_SIZE * 5 },
             size: PLAYER_SIZE, angle: 0, velocity: { x: 0, y: 0 },
             color: COLORS.player, health: 100, maxHealth: 100, armor: 0,
+            stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
             state: 'idle', vehicleId: null, weapon: 'fist'
         },
         vehicles: [],
@@ -166,7 +168,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             state.pedestrians.push({
                 id: `cop-${i}`, type: EntityType.PEDESTRIAN, role: 'police', pos: { x, y }, size: PLAYER_SIZE,
                 angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 }, color: '#1e3a8a', health: 150, maxHealth: 150,
-                armor: 50, vehicleId: null, weapon: 'pistol', actionTimer: Math.random() * 200, state: 'walking'
+                armor: 50, stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
+                vehicleId: null, weapon: 'pistol', actionTimer: Math.random() * 200, state: 'walking'
             });
         }
         
@@ -182,6 +185,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 id: `ped-${pedsToSpawn}`, type: EntityType.PEDESTRIAN, role: 'civilian', pos: { x, y }, size: PLAYER_SIZE,
                 angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 },
                 color: Math.random() > 0.5 ? '#9ca3af' : '#4b5563', health: 100, maxHealth: 100, armor: 0,
+                stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
                 vehicleId: null, weapon: 'fist', actionTimer: Math.random() * 200, state: 'walking'
             } as Pedestrian;
             state.pedestrians.push(basePed);
