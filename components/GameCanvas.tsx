@@ -1,5 +1,4 @@
 
-
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType 
@@ -8,7 +7,7 @@ import {
     MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, COLORS, CAR_MODELS, STAMINA_MAX 
 } from '../constants';
 import { generateMap, getTileAt, createNoiseTexture, isSolid } from '../utils/gameUtils';
-import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle } from '../game/physics';
+import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle, isPoliceNearby } from '../game/physics';
 import { renderGame } from '../game/renderer';
 
 interface GameCanvasProps {
@@ -242,8 +241,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 player.vehicleId = v.id;
                 player.state = 'driving';
                 player.pos = { ...v.pos };
-                state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                state.lastWantedTime = state.timeTicker; // Updated logic
+                
+                if (isPoliceNearby(state, player.pos)) {
+                    state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                    state.lastWantedTime = state.timeTicker;
+                }
+                
                 spawnParticle(state, v.pos, 'smoke', 5, { color: '#555', speed: 1, spread: 20 });
             }
         }

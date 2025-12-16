@@ -1,4 +1,5 @@
 
+
 import { 
     Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType, Drop 
 } from '../types';
@@ -43,6 +44,17 @@ export const checkPointInVehicle = (x: number, y: number, v: Vehicle, buffer: nu
     const halfL = (v.size.y / 2) + buffer;
     
     return Math.abs(localX) < halfW && Math.abs(localY) < halfL;
+};
+
+// Helper: Check if police are nearby to witness a crime
+export const isPoliceNearby = (state: MutableGameState, pos: Vector2, range: number = 600): boolean => {
+    for (const p of state.pedestrians) {
+        if (p.role === 'police' && p.state !== 'dead') {
+            const dist = Math.sqrt((p.pos.x - pos.x) ** 2 + (p.pos.y - pos.y) ** 2);
+            if (dist < range) return true;
+        }
+    }
+    return false;
 };
 
 export const spawnParticle = (state: MutableGameState, pos: Vector2, type: Particle['type'], count: number = 1, options?: { color?: string, speed?: number, spread?: number, size?: number }) => {
@@ -146,8 +158,10 @@ export const createExplosion = (state: MutableGameState, pos: Vector2, radius: n
          }
     });
     
-    state.wantedLevel = Math.min(state.wantedLevel + 2, 5);
-    state.lastWantedTime = state.timeTicker;
+    if (isPoliceNearby(state, pos)) {
+        state.wantedLevel = Math.min(state.wantedLevel + 2, 5);
+        state.lastWantedTime = state.timeTicker;
+    }
 };
 
 export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
@@ -185,8 +199,10 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
                      p.state = 'dead';
                      spawnDrops(state, p);
                      if (source.id === 'player') {
-                         state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                         state.lastWantedTime = state.timeTicker;
+                         if (isPoliceNearby(state, p.pos)) {
+                            state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                            state.lastWantedTime = state.timeTicker;
+                         }
                      }
                  } else {
                      p.state = 'fleeing';
@@ -238,9 +254,11 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
         spawnParticle(state, source.pos, 'muzzle', 3, { color: '#fff', speed: 0.5, spread: 2 });
     }
     
-    if (source.id === 'player' && Math.random() > 0.8 && source.weapon !== 'flame') {
-         state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-         state.lastWantedTime = state.timeTicker;
+    if (source.id === 'player' && source.weapon !== 'flame') {
+         if (isPoliceNearby(state, source.pos)) {
+            state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+            state.lastWantedTime = state.timeTicker;
+         }
     }
     
     state.pedestrians.forEach(p => {
@@ -665,42 +683,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 }
             }
 
-            // Entity Collisions
-            
-            // 1. Pedestrians
-            state.pedestrians.forEach(p => {
-                if (p.state === 'dead' || p.vehicleId) return;
-                
-                if (checkPointInVehicle(p.pos.x, p.pos.y, car, 2)) {
-                    const impactSpeed = Math.abs(car.speed);
-                    
-                    // Push out
-                    const angleToPed = Math.atan2(p.pos.y - car.pos.y, p.pos.x - car.pos.x);
-                    p.pos.x += Math.cos(angleToPed) * 5;
-                    p.pos.y += Math.sin(angleToPed) * 5;
-
-                    if (impactSpeed > 2) {
-                        const damage = impactSpeed * 15;
-                        p.health -= damage;
-                        spawnParticle(state, p.pos, 'blood', 4, { color: '#7f1d1d', speed: 2 });
-                        
-                        // Knockback
-                        p.velocity.x += Math.cos(car.angle) * impactSpeed;
-                        p.velocity.y += Math.sin(car.angle) * impactSpeed;
-
-                        if (p.health <= 0) {
-                            p.state = 'dead';
-                            spawnDrops(state, p);
-                            state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                            state.lastWantedTime = state.timeTicker;
-                        } else {
-                            p.state = 'fleeing';
-                            p.actionTimer = 120;
-                        }
-                    }
-                }
-            });
-
             // 2. Other Vehicles
             state.vehicles.forEach(other => {
                 if (other.id === car.id) return;
@@ -837,6 +819,52 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
         }
     }
 
+    // Global Vehicle-Pedestrian Collision (Runs for ALL vehicles now)
+    state.vehicles.forEach(car => {
+        // Skip if stationary to save performance
+        if (Math.abs(car.speed) < 1) return;
+
+        state.pedestrians.forEach(p => {
+            if (p.state === 'dead' || p.vehicleId === car.id) return;
+
+            if (checkPointInVehicle(p.pos.x, p.pos.y, car, 2)) {
+                const impactSpeed = Math.abs(car.speed);
+                
+                // Push out
+                const angleToPed = Math.atan2(p.pos.y - car.pos.y, p.pos.x - car.pos.x);
+                p.pos.x += Math.cos(angleToPed) * 5;
+                p.pos.y += Math.sin(angleToPed) * 5;
+
+                if (impactSpeed > 2) {
+                    const damage = impactSpeed * 15;
+                    p.health -= damage;
+                    spawnParticle(state, p.pos, 'blood', 4, { color: '#7f1d1d', speed: 2 });
+                    
+                    // Knockback
+                    p.velocity.x += Math.cos(car.angle) * impactSpeed;
+                    p.velocity.y += Math.sin(car.angle) * impactSpeed;
+
+                    if (p.health <= 0) {
+                        p.state = 'dead';
+                        spawnDrops(state, p);
+                        // Only player gets wanted level for killing
+                        if (car.driverId === 'player') {
+                            if (isPoliceNearby(state, p.pos)) {
+                                state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                                state.lastWantedTime = state.timeTicker;
+                            }
+                        }
+                    } else {
+                        p.state = 'fleeing';
+                        p.actionTimer = 120;
+                        // Flee direction
+                        p.angle = Math.atan2(p.pos.y - car.pos.y, p.pos.x - car.pos.x);
+                    }
+                }
+            }
+        });
+    });
+
     // Bullets
     state.bullets.forEach(b => {
         b.pos.x += b.velocity.x;
@@ -879,8 +907,10 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                         p.state = 'dead';
                         spawnDrops(state, p);
                         if (b.ownerId === 'player') {
-                            state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                            state.lastWantedTime = state.timeTicker;
+                            if (isPoliceNearby(state, p.pos)) {
+                                state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                                state.lastWantedTime = state.timeTicker;
+                            }
                         }
                     } else {
                         if (p.role !== 'police') { p.state = 'fleeing'; p.actionTimer = 180; }
@@ -917,6 +947,28 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
              if (p.state === 'fleeing') { p.state = 'walking'; p.actionTimer = 100; }
              else if (p.state === 'shooting') { p.state = 'chasing'; p.actionTimer = 60; }
              else if (Math.random() > 0.95) { p.angle += (Math.random()-0.5); p.actionTimer = 50; }
+        }
+
+        // Flee from moving cars
+        if (!p.vehicleId && p.state !== 'driving') {
+             for(const v of state.vehicles) {
+                 if (Math.abs(v.speed) > 3) { // Only fast cars
+                     const dist = Math.sqrt((p.pos.x - v.pos.x)**2 + (p.pos.y - v.pos.y)**2);
+                     if (dist < 120) {
+                         // Check if moving towards
+                         const carVelX = Math.cos(v.angle);
+                         const carVelY = Math.sin(v.angle);
+                         const toPedX = p.pos.x - v.pos.x;
+                         const toPedY = p.pos.y - v.pos.y;
+                         if (carVelX * toPedX + carVelY * toPedY > 0) {
+                             p.state = 'fleeing';
+                             p.actionTimer = 60;
+                             p.angle = Math.atan2(toPedY, toPedX) + (Math.random() * 1 - 0.5); 
+                             break;
+                         }
+                     }
+                 }
+             }
         }
         
         if (p.role === 'police' && state.wantedLevel > 0) {
