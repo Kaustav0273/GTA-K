@@ -1,5 +1,4 @@
 
-
 import { 
     Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType, Drop 
 } from '../types';
@@ -82,8 +81,24 @@ export const spawnParticle = (state: MutableGameState, pos: Vector2, type: Parti
 };
 
 const spawnDrops = (state: MutableGameState, p: Pedestrian) => {
-    // Cash Drop: $50 - $5000
-    const cash = Math.floor(Math.random() * 4951) + 50;
+    // Money Drop Logic with Weighted Probability
+    const rand = Math.random();
+    let cash = 0;
+    
+    if (rand < 0.8) {
+        // 80% Chance: 1 - 50
+        cash = Math.floor(Math.random() * 50) + 1;
+    } else if (rand < 0.9) {
+        // 10% Chance: 51 - 500
+        cash = Math.floor(Math.random() * 450) + 51;
+    } else if (rand < 0.98) {
+        // 8% Chance: 501 - 2500
+        cash = Math.floor(Math.random() * 2000) + 501;
+    } else {
+        // 2% Chance: 2501 - 5000
+        cash = Math.floor(Math.random() * 2500) + 2501;
+    }
+
     state.drops.push({
         id: `d-c-${Date.now()}-${Math.random()}`,
         pos: { x: p.pos.x + (Math.random()-0.5)*10, y: p.pos.y + (Math.random()-0.5)*10 },
@@ -706,8 +721,9 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                         car.speed *= -0.5;
                         other.speed *= -0.5;
                         
-                        car.health -= impact * 2;
-                        other.health -= impact * 2;
+                        // Reduced damage multiplier from 2 to 0.5 to prevent instant explosions
+                        car.health -= impact * 0.5;
+                        other.health -= impact * 0.5;
                         
                         spawnParticle(state, {x: (car.pos.x+other.pos.x)/2, y: (car.pos.y+other.pos.y)/2}, 'spark', 3, { color: '#fbbf24', speed: 3 });
                         spawnParticle(state, {x: (car.pos.x+other.pos.x)/2, y: (car.pos.y+other.pos.y)/2}, 'debris', 2, { color: '#9ca3af', speed: 2 });
@@ -1003,7 +1019,11 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             
             const nextX = p.pos.x + p.velocity.x;
             const nextY = p.pos.y + p.velocity.y;
-            if (!isSolid(getTileAt(state.map, nextX, nextY))) {
+            const nextTile = getTileAt(state.map, nextX, nextY);
+            const isNextRoad = isDrivable(nextTile);
+            const canCrossRoad = p.state === 'fleeing' || p.state === 'chasing';
+
+            if (!isSolid(nextTile) && (!isNextRoad || canCrossRoad)) {
                 p.pos.x = nextX;
                 p.pos.y = nextY;
             } else {

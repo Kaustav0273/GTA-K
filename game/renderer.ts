@@ -281,17 +281,16 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         ctx.fillStyle = blinkRed; ctx.fillRect(x, roofY + w - 6, 6, 6);
         ctx.fillStyle = blinkBlue; ctx.fillRect(x + w - 6, roofY + w - 6, 6, 6);
     } else if (tileType === TileType.SHOP) {
-        // Awnings - drawn at bottom of wall (y + w) roughly? No, usually over the door/window
-        // Let's draw awning at bottom of the wall (just above ground)
+        // Awnings - Corrected position to be above the door/window (approx 2.5m / 25px up from base)
         const awningColor = (seed % 2 === 0) ? '#ef4444' : '#22c55e';
-        const awningY = y + w - 6; // Just above ground
+        const awningY = y + w - 50; 
         
         ctx.fillStyle = awningColor;
         // Striped awning
         for(let i=0; i<w; i+=8) {
             ctx.fillStyle = (i/8)%2===0 ? awningColor : '#e5e7eb';
-            // Extend out slightly (South)
-            ctx.fillRect(x + i, awningY, 8, 8);
+            // Draw awning block
+            ctx.fillRect(x + i, awningY, 8, 12);
         }
         
         // Roof vent
