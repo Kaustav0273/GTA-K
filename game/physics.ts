@@ -1,4 +1,5 @@
 
+
 import { 
     Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType, Drop 
 } from '../types';
@@ -1002,11 +1003,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             
             const nextX = p.pos.x + p.velocity.x;
             const nextY = p.pos.y + p.velocity.y;
-            const nextTile = getTileAt(state.map, nextX, nextY);
-            const isNextRoad = isDrivable(nextTile);
-            const canCrossRoad = p.state === 'fleeing' || p.state === 'chasing';
-
-            if (!isSolid(nextTile) && (!isNextRoad || canCrossRoad)) {
+            if (!isSolid(getTileAt(state.map, nextX, nextY))) {
                 p.pos.x = nextX;
                 p.pos.y = nextY;
             } else {

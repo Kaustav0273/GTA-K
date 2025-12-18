@@ -1,10 +1,11 @@
+
 import React, { useState } from 'react';
 import GameCanvas from './components/GameCanvas';
 import HUD from './components/HUD';
 import Phone from './components/Phone';
 import WeaponWheel from './components/WeaponWheel';
 import { GameState, Mission, Pedestrian, EntityType, WeaponType } from './types';
-import { COLORS, STAMINA_MAX } from './constants';
+import { COLORS } from './constants';
 
 const App: React.FC = () => {
   const [gameStarted, setGameStarted] = useState(false);
@@ -13,24 +14,7 @@ const App: React.FC = () => {
   
   const [gameState, setGameState] = useState<GameState>({
     player: {
-        id: 'player', 
-        type: EntityType.PLAYER, 
-        pos: { x: 0, y: 0 }, 
-        size: { x: 0, y: 0 }, 
-        angle: 0, 
-        velocity: { x: 0, y: 0 }, 
-        color: COLORS.player, 
-        health: 100, 
-        maxHealth: 100, 
-        armor: 0, 
-        // FIX: Added missing stamina properties required by the Pedestrian interface
-        stamina: STAMINA_MAX,
-        maxStamina: STAMINA_MAX,
-        staminaRechargeDelay: 0,
-        state: 'idle', 
-        vehicleId: null, 
-        weapon: 'fist', 
-        role: 'civilian'
+        id: 'player', type: EntityType.PLAYER, pos: { x: 0, y: 0 }, size: { x: 0, y: 0 }, angle: 0, velocity: { x: 0, y: 0 }, color: COLORS.player, health: 100, maxHealth: 100, armor: 0, state: 'idle', vehicleId: null, weapon: 'fist', role: 'civilian'
     },
     vehicles: [],
     pedestrians: [],
