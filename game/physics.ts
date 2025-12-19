@@ -689,7 +689,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 car.velocity.x *= -0.5;
                 car.velocity.y *= -0.5;
                 if (impactForce > 4) {
-                     car.health -= impactForce * 1.5;
+                     car.health -= impactForce * 5;
                      if (impactForce > 8) {
                          if (Math.random() > 0.6) car.damage.windows[0] = true; 
                          if (Math.random() > 0.6) car.damage.windows[1] = true;
@@ -968,7 +968,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
         // Flee from moving cars
         if (!p.vehicleId && p.state !== 'driving') {
              for(const v of state.vehicles) {
-                 if (Math.abs(v.speed) > 3) { // Only fast cars
+                 if (Math.abs(v.speed) > 3 && v.driverId === 'player') { // Only flee from fast PLAYER driven cars
                      const dist = Math.sqrt((p.pos.x - v.pos.x)**2 + (p.pos.y - v.pos.y)**2);
                      if (dist < 120) {
                          // Check if moving towards
