@@ -76,17 +76,43 @@ export const generateMap = (): number[][] => {
       }
   }
 
-  // 6. Old Docks (Bottom Left) - Smugglers' Wharf
+  // 6. Port Authority (Bottom Left) - Ships & Containers
+  // Main concrete dock area
   fillRect(2, 32, 18, 16, TileType.SIDEWALK);
-  // Cutouts for water/piers
-  fillRect(2, 36, 8, 2, TileType.WATER);
-  fillRect(2, 42, 8, 2, TileType.WATER);
-  // Containers/Warehouses
-  for(let y=33; y<46; y++) {
-      for(let x=12; x<19; x++) {
-          if(x%2===0 && y%2===0) safeSet(x, y, TileType.BUILDING);
+  
+  // Cutout for water/piers to create "fingers"
+  // Finger 1 (Top)
+  fillRect(2, 36, 10, 3, TileType.WATER); 
+  // Finger 2 (Bottom)
+  fillRect(2, 43, 10, 3, TileType.WATER);
+
+  // Generate Ships in the water cutouts
+  const spawnShip = (x: number, y: number, w: number, h: number) => {
+      // Ship Hull/Deck
+      fillRect(x, y, w, h, TileType.SHIP_DECK);
+      // Cargo on Deck
+      for(let cy = y + 1; cy < y + h - 1; cy++) {
+          for(let cx = x + 1; cx < x + w - 1; cx++) {
+              if (Math.random() > 0.3) safeSet(cx, cy, TileType.CONTAINER);
+          }
       }
   }
+  // Ship 1 (Top Dock)
+  spawnShip(4, 37, 6, 1); // Small barge
+  // Ship 2 (Bottom Dock) - Larger
+  spawnShip(3, 44, 8, 1); 
+
+  // Container Yard (On the main dock concrete)
+  for(let y=33; y<46; y++) {
+      for(let x=12; x<19; x++) {
+          // Leave some aisles for driving (every 3rd row/col)
+          if(x % 3 !== 0 && y % 3 !== 0) {
+               // Random stacks
+               safeSet(x, y, TileType.CONTAINER);
+          }
+      }
+  }
+
 
   // 7. Industrial Zone (Bottom Right) - Factories & Yards
   fillRect(35, 30, 13, 18, TileType.SIDEWALK);
@@ -193,7 +219,8 @@ export const isSolid = (tile: number): boolean => {
            tile === TileType.HOSPITAL || 
            tile === TileType.POLICE_STATION ||
            tile === TileType.SKYSCRAPER || 
-           tile === TileType.SHOP;
+           tile === TileType.SHOP ||
+           tile === TileType.CONTAINER;
 }
 
 export const createNoiseTexture = (color: string, alpha: number = 0.1, density: number = 0.5) => {

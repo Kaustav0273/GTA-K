@@ -1,5 +1,4 @@
 
-
 import { Vehicle, Pedestrian, TileType, Drop, GameSettings } from '../types';
 import { MutableGameState } from './physics';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS } from '../constants';
@@ -18,6 +17,8 @@ const getBuildingHeight = (tileType: TileType, px: number, py: number): number =
         return 70;
     } else if (tileType === TileType.POLICE_STATION) {
         return 70;
+    } else if (tileType === TileType.CONTAINER) {
+        return 25 + (seed % 2) * 25; // Randomly 1 or 2 containers high (25 or 50)
     }
     return 50;
 };
@@ -199,6 +200,12 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     } else if (tileType === TileType.POLICE_STATION) {
         baseColor = '#1e3a8a'; // Dark Blue
         roofColor = '#334155';
+    } else if (tileType === TileType.CONTAINER) {
+        const containerColors = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#4b5563'];
+        baseColor = containerColors[seed % containerColors.length];
+        // Darken roof slightly
+        // Simple hex darken (approximate)
+        roofColor = baseColor; 
     }
 
     // Perspective: Standard Oblique Top-Down (Negative Y is Up/North)
@@ -211,16 +218,26 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     // -- South Wall (Front Face) --
     const wallGrad = ctx.createLinearGradient(x, y + w - height, x, y + w);
     wallGrad.addColorStop(0, roofColor); 
-    wallGrad.addColorStop(1, baseColor); 
+    wallGrad.addColorStop(1, '#000'); // Darken bottom
     ctx.fillStyle = wallGrad;
     ctx.fillRect(x, y + w - height, w, height);
 
-    // -- Windows on South Wall --
+    // -- Windows on South Wall or Container Detail --
     const stories = Math.floor(height / 15);
     const cols = Math.floor(w / 12);
     ctx.fillStyle = windowColor;
     
-    if (tileType === TileType.SKYSCRAPER) {
+    if (tileType === TileType.CONTAINER) {
+        // Corrugated vertical lines
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        for(let i=0; i<w; i+=4) {
+            ctx.fillRect(x + i, y + w - height, 2, height);
+        }
+        // Label?
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText((seed % 1000).toString(), x + 4, y + w - height/2);
+    } else if (tileType === TileType.SKYSCRAPER) {
         // Vertical glass strips
         ctx.fillStyle = 'rgba(255,255,255,0.1)';
         for(let c=0; c<cols; c++) {
@@ -251,7 +268,20 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     ctx.lineWidth = 2;
     ctx.strokeRect(x, roofY, w, w);
 
-    // -- Roof Details --
+    if (tileType === TileType.CONTAINER) {
+        // Container Roof Details (Ridges)
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        for(let i=0; i<w; i+=4) {
+            ctx.fillRect(x + i, roofY, 2, w);
+        }
+        // Stacked container line
+        if (height > 30) {
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath(); ctx.moveTo(x, y + w - height/2); ctx.lineTo(x+w, y + w - height/2); ctx.stroke();
+        }
+    }
+
+    // -- Roof Details (Rest) --
     const roofCY = roofY + w/2;
     
     if (tileType === TileType.HOSPITAL) {
@@ -299,7 +329,7 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
            ctx.beginPath(); ctx.moveTo(centerX, roofCY); ctx.lineTo(centerX, roofCY - 15); ctx.stroke();
            ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(centerX, roofCY - 15, 2, 0, Math.PI*2); ctx.fill(); 
         }
-    } else {
+    } else if (tileType !== TileType.CONTAINER) {
         const hasAC = seed % 3 === 0;
         const hasVent = seed % 5 === 0;
         const hasPipe = seed % 4 === 0;
@@ -777,7 +807,8 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                         }
                     }
 
-                } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP) {
+                } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP || tile === TileType.CONTAINER) {
+                     // For SHIP_DECK, see below
                      ctx.fillStyle = '#171717'; 
                      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 
@@ -797,6 +828,20 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                         y: py + TILE_SIZE, 
                         draw: () => drawBuilding(ctx, px, py, tile, textures, opacity)
                      });
+                } else if (tile === TileType.SHIP_DECK) {
+                    // Ship Deck (Floor)
+                    ctx.fillStyle = '#78350f'; // Rusty/Brown Metal
+                    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                    // Texture
+                    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                    for(let i=0; i<TILE_SIZE; i+=8) ctx.fillRect(px+i, py, 1, TILE_SIZE);
+                    
+                    // Hull Border Check (Draw wall down to water if next is water)
+                    const below = getTileAt(state.map, px, py + TILE_SIZE);
+                    if (below === TileType.WATER) {
+                        ctx.fillStyle = '#451a03'; // Darker Hull
+                        ctx.fillRect(px, py + TILE_SIZE - 4, TILE_SIZE, 4);
+                    }
                 } else if (tile === TileType.WATER) {
                     ctx.fillStyle = COLORS.water; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                     ctx.fillStyle = 'rgba(255,255,255,0.1)';

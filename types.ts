@@ -1,5 +1,4 @@
 
-
 export enum EntityType {
   PLAYER = 'PLAYER',
   PEDESTRIAN = 'PEDESTRIAN',
@@ -130,7 +129,9 @@ export enum TileType {
   HOSPITAL = 7,
   POLICE_STATION = 8,
   SKYSCRAPER = 9,
-  SHOP = 10
+  SHOP = 10,
+  CONTAINER = 11,
+  SHIP_DECK = 12
 }
 
 export interface GameSettings {
