@@ -1,4 +1,5 @@
 
+
 export enum EntityType {
   PLAYER = 'PLAYER',
   PEDESTRIAN = 'PEDESTRIAN',

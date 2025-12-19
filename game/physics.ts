@@ -1,4 +1,5 @@
 
+
 import { 
     Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType, Drop 
 } from '../types';
@@ -332,7 +333,10 @@ const respawnVehicle = (state: MutableGameState, car: Vehicle) => {
                 const dir = Math.random() > 0.5 ? Math.PI/2 : 3*Math.PI/2;
                 car.angle = dir;
                 car.targetAngle = dir;
-                car.pos.x = tx * TILE_SIZE + (dir === Math.PI/2 ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
+                // RIGHT HAND TRAFFIC FIX:
+                // South (PI/2) -> Right side (0.75)
+                // North (3PI/2) -> Left side (0.25)
+                car.pos.x = tx * TILE_SIZE + (dir === Math.PI/2 ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
             }
             spawned = true;
         }
@@ -481,12 +485,18 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 car.pos.x += Math.cos(car.angle) * car.speed;
             } else if (tile === TileType.ROAD_V) {
                 // Vertical Rail: Lock X, Lock Angle to PI/2 or 3PI/2
-                const isSouth = car.angle > 0 && car.angle < Math.PI;
+                // Normalize Angle to 0-2PI to accurately check direction
+                let normAngle = car.angle % (Math.PI * 2);
+                if (normAngle < 0) normAngle += Math.PI * 2;
+                
+                // South is around PI/2. North is around 3PI/2.
+                const isSouth = normAngle > 0 && normAngle < Math.PI;
+                
                 const targetAngle = isSouth ? Math.PI/2 : 3*Math.PI/2;
                 car.angle = targetAngle; // Force Angle
 
-                // Force Lane X
-                const laneX = tileX * TILE_SIZE + (isSouth ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
+                // Force Lane X (Right Hand Traffic: South is Right Side (0.75), North is Left Side (0.25))
+                const laneX = tileX * TILE_SIZE + (isSouth ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
                 car.pos.x += (laneX - car.pos.x) * 0.2; // Snap 20% per frame
 
                 // Move Y
@@ -503,8 +513,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 const dot = toCenterX * Math.cos(car.angle) + toCenterY * Math.sin(car.angle);
                 
                 // Only snap if we are close AND moving towards the center.
-                // This prevents the infinite loop where the car snaps, turns, but stays at dist < threshold.
-                if (dist < car.speed + 5 && dot > 0) {
+                if (dist < car.speed + 8 && dot > 0) {
                      // We hit the center node. Snap and Turn.
                      car.pos.x = centerX;
                      car.pos.y = centerY;
@@ -542,13 +551,28 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                      }
                      car.angle = newAngle;
 
-                     // IMMEDIATE LANE OFFSET
+                     // IMMEDIATE LANE OFFSET (RIGHT HAND TRAFFIC)
                      // Shift car to the correct lane side immediately to look natural and enter next tile correctly.
+                     // The logic must place the car on the RIGHT side of the road it is turning ONTO.
                      const laneOffset = TILE_SIZE * 0.25;
-                     if (Math.abs(newAngle - 0) < 0.1) car.pos.y += laneOffset;      // East -> South Lane
-                     else if (Math.abs(newAngle - Math.PI) < 0.1) car.pos.y -= laneOffset; // West -> North Lane
-                     else if (Math.abs(newAngle - Math.PI/2) < 0.1) car.pos.x -= laneOffset; // South -> West Lane
-                     else if (Math.abs(newAngle - 3*Math.PI/2) < 0.1) car.pos.x += laneOffset; // North -> East Lane
+                     
+                     // Normalize newAngle to checking
+                     let checkAngle = newAngle % (Math.PI * 2);
+                     if (checkAngle < 0) checkAngle += Math.PI * 2;
+                     
+                     if (Math.abs(checkAngle - 0) < 0.1 || Math.abs(checkAngle - 2*Math.PI) < 0.1) {
+                         // Turning East (0) -> Bottom Lane (+Y)
+                         car.pos.y += laneOffset; 
+                     } else if (Math.abs(checkAngle - Math.PI) < 0.1) {
+                         // Turning West (PI) -> Top Lane (-Y)
+                         car.pos.y -= laneOffset;
+                     } else if (Math.abs(checkAngle - Math.PI/2) < 0.1) {
+                         // Turning South (PI/2) -> Right Lane (+X)
+                         car.pos.x += laneOffset; 
+                     } else if (Math.abs(checkAngle - 1.5*Math.PI) < 0.1) {
+                         // Turning North (3PI/2) -> Left Lane (-X)
+                         car.pos.x -= laneOffset;
+                     }
 
                 } else {
                     // Drive straight (leaving intersection or approaching it)
@@ -705,7 +729,10 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 const dist = Math.sqrt((car.pos.x - other.pos.x)**2 + (car.pos.y - other.pos.y)**2);
                 if (dist < 40) { 
                     // Elastic Bounce
-                    const angle = Math.atan2(other.pos.y - car.pos.y, other.pos.x - car.pos.x);
+                    let angle = Math.atan2(other.pos.y - car.pos.y, other.pos.x - car.pos.x);
+                    // Prevent NaN if positions are identical
+                    if (dist === 0) angle = Math.random() * Math.PI * 2;
+                    
                     const overlap = 40 - dist;
                     
                     const pushX = Math.cos(angle) * overlap * 0.5;

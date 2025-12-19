@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
@@ -133,7 +132,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 } else if (tile === TileType.ROAD_V) {
                     const dir = Math.random() > 0.5;
                     angle = dir ? Math.PI/2 : 3*Math.PI/2;
-                    posX = x * TILE_SIZE + (dir ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
+                    // RIGHT HAND TRAFFIC FIX:
+                    // South (PI/2) -> Right side (0.75)
+                    // North (3PI/2) -> Left side (0.25)
+                    posX = x * TILE_SIZE + (dir ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
                 } else {
                      angle = Math.floor(Math.random() * 4) * (Math.PI/2);
                 }
