@@ -131,3 +131,12 @@ export enum TileType {
   SKYSCRAPER = 9,
   SHOP = 10
 }
+
+export interface GameSettings {
+  sfxVolume: number; // 0-10
+  musicVolume: number; // 0-10
+  drawDistance: 'LOW' | 'MED' | 'HIGH' | 'ULTRA';
+  retroFilter: boolean;
+  frameLimiter: boolean;
+  mouseSensitivity: number; // 0-100
+}

@@ -1,5 +1,5 @@
 
-import { Vehicle, Pedestrian, TileType, Drop } from '../types';
+import { Vehicle, Pedestrian, TileType, Drop, GameSettings } from '../types';
 import { MutableGameState } from './physics';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS } from '../constants';
 import { getTileAt, isSolid } from '../utils/gameUtils'; // Added import for helper
@@ -141,7 +141,6 @@ export const drawTrafficLight = (ctx: CanvasRenderingContext2D, x: number, y: nu
         ctx.fillRect(lx - 3, ly - 3, 6, 6);
         
         // Light Color (Simple cycle: Green -> Yellow -> Red)
-        // Offset cycles for different sides? No, simple sync for visual flair
         let lightColor = '#ef4444'; // Red default
         if (i % 2 === 0) {
             // N/S
@@ -203,20 +202,15 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
 
     // Perspective: Standard Oblique Top-Down (Negative Y is Up/North)
     // We draw the roof shifted UP (North) so the base is at the correct tile location.
-    // Base Footprint: (x, y) to (x+w, y+w)
-    // Roof Footprint: (x, y - height) to (x+w, y+w - height)
     
     // -- Ground Shadow --
-    // Subtle shadow around base
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(x - 2, y - 2, w + 4, w + 4);
 
     // -- South Wall (Front Face) --
-    // Connects bottom of Roof (y + w - height) to bottom of Base (y + w)
-    
     const wallGrad = ctx.createLinearGradient(x, y + w - height, x, y + w);
-    wallGrad.addColorStop(0, roofColor); // Top is darker/roof color
-    wallGrad.addColorStop(1, baseColor); // Bottom is base color
+    wallGrad.addColorStop(0, roofColor); 
+    wallGrad.addColorStop(1, baseColor); 
     ctx.fillStyle = wallGrad;
     ctx.fillRect(x, y + w - height, w, height);
 
@@ -237,7 +231,7 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
              for (let c=0; c < cols; c++) {
                  // Randomize lit windows for residential/shops
                  if ((x + y + s + c) % 7 !== 0) { 
-                    const wy = y + w - height + 5 + s * 14; // Start from top of wall
+                    const wy = y + w - height + 5 + s * 14; 
                     const wx = x + 4 + c * 10;
                     if (wx + 6 < x + w && wy + 8 < y + w) ctx.fillRect(wx, wy, 6, 8);
                  }
@@ -246,9 +240,7 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     }
 
     // -- Roof --
-    // Drawn at (x, y - height)
     const roofY = y - height;
-    
     ctx.fillStyle = roofColor;
     if (tileType === TileType.BUILDING && textures['roof']) ctx.fillStyle = textures['roof'];
     ctx.fillRect(x, roofY, w, w);
@@ -281,7 +273,6 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         ctx.fillStyle = blinkRed; ctx.fillRect(x, roofY + w - 6, 6, 6);
         ctx.fillStyle = blinkBlue; ctx.fillRect(x + w - 6, roofY + w - 6, 6, 6);
     } else if (tileType === TileType.SHOP) {
-        // Awnings - Corrected position to be above the door/window (approx 2.5m / 25px up from base)
         const awningColor = (seed % 2 === 0) ? '#ef4444' : '#22c55e';
         const awningY = y + w - 50; 
         
@@ -289,7 +280,6 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         // Striped awning
         for(let i=0; i<w; i+=8) {
             ctx.fillStyle = (i/8)%2===0 ? awningColor : '#e5e7eb';
-            // Draw awning block
             ctx.fillRect(x + i, awningY, 8, 12);
         }
         
@@ -297,7 +287,6 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         ctx.fillStyle = '#262626';
         ctx.fillRect(x + 10, roofY + 10, w - 20, w - 20);
     } else if (tileType === TileType.SKYSCRAPER) {
-        // Helipad randomly
         if (seed % 5 === 0) {
            ctx.fillStyle = '#222';
            ctx.beginPath(); ctx.arc(centerX, roofCY, 18, 0, Math.PI*2); ctx.fill();
@@ -305,13 +294,11 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
            ctx.beginPath(); ctx.arc(centerX, roofCY, 14, 0, Math.PI*2); ctx.stroke();
            ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#eab308'; ctx.textAlign = 'center'; ctx.fillText('H', centerX, roofCY+4);
         } else {
-           // Antenna
            ctx.strokeStyle = '#525252'; ctx.lineWidth = 2;
            ctx.beginPath(); ctx.moveTo(centerX, roofCY); ctx.lineTo(centerX, roofCY - 15); ctx.stroke();
            ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(centerX, roofCY - 15, 2, 0, Math.PI*2); ctx.fill(); 
         }
     } else {
-        // Standard Building Details
         const hasAC = seed % 3 === 0;
         const hasVent = seed % 5 === 0;
         const hasPipe = seed % 4 === 0;
@@ -345,18 +332,40 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     ctx.restore();
 };
 
-const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: TileType, textures: any) => {
+const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: TileType, textures: any, map: number[][], gridX: number, gridY: number) => {
     ctx.fillStyle = textures['road'] || COLORS.road;
     ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
     
+    // Check neighbors to determine if we should draw outer sidewalks
+    const hasRoadTop = gridY > 0 && map[gridY-1][gridX] === TileType.ROAD_H;
+    const hasRoadBottom = gridY < MAP_HEIGHT-1 && map[gridY+1][gridX] === TileType.ROAD_H;
+    const hasRoadLeft = gridX > 0 && map[gridY][gridX-1] === TileType.ROAD_V;
+    const hasRoadRight = gridX < MAP_WIDTH-1 && map[gridY][gridX+1] === TileType.ROAD_V;
+
     // Road Markings
     ctx.strokeStyle = '#eab308'; // Yellow-500
     ctx.lineWidth = 2;
     const center = TILE_SIZE / 2;
 
     if (type === TileType.ROAD_H) {
+        // Center dashed line (only if single lane, otherwise assume highway with lane markers)
+        // If we have a road above or below, we are likely part of a wide road.
+        // If hasRoadTop, we are the BOTTOM lane of a wide road. We should draw white dashes at top?
+        // If hasRoadBottom, we are the TOP lane of a wide road. We should draw white dashes at bottom?
+        
         ctx.beginPath();
-        ctx.setLineDash([10, 10]);
+        if (hasRoadTop || hasRoadBottom) {
+             // Wide Road Lane Marker (White)
+             ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+             ctx.setLineDash([15, 15]);
+        } else {
+             // Single Road Double Yellow
+             ctx.strokeStyle = '#eab308';
+             ctx.setLineDash([10, 10]);
+        }
+        
+        // Draw line near the center or offset based on being wide?
+        // For simplicity, just draw center line as divider for the specific tile
         ctx.moveTo(x, y + center);
         ctx.lineTo(x + TILE_SIZE, y + center);
         ctx.stroke();
@@ -364,12 +373,19 @@ const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: Til
         
         // Sidewalk edges
         ctx.fillStyle = '#d4d4d8';
-        ctx.fillRect(x, y, TILE_SIZE, 4);
-        ctx.fillRect(x, y + TILE_SIZE - 4, TILE_SIZE, 4);
+        if (!hasRoadTop) ctx.fillRect(x, y, TILE_SIZE, 4);
+        if (!hasRoadBottom) ctx.fillRect(x, y + TILE_SIZE - 4, TILE_SIZE, 4);
 
     } else if (type === TileType.ROAD_V) {
         ctx.beginPath();
-        ctx.setLineDash([10, 10]);
+        if (hasRoadLeft || hasRoadRight) {
+             ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+             ctx.setLineDash([15, 15]);
+        } else {
+             ctx.strokeStyle = '#eab308';
+             ctx.setLineDash([10, 10]);
+        }
+
         ctx.moveTo(x + center, y);
         ctx.lineTo(x + center, y + TILE_SIZE);
         ctx.stroke();
@@ -377,14 +393,17 @@ const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: Til
 
         // Sidewalk edges
         ctx.fillStyle = '#d4d4d8';
-        ctx.fillRect(x, y, 4, TILE_SIZE);
-        ctx.fillRect(x + TILE_SIZE - 4, y, 4, TILE_SIZE);
+        if (!hasRoadLeft) ctx.fillRect(x, y, 4, TILE_SIZE);
+        if (!hasRoadRight) ctx.fillRect(x + TILE_SIZE - 4, y, 4, TILE_SIZE);
 
     } else if (type === TileType.ROAD_CROSS) {
          // Intersection - Crosswalks
          ctx.fillStyle = '#fff';
          const cwW = 12;
          const cwL = TILE_SIZE - 10;
+         
+         // Only draw crosswalk if not connected to another cross part (for big intersections)
+         // But for now, drawing on all sides is okay-ish, or check neighbors
          
          // Top
          ctx.fillRect(x + 5, y + 4, cwL, cwW);
@@ -409,15 +428,11 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fillRect(-length/2 + 2, -width/2 + 2, length, width);
 
-    // Wheels - Draw underneath body
+    // Wheels
     ctx.fillStyle = '#171717';
-    // Front Left
     ctx.fillRect(length/2 - 8, -width/2 - 1, 6, 2);
-    // Front Right
     ctx.fillRect(length/2 - 8, width/2 - 1, 6, 2);
-    // Rear Left
     ctx.fillRect(-length/2 + 4, -width/2 - 1, 6, 2);
-    // Rear Right
     ctx.fillRect(-length/2 + 4, width/2 - 1, 6, 2);
 
     // Body
@@ -433,18 +448,14 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     // Bumpers
     if (v.model !== 'supercar') {
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        // Front
         ctx.fillRect(length/2 - 1, -width/2 + 1, 2, width - 2);
-        // Rear
         ctx.fillRect(-length/2 - 1, -width/2 + 1, 2, width - 2);
     }
 
-    // Model specific details (Bottom layer)
+    // Model specific details
     if (v.model === 'pickup') {
-         // Truck Bed
-         ctx.fillStyle = '#0f172a'; // Darker bed
+         ctx.fillStyle = '#0f172a'; 
          ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, width - 4);
-         // Bed rails
          ctx.fillStyle = '#334155';
          ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, 2);
          ctx.fillRect(-length/2 + 2, width/2 - 4, length/3, 2);
@@ -454,11 +465,11 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     // Roof / Windshield Area
     let roofL = length - 20;
     let roofW = width - 4;
-    let roofOffset = 0; // Center offset
+    let roofOffset = 0; 
 
     if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
          roofL = length * 0.4;
-         roofOffset = length * 0.2; // Cab forward
+         roofOffset = length * 0.2; 
     } else if (v.model === 'supercar') {
          roofL = length * 0.5;
          roofW = width - 6;
@@ -468,8 +479,8 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
          roofL = length - 14;
     }
 
-    // Shadow/Dark trim around roof (Glass/Cabin base)
-    ctx.fillStyle = '#1f2937'; // Dark Cabin
+    // Shadow/Dark trim around roof
+    ctx.fillStyle = '#1f2937'; 
     if (v.model === 'pickup' || v.model === 'truck') {
          ctx.fillRect(roofOffset - roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
     } else {
@@ -496,9 +507,8 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         ctx.fillRect(-roofL/2, -roofW/2 + 1, 3, roofW - 2);
     }
 
-    // Painted Roof Top (Metal part)
+    // Painted Roof Top
     ctx.fillStyle = v.color;
-    
     let rtL = roofL - 6; 
     let rtW = roofW - 2;
     let rtX = 0;
@@ -513,8 +523,6 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     } else {
          rtL = roofL - 8;
     }
-
-    // Draw the metal roof plate
     ctx.fillRect(rtX - rtL/2, -rtW/2, rtL, rtW);
     
     // Side Mirrors
@@ -523,44 +531,38 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         const mirrorX = (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance') 
             ? roofOffset + roofL/2 - 2 
             : roofL/2 - 2;
-            
         ctx.beginPath();
-        // Left Mirror
         ctx.moveTo(mirrorX, -width/2);
         ctx.lineTo(mirrorX + 2, -width/2 - 3);
         ctx.lineTo(mirrorX - 2, -width/2 - 3);
         ctx.fill();
-        // Right Mirror
         ctx.moveTo(mirrorX, width/2);
         ctx.lineTo(mirrorX + 2, width/2 + 3);
         ctx.lineTo(mirrorX - 2, width/2 + 3);
         ctx.fill();
     }
     
-    // Headlights (Front Right/Left)
-    ctx.fillStyle = '#fef08a'; // Yellowish
+    // Headlights
+    ctx.fillStyle = '#fef08a'; 
     ctx.shadowColor = '#fef08a'; ctx.shadowBlur = 6;
     ctx.fillRect(length/2 - 1, -width/2 + 2, 1, 5);
     ctx.fillRect(length/2 - 1, width/2 - 7, 1, 5);
     ctx.shadowBlur = 0;
 
-    // Taillights (Rear Right/Left)
+    // Taillights
     ctx.fillStyle = '#ef4444';
     ctx.fillRect(-length/2, -width/2 + 2, 1, 5);
     ctx.fillRect(-length/2, width/2 - 7, 1, 5);
     
     // Special Models
     if (v.model === 'supercar') {
-        // Spoiler
         ctx.fillStyle = v.color;
         ctx.fillRect(-length/2 + 2, -width/2, 4, width);
-        // Engine cover vents
         ctx.fillStyle = '#171717';
         for(let i=0; i<3; i++) {
              ctx.fillRect(-length/2 + 8 + i*3, -width/4, 2, width/2);
         }
     } else if (v.model === 'police' || v.model === 'swat' || v.model === 'ambulance' || v.model === 'firetruck') {
-        // Sirens
         const time = Date.now() / 150;
         const blink = Math.floor(time) % 2;
         const color1 = blink ? '#2563eb' : '#dc2626';
@@ -577,33 +579,24 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
              ctx.fillRect(roofOffset + 10, -width/2 + 2, 4, 4);
              ctx.shadowColor = color2; ctx.fillStyle = color2;
              ctx.fillRect(roofOffset + 10, width/2 - 6, 4, 4);
-             
-             // Ladder
              ctx.fillStyle = '#cbd5e1';
              ctx.fillRect(-length/2 + 5, -5, length - 20, 10);
-             // Ladder rungs
              ctx.fillStyle = '#64748b';
-             for(let i=0; i<length-20; i+=4) {
-                 ctx.fillRect(-length/2 + 5 + i, -4, 1, 8);
-             }
+             for(let i=0; i<length-20; i+=4) ctx.fillRect(-length/2 + 5 + i, -4, 1, 8);
         } else {
-            // Standard lightbar
             ctx.fillRect(-2, -width/2 + 6, 4, width - 12);
         }
         ctx.shadowBlur = 0;
     } else if (v.model === 'taxi') {
-        // Taxi Sign
         ctx.fillStyle = '#facc15';
         ctx.shadowColor = '#facc15'; ctx.shadowBlur = 5;
         ctx.fillRect(-3, -6, 6, 12);
-        // Checker pattern
         ctx.fillStyle = '#000';
         ctx.fillRect(-3, -6, 2, 2); ctx.fillRect(-1, -6, 2, 2); ctx.fillRect(1, -6, 2, 2);
         ctx.fillRect(-2, -4, 2, 2); ctx.fillRect(0, -4, 2, 2); ctx.fillRect(2, -4, 2, 2);
         ctx.shadowBlur = 0;
     } else if (v.model === 'bus') {
-        // Side Windows
-        ctx.fillStyle = '#9ca3af'; // Glass color
+        ctx.fillStyle = '#9ca3af'; 
         const wins = 6;
         const spacing = (length - 20) / wins;
         for(let i=0; i<wins; i++) {
@@ -630,103 +623,70 @@ const drawCharacter = (ctx: CanvasRenderingContext2D, p: Pedestrian) => {
     ctx.fill();
 
     // Feet
-    ctx.fillStyle = '#1c1917'; // Black shoes
-    // Left Foot
-    ctx.beginPath();
-    ctx.ellipse(3 + walkCycle, -5, 4, 2.5, 0, 0, Math.PI*2);
-    ctx.fill();
-    // Right Foot
-    ctx.beginPath();
-    ctx.ellipse(3 - walkCycle, 5, 4, 2.5, 0, 0, Math.PI*2);
-    ctx.fill();
+    ctx.fillStyle = '#1c1917'; 
+    ctx.beginPath(); ctx.ellipse(3 + walkCycle, -5, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(3 - walkCycle, 5, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
 
     // Shoulders / Torso
-    // Rectangle with rounded corners
-    ctx.fillStyle = p.color; // Shirt color
+    ctx.fillStyle = p.color; 
     ctx.beginPath();
     ctx.roundRect(-4, -8, 10, 16, 4);
     ctx.fill();
 
     // Head
-    ctx.fillStyle = '#fca5a5'; // Skin tone
-    ctx.beginPath();
-    ctx.arc(0, 0, 5, 0, Math.PI * 2); 
-    ctx.fill();
+    ctx.fillStyle = '#fca5a5'; 
+    ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
     
     // Hair
     if (p.role === 'police') {
-        // Police Cap
-        ctx.fillStyle = '#1e3a8a'; // Dark Blue
-        ctx.beginPath();
-        ctx.ellipse(-1, 0, 5.5, 5.5, 0, 0, Math.PI*2);
-        ctx.fill();
-        // Visor
+        ctx.fillStyle = '#1e3a8a'; 
+        ctx.beginPath(); ctx.ellipse(-1, 0, 5.5, 5.5, 0, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#111';
-        ctx.beginPath();
-        ctx.ellipse(3, 0, 3, 5, 0, -Math.PI/2, Math.PI/2);
-        ctx.fill();
+        ctx.beginPath(); ctx.ellipse(3, 0, 3, 5, 0, -Math.PI/2, Math.PI/2); ctx.fill();
     } else {
-        // Civ Hair (Brown/Black/Blonde randomize based on ID hash maybe? using ID length for now)
         const hairColor = p.id.length % 2 === 0 ? '#451a03' : '#000000';
         ctx.fillStyle = hairColor;
-        ctx.beginPath();
-        ctx.arc(-1, 0, 5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(-1, 0, 5, 0, Math.PI * 2); ctx.fill();
     }
 
     // Arms
-    ctx.fillStyle = p.color; // Sleeves match shirt
+    ctx.fillStyle = p.color; 
     
     if (p.weapon === 'fist') {
-        // Arms swinging if walking
         const armSwing = isMoving ? Math.cos(Date.now() / 100) * 3 : 0;
-        
-        // Left Arm
         ctx.beginPath(); ctx.ellipse(0 + armSwing, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
-        // Hand
         ctx.fillStyle = '#fca5a5';
         ctx.beginPath(); ctx.arc(3 + armSwing, -9, 2.5, 0, Math.PI*2); ctx.fill();
-
-        // Right Arm
         ctx.fillStyle = p.color;
         ctx.beginPath(); ctx.ellipse(0 - armSwing, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
-        // Hand
         ctx.fillStyle = '#fca5a5';
         ctx.beginPath(); ctx.arc(3 - armSwing, 9, 2.5, 0, Math.PI*2); ctx.fill();
     } else {
-        // Weapon Posture (Arms extended)
-        // Arms
-        ctx.beginPath(); ctx.ellipse(2, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); // Left Shoulder
-        ctx.beginPath(); ctx.ellipse(2, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();  // Right Shoulder
-        
-        // Hands reaching weapon
+        ctx.beginPath(); ctx.ellipse(2, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(2, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#fca5a5';
-        
-        // Drawing weapon
         ctx.save();
-        ctx.translate(10, 0); // Weapon offset
+        ctx.translate(10, 0); 
         
         if (p.weapon === 'pistol') {
-            ctx.fillStyle = '#374151'; // Gun metal
-            ctx.fillRect(-2, -1.5, 10, 3); // Barrel
-            ctx.fillStyle = '#fca5a5'; // Right Hand
+            ctx.fillStyle = '#374151'; 
+            ctx.fillRect(-2, -1.5, 10, 3);
+            ctx.fillStyle = '#fca5a5'; 
             ctx.beginPath(); ctx.arc(0, 2, 2.5, 0, Math.PI*2); ctx.fill(); 
         } else if (p.weapon === 'uzi') {
             ctx.fillStyle = '#111';
             ctx.fillRect(-2, -2, 12, 4);
-            // Two hands
             ctx.fillStyle = '#fca5a5';
-            ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); // Right
-            ctx.beginPath(); ctx.arc(6, -2, 2.5, 0, Math.PI*2); ctx.fill(); // Left
+            ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); 
+            ctx.beginPath(); ctx.arc(6, -2, 2.5, 0, Math.PI*2); ctx.fill(); 
         } else if (p.weapon === 'shotgun' || p.weapon === 'sniper' || p.weapon === 'rocket') {
              ctx.fillStyle = '#1f2937';
              const len = p.weapon === 'sniper' ? 24 : 18;
              const width = p.weapon === 'rocket' ? 6 : 3;
              ctx.fillRect(-4, -width/2, len, width);
-             // Two hands
              ctx.fillStyle = '#fca5a5';
-             ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); // Right/Trigger
-             ctx.beginPath(); ctx.arc(10, -1, 2.5, 0, Math.PI*2); ctx.fill(); // Left/Barrel
+             ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill();
+             ctx.beginPath(); ctx.arc(10, -1, 2.5, 0, Math.PI*2); ctx.fill();
         }
 
         ctx.restore();
@@ -735,9 +695,20 @@ const drawCharacter = (ctx: CanvasRenderingContext2D, p: Pedestrian) => {
     ctx.restore();
 };
 
-export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameState, textures: any) => {
+export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameState, textures: any, settings?: GameSettings) => {
     const width = ctx.canvas.width;
     const height = ctx.canvas.height;
+    
+    // Draw Distance Buffer Logic
+    let buffer = 0;
+    if (settings) {
+        switch(settings.drawDistance) {
+            case 'LOW': buffer = 0; break;
+            case 'MED': buffer = 200; break;
+            case 'HIGH': buffer = 500; break;
+            case 'ULTRA': buffer = 1000; break;
+        }
+    }
     
     ctx.fillStyle = '#111';
     ctx.fillRect(0, 0, width, height);
@@ -745,16 +716,22 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
     ctx.save();
     ctx.translate(-Math.floor(state.camera.x), -Math.floor(state.camera.y));
 
-    const startCol = Math.floor(state.camera.x / TILE_SIZE);
-    const endCol = startCol + (width / TILE_SIZE) + 1;
-    const startRow = Math.floor(state.camera.y / TILE_SIZE);
-    const endRow = startRow + (height / TILE_SIZE) + 1;
+    // Calculate Viewport with Buffer
+    const camX = state.camera.x - buffer;
+    const camY = state.camera.y - buffer;
+    const camW = width + (buffer * 2);
+    const camH = height + (buffer * 2);
+
+    const startCol = Math.max(0, Math.floor(camX / TILE_SIZE));
+    const endCol = Math.min(MAP_WIDTH, Math.floor((camX + camW) / TILE_SIZE) + 1);
+    const startRow = Math.max(0, Math.floor(camY / TILE_SIZE));
+    const endRow = Math.min(MAP_HEIGHT, Math.floor((camY + camH) / TILE_SIZE) + 1);
 
     const renderList: { y: number, draw: () => void }[] = [];
 
     // LAYER 1: GROUND & Gather Static Renderables
-    for (let y = startRow; y <= endRow; y++) {
-        for (let x = startCol; x <= endCol; x++) {
+    for (let y = startRow; y < endRow; y++) {
+        for (let x = startCol; x < endCol; x++) {
             if (y >= 0 && y < MAP_HEIGHT && x >= 0 && x < MAP_WIDTH) {
                 const tile = state.map[y][x];
                 const px = x * TILE_SIZE;
@@ -800,18 +777,13 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                     }
 
                 } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP) {
-                     ctx.fillStyle = '#171717'; // Base plate (Ground level)
+                     ctx.fillStyle = '#171717'; 
                      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 
                      // Occlusion Check
                      let opacity = 1;
                      const height = getBuildingHeight(tile, px, py);
                      const p = state.player;
-
-                     // Check collision with bounding box of the building's facade
-                     // Horizontal: within tile width
-                     // Vertical: between roof top (py - height) and base (py + TILE_SIZE)
-                     // Render Order: Building (py + TILE_SIZE) > Player (p.pos.y) means building is drawn on top
                      
                      if (p.pos.x >= px && p.pos.x <= px + TILE_SIZE &&
                          p.pos.y >= py - height && p.pos.y <= py + TILE_SIZE) {
@@ -821,7 +793,7 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                      }
 
                      renderList.push({
-                        y: py + TILE_SIZE, // Sort by bottom of the building BASE
+                        y: py + TILE_SIZE, 
                         draw: () => drawBuilding(ctx, px, py, tile, textures, opacity)
                      });
                 } else if (tile === TileType.WATER) {
@@ -830,13 +802,13 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                     const offset = (Date.now() / 50) % 20;
                     ctx.beginPath(); ctx.arc(px + 20 + offset, py + 20, 5, 0, Math.PI*2); ctx.fill();
                 } else if (tile === TileType.ROAD_CROSS) {
-                    drawRoad(ctx, px, py, tile, textures);
+                    drawRoad(ctx, px, py, tile, textures, state.map, x, y);
                     renderList.push({
                          y: py + 99999,
                          draw: () => drawTrafficLight(ctx, px, py)
                     });
                 } else {
-                    drawRoad(ctx, px, py, tile, textures);
+                    drawRoad(ctx, px, py, tile, textures, state.map, x, y);
                 }
             }
         }
@@ -844,6 +816,9 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
     
     // LAYER 2: DROPS
     state.drops.forEach(d => {
+        // Culling Check
+        if (d.pos.x < camX || d.pos.x > camX + camW || d.pos.y < camY || d.pos.y > camY + camH) return;
+
         renderList.push({
             y: d.pos.y,
             draw: () => drawDrop(ctx, d)
@@ -852,6 +827,9 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
 
     // LAYER 3: ENTITIES
     state.pedestrians.forEach(p => {
+         // Culling
+         if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return;
+
          if (p.state === 'dead') {
              ctx.save(); ctx.translate(p.pos.x, p.pos.y);
              ctx.fillStyle = '#7f1d1d'; ctx.globalAlpha = 0.8;
@@ -864,10 +842,13 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
     });
 
     state.vehicles.forEach(v => {
+         // Culling
+         if (v.pos.x < camX - 100 || v.pos.x > camX + camW + 100 || v.pos.y < camY - 100 || v.pos.y > camY + camH + 100) return;
          renderList.push({ y: v.pos.y, draw: () => drawVehicle(ctx, v) });
     });
 
     state.pedestrians.forEach(p => {
+        if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return;
         if (p.state !== 'dead') renderList.push({ y: p.pos.y, draw: () => drawCharacter(ctx, p) });
     });
 
@@ -880,6 +861,8 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
 
     // Projectiles
     state.bullets.forEach(b => {
+        if (b.pos.x < camX || b.pos.x > camX + camW || b.pos.y < camY || b.pos.y > camY + camH) return;
+
         if (b.type === 'rocket') {
              ctx.fillStyle = '#57534e'; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, 3, 0, Math.PI*2); ctx.fill();
         } else if (b.type === 'fire') {
@@ -894,6 +877,7 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
     });
 
     state.particles.forEach(p => {
+         if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return;
          ctx.globalAlpha = p.life / p.maxLife; ctx.fillStyle = p.color;
          ctx.beginPath(); ctx.arc(p.pos.x, p.pos.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
     });

@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
-    GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType 
+    GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
 } from '../types';
 import { 
     MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, COLORS, CAR_MODELS, STAMINA_MAX 
@@ -18,22 +18,25 @@ interface GameCanvasProps {
     onWeaponWheelToggle: (isOpen: boolean) => void;
     isWeaponWheelOpen: boolean;
     activeWeapon: WeaponType;
+    settings: GameSettings;
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ 
     onGameStateUpdate, isPhoneOpen, activeMission, 
-    onWeaponWheelToggle, isWeaponWheelOpen, activeWeapon 
+    onWeaponWheelToggle, isWeaponWheelOpen, activeWeapon,
+    settings
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const requestRef = useRef<number>(0);
     const keysPressed = useRef<Set<string>>(new Set());
     const groundTexturesRef = useRef<{ [key: string]: CanvasPattern | null }>({});
+    const lastFrameTimeRef = useRef<number>(0);
     
     // Refs to access latest props in gameLoop without closure staleness
-    const propsRef = useRef({ isPhoneOpen, activeMission });
+    const propsRef = useRef({ isPhoneOpen, activeMission, settings });
     useEffect(() => {
-        propsRef.current = { isPhoneOpen, activeMission };
-    }, [isPhoneOpen, activeMission]);
+        propsRef.current = { isPhoneOpen, activeMission, settings };
+    }, [isPhoneOpen, activeMission, settings]);
     
     // Mutable Game State Container
     const gameStateRef = useRef<MutableGameState>({
@@ -253,12 +256,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     };
 
     const gameLoop = useCallback((time: number) => {
+        requestRef.current = requestAnimationFrame(gameLoop);
+
+        // Frame Limiter Logic
+        const settings = propsRef.current.settings;
+        if (settings.frameLimiter) {
+            const targetFPS = 30;
+            const frameInterval = 1000 / targetFPS;
+            const elapsed = time - lastFrameTimeRef.current;
+
+            if (elapsed < frameInterval) return;
+            lastFrameTimeRef.current = time - (elapsed % frameInterval);
+        } else {
+            lastFrameTimeRef.current = time;
+        }
+
         if (!canvasRef.current) return;
         const ctx = canvasRef.current.getContext('2d');
         if (!ctx) return;
         
         updatePhysics(gameStateRef.current, keysPressed.current);
-        renderGame(ctx, gameStateRef.current, groundTexturesRef.current);
+        renderGame(ctx, gameStateRef.current, groundTexturesRef.current, settings);
 
         // Sync to React State for HUD (throttled)
         if (gameStateRef.current.timeTicker % 10 === 0) {
@@ -269,8 +287,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 paused: false
             });
         }
-        
-        requestRef.current = requestAnimationFrame(gameLoop);
     }, [onGameStateUpdate]);
 
     useEffect(() => {

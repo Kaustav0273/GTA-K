@@ -1,16 +1,28 @@
+
 import React, { useState } from 'react';
 import GameCanvas from './components/GameCanvas';
 import HUD from './components/HUD';
 import Phone from './components/Phone';
 import WeaponWheel from './components/WeaponWheel';
-import { GameState, Mission, Pedestrian, EntityType, WeaponType } from './types';
+import { GameState, Mission, EntityType, WeaponType, GameSettings } from './types';
 import { COLORS, STAMINA_MAX, PLAYER_SIZE } from './constants';
 
 const App: React.FC = () => {
   const [gameStarted, setGameStarted] = useState(false);
   const [isPhoneOpen, setIsPhoneOpen] = useState(false);
   const [isWeaponWheelOpen, setIsWeaponWheelOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   
+  // Settings State
+  const [settings, setSettings] = useState<GameSettings>({
+      sfxVolume: 8,
+      musicVolume: 6,
+      drawDistance: 'ULTRA',
+      retroFilter: true,
+      frameLimiter: false,
+      mouseSensitivity: 50
+  });
+
   const [gameState, setGameState] = useState<GameState>({
     player: {
         id: 'player', 
@@ -54,11 +66,17 @@ const App: React.FC = () => {
   };
   
   const handleWeaponSelect = (weapon: WeaponType) => {
-      // GameCanvas syncs via props, so we just update the local state that gets passed down
       setGameState(prev => ({
           ...prev,
           player: { ...prev.player, weapon }
       }));
+  };
+
+  // Settings Handlers
+  const toggleDrawDistance = () => {
+      const levels: GameSettings['drawDistance'][] = ['LOW', 'MED', 'HIGH', 'ULTRA'];
+      const currentIdx = levels.indexOf(settings.drawDistance);
+      setSettings(prev => ({ ...prev, drawDistance: levels[(currentIdx + 1) % levels.length] }));
   };
 
   return (
@@ -98,42 +116,130 @@ const App: React.FC = () => {
             <div className="relative z-10 w-full h-full flex flex-col justify-between p-8 md:p-16">
                 
                 {/* Header / Logo Section */}
-                <div className="flex flex-col items-start drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] mt-8 md:mt-0">
-                    <div className="bg-white px-4 py-1 transform -rotate-2 mb-4 shadow-lg border-2 border-black inline-block">
-                        <span className="font-gta text-black text-xl md:text-2xl tracking-widest">REACT CITY STORIES</span>
+                {!showSettings && (
+                    <div className="flex flex-col items-start drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] mt-8 md:mt-0">
+                        <div className="bg-white px-4 py-1 transform -rotate-2 mb-4 shadow-lg border-2 border-black inline-block">
+                            <span className="font-gta text-black text-xl md:text-2xl tracking-widest">REACT CITY STORIES</span>
+                        </div>
+                        <h1 className="font-gta text-8xl md:text-[11rem] text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 leading-[0.8] tracking-tight filter drop-shadow-[5px_5px_0_#000]">
+                            GTA K
+                        </h1>
+                        <div className="flex items-center gap-4 mt-6 ml-4">
+                            <span className="font-gta text-3xl text-pink-500 tracking-widest drop-shadow-[2px_2px_0_#000]">BETA</span>
+                            <div className="h-1.5 w-16 bg-pink-500 shadow-[2px_2px_0_#000]"></div>
+                            <span className="font-gta text-3xl text-white tracking-widest drop-shadow-[2px_2px_0_#000]">V5</span>
+                        </div>
                     </div>
-                    <h1 className="font-gta text-8xl md:text-[11rem] text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 leading-[0.8] tracking-tight filter drop-shadow-[5px_5px_0_#000]">
-                        GTA K
-                    </h1>
-                    <div className="flex items-center gap-4 mt-6 ml-4">
-                        <span className="font-gta text-3xl text-pink-500 tracking-widest drop-shadow-[2px_2px_0_#000]">BETA</span>
-                        <div className="h-1.5 w-16 bg-pink-500 shadow-[2px_2px_0_#000]"></div>
-                        <span className="font-gta text-3xl text-white tracking-widest drop-shadow-[2px_2px_0_#000]">V5</span>
+                )}
+                {showSettings && (
+                    <div className="mt-8">
+                         <h1 className="font-gta text-6xl text-white drop-shadow-[4px_4px_0_rgba(0,0,0,1)]">SETTINGS</h1>
                     </div>
-                </div>
+                )}
 
                 {/* Menu Section */}
                 <div className="flex flex-col items-start gap-2 mt-auto mb-8 md:mb-12 pl-4">
-                    <button 
-                        onClick={() => setGameStarted(true)}
-                        className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300"
-                    >
-                        <span className="font-gta text-6xl md:text-8xl text-white group-hover:text-yellow-400 transition-colors drop-shadow-[4px_4px_0_rgba(0,0,0,1)] tracking-wide">
-                            START GAME
-                        </span>
-                    </button>
-                    
-                    <button className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300 opacity-70 hover:opacity-100">
-                        <span className="font-gta text-4xl md:text-6xl text-gray-300 group-hover:text-pink-400 transition-colors drop-shadow-[3px_3px_0_rgba(0,0,0,1)] tracking-wide">
-                            OPTIONS
-                        </span>
-                    </button>
-                    
-                    <button className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300 opacity-70 hover:opacity-100">
-                        <span className="font-gta text-4xl md:text-6xl text-gray-300 group-hover:text-blue-400 transition-colors drop-shadow-[3px_3px_0_rgba(0,0,0,1)] tracking-wide">
-                            QUIT
-                        </span>
-                    </button>
+                    {!showSettings ? (
+                        <>
+                            <button 
+                                onClick={() => setGameStarted(true)}
+                                className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300"
+                            >
+                                <span className="font-gta text-6xl md:text-8xl text-white group-hover:text-yellow-400 transition-colors drop-shadow-[4px_4px_0_rgba(0,0,0,1)] tracking-wide">
+                                    START GAME
+                                </span>
+                            </button>
+                            
+                            <button 
+                                onClick={() => setShowSettings(true)}
+                                className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300"
+                            >
+                                <span className="font-gta text-4xl md:text-6xl text-gray-300 group-hover:text-pink-400 transition-colors drop-shadow-[3px_3px_0_rgba(0,0,0,1)] tracking-wide">
+                                    OPTIONS
+                                </span>
+                            </button>
+                            
+                            <button className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300 opacity-70 hover:opacity-100">
+                                <span className="font-gta text-4xl md:text-6xl text-gray-300 group-hover:text-blue-400 transition-colors drop-shadow-[3px_3px_0_rgba(0,0,0,1)] tracking-wide">
+                                    QUIT
+                                </span>
+                            </button>
+                        </>
+                    ) : (
+                        <div className="w-full md:w-[600px] bg-black/80 p-8 border-l-8 border-yellow-400 backdrop-blur-md shadow-2xl animate-fade-in-up">
+                            <div className="space-y-6 font-mono text-white text-lg">
+                                {/* Audio */}
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-400">SFX VOLUME</span>
+                                        <div className="flex gap-1">
+                                            {[...Array(10)].map((_, i) => (
+                                                <button 
+                                                    key={i} 
+                                                    onClick={() => setSettings(s => ({...s, sfxVolume: i + 1}))}
+                                                    className={`w-3 h-6 cursor-pointer hover:opacity-80 transition-opacity ${i < settings.sfxVolume ? 'bg-green-500' : 'bg-gray-800'}`}
+                                                ></button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-400">MUSIC VOLUME</span>
+                                        <div className="flex gap-1">
+                                            {[...Array(10)].map((_, i) => (
+                                                <button 
+                                                    key={i} 
+                                                    onClick={() => setSettings(s => ({...s, musicVolume: i + 1}))}
+                                                    className={`w-3 h-6 cursor-pointer hover:opacity-80 transition-opacity ${i < settings.musicVolume ? 'bg-green-500' : 'bg-gray-800'}`}
+                                                ></button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="h-px bg-white/20 my-4"></div>
+
+                                {/* Display */}
+                                <div className="space-y-2">
+                                     <button onClick={toggleDrawDistance} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
+                                        <span className="text-gray-400 group-hover:text-white">DRAW DISTANCE</span>
+                                        <span className="text-yellow-400 font-bold">{settings.drawDistance}</span>
+                                    </button>
+                                     <button onClick={() => setSettings(s => ({...s, retroFilter: !s.retroFilter}))} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
+                                        <span className="text-gray-400 group-hover:text-white">RETRO FILTER</span>
+                                        <span className={`${settings.retroFilter ? 'text-green-400' : 'text-red-500'} font-bold`}>{settings.retroFilter ? 'ON' : 'OFF'}</span>
+                                    </button>
+                                     <button onClick={() => setSettings(s => ({...s, frameLimiter: !s.frameLimiter}))} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
+                                        <span className="text-gray-400 group-hover:text-white">FRAME LIMITER (30 FPS)</span>
+                                        <span className={`${settings.frameLimiter ? 'text-green-400' : 'text-red-500'} font-bold`}>{settings.frameLimiter ? 'ON' : 'OFF'}</span>
+                                    </button>
+                                </div>
+                                
+                                <div className="h-px bg-white/20 my-4"></div>
+
+                                {/* Controls */}
+                                <div className="flex justify-between items-center group">
+                                    <span className="text-gray-400 group-hover:text-white">MOUSE SENSITIVITY</span>
+                                    <div className="w-32 h-6 flex items-center bg-gray-700/50 rounded-full overflow-hidden relative cursor-pointer"
+                                         onClick={(e) => {
+                                             const rect = e.currentTarget.getBoundingClientRect();
+                                             const x = e.clientX - rect.left;
+                                             const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                                             setSettings(s => ({...s, mouseSensitivity: pct}));
+                                         }}
+                                    >
+                                        <div className="h-full bg-blue-500 pointer-events-none" style={{width: `${settings.mouseSensitivity}%`}}></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={() => setShowSettings(false)}
+                                className="mt-10 font-gta text-4xl text-white hover:text-yellow-400 transition-colors flex items-center gap-4"
+                            >
+                                <i className="fas fa-arrow-left text-2xl"></i> BACK
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer / Controls Hint */}
@@ -163,11 +269,12 @@ const App: React.FC = () => {
             onWeaponWheelToggle={setIsWeaponWheelOpen}
             isWeaponWheelOpen={isWeaponWheelOpen}
             activeWeapon={gameState.player.weapon}
+            settings={settings}
           />
       )}
 
-      {/* Retro Scanlines Overlay - Always visible for vibe */}
-      <div className="scanlines pointer-events-none"></div>
+      {/* Retro Scanlines Overlay - Controlled by Settings */}
+      {settings.retroFilter && <div className="scanlines pointer-events-none"></div>}
 
       {/* UI Layer */}
       {gameStarted && !isWeaponWheelOpen && (
