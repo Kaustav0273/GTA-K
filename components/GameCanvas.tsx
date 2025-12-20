@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
@@ -18,12 +19,13 @@ interface GameCanvasProps {
     isWeaponWheelOpen: boolean;
     activeWeapon: WeaponType;
     settings: GameSettings;
+    paused: boolean;
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ 
     onGameStateUpdate, isPhoneOpen, activeMission, 
     onWeaponWheelToggle, isWeaponWheelOpen, activeWeapon,
-    settings
+    settings, paused
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const requestRef = useRef<number>(0);
@@ -32,10 +34,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const lastFrameTimeRef = useRef<number>(0);
     
     // Refs to access latest props in gameLoop without closure staleness
-    const propsRef = useRef({ isPhoneOpen, activeMission, settings });
+    const propsRef = useRef({ isPhoneOpen, activeMission, settings, paused });
     useEffect(() => {
-        propsRef.current = { isPhoneOpen, activeMission, settings };
-    }, [isPhoneOpen, activeMission, settings]);
+        propsRef.current = { isPhoneOpen, activeMission, settings, paused };
+    }, [isPhoneOpen, activeMission, settings, paused]);
     
     // Mutable Game State Container
     const gameStateRef = useRef<MutableGameState>({
@@ -259,9 +261,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const gameLoop = useCallback((time: number) => {
         requestRef.current = requestAnimationFrame(gameLoop);
+        
+        const { paused, settings } = propsRef.current;
+        if (paused) return;
 
         // Frame Limiter Logic
-        const settings = propsRef.current.settings;
         if (settings.frameLimiter) {
             const targetFPS = 30;
             const frameInterval = 1000 / targetFPS;

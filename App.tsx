@@ -1,9 +1,11 @@
 
+
 import React, { useState } from 'react';
 import GameCanvas from './components/GameCanvas';
 import HUD from './components/HUD';
 import Phone from './components/Phone';
 import WeaponWheel from './components/WeaponWheel';
+import MapMenu from './components/MapMenu';
 import { GameState, Mission, EntityType, WeaponType, GameSettings } from './types';
 import { COLORS, STAMINA_MAX, PLAYER_SIZE } from './constants';
 
@@ -12,6 +14,7 @@ const App: React.FC = () => {
   const [isPhoneOpen, setIsPhoneOpen] = useState(false);
   const [isWeaponWheelOpen, setIsWeaponWheelOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   
   // Settings State
   const [settings, setSettings] = useState<GameSettings>({
@@ -270,6 +273,7 @@ const App: React.FC = () => {
             isWeaponWheelOpen={isWeaponWheelOpen}
             activeWeapon={gameState.player.weapon}
             settings={settings}
+            paused={showMap}
           />
       )}
 
@@ -277,10 +281,11 @@ const App: React.FC = () => {
       {settings.retroFilter && <div className="scanlines pointer-events-none"></div>}
 
       {/* UI Layer */}
-      {gameStarted && !isWeaponWheelOpen && (
+      {gameStarted && !isWeaponWheelOpen && !showMap && (
         <HUD 
             gameState={gameState} 
-            onPhoneClick={handlePhoneToggle} 
+            onPhoneClick={handlePhoneToggle}
+            onRadarClick={() => setShowMap(true)} 
         />
       )}
 
@@ -300,6 +305,16 @@ const App: React.FC = () => {
             isOpen={isWeaponWheelOpen}
             currentWeapon={gameState.player.weapon}
             onSelectWeapon={handleWeaponSelect}
+          />
+      )}
+
+      {/* Map Menu Overlay */}
+      {showMap && (
+          <MapMenu 
+            gameState={gameState}
+            onResume={() => setShowMap(false)}
+            onQuit={() => { setShowMap(false); setGameStarted(false); }}
+            onOptions={() => { setShowMap(false); setGameStarted(false); setShowSettings(true); }}
           />
       )}
     </div>

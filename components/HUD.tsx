@@ -7,9 +7,10 @@ import Radar from './Radar';
 interface HUDProps {
   gameState: GameState;
   onPhoneClick: () => void;
+  onRadarClick?: () => void;
 }
 
-const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick }) => {
+const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick }) => {
   const { player, wantedLevel, money, mission } = gameState;
 
   // Calculate Health Colors
@@ -57,7 +58,7 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick }) => {
       {/* Bottom Row */}
       <div className="flex justify-between items-end">
         {/* Radar / Minimap Container */}
-        <div className="relative">
+        <div className="relative pointer-events-auto" onClick={onRadarClick}>
              {/* Health & Armor Bars (Above Radar) */}
              <div className="mb-2 w-56 flex flex-col gap-1">
                 {/* Health */}
@@ -85,7 +86,7 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick }) => {
                 </div>
              </div>
 
-            <div className="w-56 h-36 bg-black/80 border-4 border-gray-600 rounded-lg shadow-2xl overflow-hidden relative">
+            <div className="w-56 h-36 bg-black/80 border-4 border-gray-600 rounded-lg shadow-2xl overflow-hidden relative cursor-pointer hover:border-gray-400 transition-colors">
                 <Radar gameState={gameState} />
                 {/* Gloss Effect */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
