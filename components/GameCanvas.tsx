@@ -5,7 +5,7 @@ import {
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
 } from '../types';
 import { 
-    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, COLORS, CAR_MODELS, STAMINA_MAX 
+    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, STAMINA_MAX, COLORS 
 } from '../constants';
 import { generateMap, getTileAt, createNoiseTexture, isSolid } from '../utils/gameUtils';
 import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle, isPoliceNearby } from '../game/physics';
@@ -79,16 +79,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const state = gameStateRef.current;
         state.map = generateMap();
 
-        // Find Hospital
+        // Find Hospital and a valid spawn point on the ROAD in front of it
         let foundHospital = false;
+        
         for(let y=0; y<MAP_HEIGHT; y++) {
             for(let x=0; x<MAP_WIDTH; x++) {
                 if(state.map[y][x] === TileType.HOSPITAL) {
-                    const neighbors = [{dx: 0, dy: 1}, {dx: 0, dy: -1}, {dx: 1, dy: 0}, {dx: -1, dy: 0}];
+                    const neighbors = [
+                        {dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}
+                    ];
+                    
                     for(const n of neighbors) {
-                        if(getTileAt(state.map, x+n.dx, y+n.dy) === TileType.SIDEWALK) {
-                             state.hospitalPos = { x: (x+n.dx)*TILE_SIZE+TILE_SIZE/2, y: (y+n.dy)*TILE_SIZE+TILE_SIZE/2 };
-                             foundHospital = true; break;
+                        const nx = x + n.dx;
+                        const ny = y + n.dy;
+                        
+                        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+                            const tile = state.map[ny][nx];
+                            if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS) {
+                                state.hospitalPos = { 
+                                    x: nx * TILE_SIZE + TILE_SIZE/2, 
+                                    y: ny * TILE_SIZE + TILE_SIZE/2 
+                                };
+                                foundHospital = true; 
+                                break;
+                            }
                         }
                     }
                 }
@@ -96,9 +110,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             }
             if (foundHospital) break;
         }
-        if (!foundHospital) state.hospitalPos = { x: TILE_SIZE * 6, y: TILE_SIZE * 6 };
+        
+        if (!foundHospital) {
+            console.warn("Could not find road spawn for hospital. Defaulting.");
+            state.hospitalPos = { x: TILE_SIZE * 5, y: TILE_SIZE * 5 };
+        }
 
-        // Set Player to Hospital Spawn
+        // Set Player to Hospital Spawn immediately
         state.player.pos = { ...state.hospitalPos };
 
         // Textures

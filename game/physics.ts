@@ -333,13 +333,6 @@ const respawnVehicle = (state: MutableGameState, car: Vehicle) => {
                 const dir = Math.random() > 0.5 ? Math.PI/2 : 3*Math.PI/2;
                 car.angle = dir;
                 car.targetAngle = dir;
-                
-                // RIGHT HAND TRAFFIC FIX:
-                // South (PI/2) -> Right side (0.25 on screen coord)
-                // North (3PI/2) -> Right side (0.75 on screen coord)
-                // In tile grid, driving south means x increases to the left of the lane center? No.
-                // South (Down). Drivers stay to their right. The right side of the road is West (Left on screen).
-                // North (Up). Drivers stay to their right. The right side of the road is East (Right on screen).
                 car.pos.x = tx * TILE_SIZE + (dir === Math.PI/2 ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
             }
             spawned = true;
@@ -359,30 +352,30 @@ const isDrivable = (tile: number) => tile === TileType.ROAD_H || tile === TileTy
 export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
     state.timeTicker++;
 
-    // Health Regeneration: 1% per second after 10 seconds of no damage
+    // Health Regeneration
     if (state.player.health > 0 && state.player.health < state.player.maxHealth) {
-        if (state.timeTicker - state.lastDamageTaken > 600) { // 600 frames = 10s
-             const healAmount = state.player.maxHealth * 0.01 / 60; // 1% per sec distributed over 60 frames
+        if (state.timeTicker - state.lastDamageTaken > 600) { 
+             const healAmount = state.player.maxHealth * 0.01 / 60; 
              state.player.health = Math.min(state.player.maxHealth, state.player.health + healAmount);
         }
     }
 
-    // Wanted Level Decay: Decrease by 1 star after 20 seconds of no wanted increase
+    // Wanted Level Decay
     if (state.wantedLevel > 0) {
-        if (state.timeTicker - state.lastWantedTime > 1200) { // 1200 frames = 20s
+        if (state.timeTicker - state.lastWantedTime > 1200) { 
             state.wantedLevel--;
-            state.lastWantedTime = state.timeTicker; // Reset timer to count down for next star
+            state.lastWantedTime = state.timeTicker; 
         }
     }
 
     if (state.player.health <= 0) {
         state.player.health = 100;
-        state.player.stamina = state.player.maxStamina; // Reset stamina
+        state.player.stamina = state.player.maxStamina; 
         state.player.state = 'idle';
         state.player.pos = { ...state.hospitalPos };
         state.player.vehicleId = null;
         state.wantedLevel = 0;
-        state.lastDamageTaken = state.timeTicker; // Reset regen timer
+        state.lastDamageTaken = state.timeTicker; 
         state.money = Math.max(0, state.money - 500);
         state.pedestrians.forEach(p => {
             if(p.role === 'police') {
@@ -397,26 +390,145 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
         if (Math.random() > 0.1) return; 
     }
 
-    // Drops Physics & Pickup
+    // ------------------------------------------------------------------
+    // PEDESTRIAN AI & PHYSICS
+    // ------------------------------------------------------------------
+    state.pedestrians.forEach(p => {
+        if (p.state === 'dead') return;
+
+        let moveSpeed = 0;
+        
+        // 1. Detect Threats (Cars)
+        let threat = null;
+        for (const v of state.vehicles) {
+             if (Math.abs(v.speed) > 5) { // Only fast cars
+                 const dist = Math.sqrt((p.pos.x - v.pos.x)**2 + (p.pos.y - v.pos.y)**2);
+                 if (dist < 120) {
+                     // Vector from car to ped
+                     const dx = p.pos.x - v.pos.x;
+                     const dy = p.pos.y - v.pos.y;
+                     // Car direction
+                     const vx = Math.cos(v.angle);
+                     const vy = Math.sin(v.angle);
+                     
+                     // Dot product: is car moving towards ped?
+                     const dot = dx * vx + dy * vy;
+                     if (dot > 0) {
+                         threat = v;
+                         break;
+                     }
+                 }
+             }
+        }
+
+        if (threat) {
+             p.state = 'fleeing';
+             p.actionTimer = 60; // Flee for 1s
+             // Dodge perpendicular to car
+             const carAngle = threat.angle;
+             // Determine which side is closer based on cross product
+             const dx = p.pos.x - threat.pos.x;
+             const dy = p.pos.y - threat.pos.y;
+             const cross = Math.cos(carAngle) * dy - Math.sin(carAngle) * dx;
+             const dodgeDir = cross > 0 ? carAngle + Math.PI/2 : carAngle - Math.PI/2;
+             
+             p.angle = dodgeDir;
+             moveSpeed = PEDESTRIAN_RUN_SPEED * 1.5; // Sprint dodge
+        } 
+        else if (p.role === 'police' && state.wantedLevel > 0) {
+             // POLICE BEHAVIOR
+             const playerPos = state.player.pos;
+             const dist = Math.sqrt((p.pos.x - playerPos.x)**2 + (p.pos.y - playerPos.y)**2);
+             
+             if (dist < 600) { // Detection range
+                  const angleToPlayer = Math.atan2(playerPos.y - p.pos.y, playerPos.x - p.pos.x);
+                  p.angle = angleToPlayer;
+                  
+                  if (dist > 250) {
+                      // Chase
+                      p.state = 'running';
+                      moveSpeed = PEDESTRIAN_RUN_SPEED;
+                  } else {
+                      // Shoot
+                      p.state = 'shooting';
+                      moveSpeed = 0; // Stop to shoot
+                      
+                      if (!p.actionTimer) p.actionTimer = 0;
+                      if (p.actionTimer <= 0) {
+                           handleCombat(state, p);
+                           p.actionTimer = 60 + Math.random() * 30; // Police fire rate
+                      } else {
+                           p.actionTimer--;
+                      }
+                  }
+             } else {
+                 // Lost target
+                 p.state = 'walking';
+                 moveSpeed = PEDESTRIAN_SPEED;
+             }
+        } 
+        else if (p.state === 'fleeing') {
+            if (p.actionTimer && p.actionTimer > 0) {
+                p.actionTimer--;
+                moveSpeed = PEDESTRIAN_RUN_SPEED;
+            } else {
+                p.state = 'walking';
+                p.actionTimer = 100;
+            }
+        } 
+        else {
+             // WANDER
+             if (!p.actionTimer || p.actionTimer <= 0) {
+                 if (Math.random() > 0.4) {
+                     p.state = 'walking';
+                     // Prefer axis aligned for sidewalks
+                     if (Math.random() > 0.3) {
+                         p.angle = Math.floor(Math.random() * 4) * (Math.PI/2);
+                     } else {
+                         p.angle = Math.random() * Math.PI * 2;
+                     }
+                     p.actionTimer = 60 + Math.random() * 120;
+                 } else {
+                     p.state = 'idle';
+                     p.actionTimer = 60 + Math.random() * 60;
+                 }
+             } else {
+                 p.actionTimer--;
+             }
+             
+             if (p.state === 'walking') moveSpeed = PEDESTRIAN_SPEED;
+        }
+
+        // Apply Movement
+        p.velocity.x = Math.cos(p.angle) * moveSpeed;
+        p.velocity.y = Math.sin(p.angle) * moveSpeed;
+
+        const nextX = p.pos.x + p.velocity.x;
+        const nextY = p.pos.y + p.velocity.y;
+
+        // Wall Collision
+        if (!isSolid(getTileAt(state.map, nextX, nextY))) {
+             p.pos.x = nextX;
+             p.pos.y = nextY;
+        } else {
+             p.actionTimer = 0;
+             p.angle += Math.PI; 
+        }
+    });
+
+    // Drops Physics
     state.drops.forEach(d => {
        const dx = state.player.pos.x - d.pos.x;
        const dy = state.player.pos.y - d.pos.y;
        const dist = Math.sqrt(dx*dx + dy*dy);
-       
-       // Magnet Effect
-       if (dist < 30) {
-           d.pos.x += dx * 0.1;
-           d.pos.y += dy * 0.1;
-       }
-
-       // Pickup
+       if (dist < 30) { d.pos.x += dx * 0.1; d.pos.y += dy * 0.1; }
        if (dist < 10) {
-           d.life = 0; // Remove
+           d.life = 0; 
            if (d.type === 'cash' && d.value) {
                state.money += d.value;
                spawnParticle(state, d.pos, 'spark', 5, { color: '#4ade80', speed: 1.5, size: 2 });
            } else if (d.type === 'weapon' && d.weapon) {
-               state.player.weapon = d.weapon; // Auto-equip
+               state.player.weapon = d.weapon; 
                spawnParticle(state, d.pos, 'spark', 5, { color: '#fbbf24', speed: 1.5, size: 2 });
            }
        }
@@ -425,17 +537,79 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
 
     // Particles
     state.particles.forEach(p => {
-        p.pos.x += p.velocity.x;
-        p.pos.y += p.velocity.y;
-        p.life--;
+        p.pos.x += p.velocity.x; p.pos.y += p.velocity.y; p.life--;
     });
     state.particles = state.particles.filter(p => p.life > 0);
 
-    // Vehicles
+    // Bullets (Movement & Collision)
+    state.bullets.forEach(b => {
+        b.pos.x += b.velocity.x;
+        b.pos.y += b.velocity.y;
+        b.timeLeft--;
+
+        // 1. Vehicle Collisions
+        for (const v of state.vehicles) {
+             if (checkPointInVehicle(b.pos.x, b.pos.y, v, 0)) {
+                 b.timeLeft = 0;
+                 v.health -= b.damage;
+                 spawnParticle(state, b.pos, 'spark', 3, { color: '#fbbf24', speed: 2 });
+                 if (b.ownerId === 'player' && (v.model === 'police' || v.model === 'swat')) {
+                      state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                      state.lastWantedTime = state.timeTicker;
+                 }
+                 break;
+             }
+        }
+        if (b.timeLeft <= 0) return;
+
+        // 2. Pedestrian Collisions (NPCs)
+        for (const p of state.pedestrians) {
+            if (p.state === 'dead' || p.id === b.ownerId) continue;
+            const dist = Math.sqrt((p.pos.x - b.pos.x)**2 + (p.pos.y - b.pos.y)**2);
+            if (dist < 10) {
+                 b.timeLeft = 0;
+                 p.health -= b.damage;
+                 spawnParticle(state, b.pos, 'blood', 3, { color: '#991b1b', speed: 2 });
+                 
+                 if (p.health <= 0) {
+                     p.state = 'dead';
+                     spawnDrops(state, p);
+                     if (b.ownerId === 'player') {
+                         if (isPoliceNearby(state, p.pos)) {
+                              state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                              state.lastWantedTime = state.timeTicker;
+                         }
+                     }
+                 } else {
+                     p.state = 'fleeing';
+                 }
+                 break;
+            }
+        }
+        if (b.timeLeft <= 0) return;
+
+        // 3. Player Collision
+        if (b.ownerId !== 'player' && state.player.health > 0) {
+             const dist = Math.sqrt((state.player.pos.x - b.pos.x)**2 + (state.player.pos.y - b.pos.y)**2);
+             if (dist < 12) {
+                 b.timeLeft = 0;
+                 state.player.health -= b.damage;
+                 state.lastDamageTaken = state.timeTicker;
+                 spawnParticle(state, b.pos, 'blood', 4, { color: '#7f1d1d', speed: 2 });
+                 return;
+             }
+        }
+
+        // 4. Wall Collisions
+        if (isSolid(getTileAt(state.map, b.pos.x, b.pos.y))) {
+             b.timeLeft = 0;
+             spawnParticle(state, b.pos, 'smoke', 2, { color: '#9ca3af', speed: 1 });
+        }
+    });
+    state.bullets = state.bullets.filter(b => b.timeLeft > 0);
+
+    // Vehicles (NPC Control)
     state.vehicles.forEach(car => {
-        // ------------------------------------------------------------------
-        // NPC VEHICLE AI (Rail System)
-        // ------------------------------------------------------------------
         if (car.driverId === 'npc') {
             const tileX = Math.floor(car.pos.x / TILE_SIZE);
             const tileY = Math.floor(car.pos.y / TILE_SIZE);
@@ -453,7 +627,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 const dy = other.pos.y - car.pos.y;
                 const distFwd = dx * fwdX + dy * fwdY;
                 const distSide = Math.abs(dx * -fwdY + dy * fwdX);
-                // Simple cone check
                 if (distFwd > 0 && distFwd < sensorDist && distSide < 20) {
                      brake = true;
                      break;
@@ -473,166 +646,102 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
 
             // 2. RAIL MOVEMENT
             if (!isDrivable(tile)) {
-                // We are off road. Reset.
                 respawnVehicle(state, car);
             } else if (tile === TileType.ROAD_H) {
-                // Horizontal Rail: Lock Y, Lock Angle to 0 or PI
                 const isEast = Math.abs(car.angle) < Math.PI/2;
                 const targetAngle = isEast ? 0 : Math.PI;
-                car.angle = targetAngle; // Force Angle
-                
-                // Force Lane Y
+                car.angle = targetAngle; 
                 const laneY = tileY * TILE_SIZE + (isEast ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
-                car.pos.y += (laneY - car.pos.y) * 0.2; // Snap 20% per frame
-                
-                // Move X
+                car.pos.y += (laneY - car.pos.y) * 0.2; 
                 car.pos.x += Math.cos(car.angle) * car.speed;
             } else if (tile === TileType.ROAD_V) {
-                // Vertical Rail: Lock X, Lock Angle to PI/2 or 3PI/2
-                // Normalize Angle to 0-2PI to accurately check direction
                 let normAngle = car.angle % (Math.PI * 2);
                 if (normAngle < 0) normAngle += Math.PI * 2;
-                
-                // South is around PI/2. North is around 3PI/2.
                 const isSouth = normAngle > 0 && normAngle < Math.PI;
-                
                 const targetAngle = isSouth ? Math.PI/2 : 3*Math.PI/2;
-                car.angle = targetAngle; // Force Angle
-
-                // Force Lane X (Right Hand Traffic)
-                // South (Down) -> 0.25
-                // North (Up) -> 0.75
+                car.angle = targetAngle; 
                 const laneX = tileX * TILE_SIZE + (isSouth ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
-                car.pos.x += (laneX - car.pos.x) * 0.2; // Snap 20% per frame
-
-                // Move Y
+                car.pos.x += (laneX - car.pos.x) * 0.2; 
                 car.pos.y += Math.sin(car.angle) * car.speed;
             } else if (tile === TileType.ROAD_CROSS) {
-                // Intersection Node
                 const centerX = tileX * TILE_SIZE + TILE_SIZE/2;
                 const centerY = tileY * TILE_SIZE + TILE_SIZE/2;
                 const toCenterX = centerX - car.pos.x;
                 const toCenterY = centerY - car.pos.y;
                 const dist = Math.sqrt(toCenterX**2 + toCenterY**2);
-                
-                // Dot product to check if we are approaching the center (positive) or leaving it (negative)
                 const dot = toCenterX * Math.cos(car.angle) + toCenterY * Math.sin(car.angle);
                 
-                // Only snap if we are close AND moving towards the center.
                 if (dist < car.speed + 8 && dot > 0) {
-                     // We hit the center node. Snap and Turn.
                      car.pos.x = centerX;
                      car.pos.y = centerY;
                      
                      const exits: number[] = [];
-                     // Check neighbors
                      if (isDrivable(getTileAt(state.map, (tileX+1)*TILE_SIZE, tileY*TILE_SIZE))) exits.push(0);
                      if (isDrivable(getTileAt(state.map, (tileX-1)*TILE_SIZE, tileY*TILE_SIZE))) exits.push(Math.PI);
                      if (isDrivable(getTileAt(state.map, tileX*TILE_SIZE, (tileY+1)*TILE_SIZE))) exits.push(Math.PI/2);
                      if (isDrivable(getTileAt(state.map, tileX*TILE_SIZE, (tileY-1)*TILE_SIZE))) exits.push(3*Math.PI/2);
                      
-                     // Prefer straight
+                     let newAngle = car.angle;
                      const currentDir = car.angle;
-                     // Normalize angle
                      let normDir = currentDir;
                      while (normDir < 0) normDir += Math.PI*2;
                      normDir = normDir % (Math.PI*2);
-
+                     
                      const straight = exits.find(e => {
                          let normE = e;
                          while (normE < 0) normE += Math.PI*2;
                          return Math.abs(normE - normDir) < 0.1;
                      });
-                     
-                     let newAngle = car.angle;
-                     // 60% chance to go straight if available
+
                      if (straight !== undefined && Math.random() > 0.4) {
                          newAngle = straight;
                      } else if (exits.length > 0) {
-                         // Pick random valid exit
                          newAngle = exits[Math.floor(Math.random() * exits.length)];
                      } else {
-                         // Dead end? Turn around
                          newAngle += Math.PI;
                      }
                      car.angle = newAngle;
 
-                     // IMMEDIATE LANE OFFSET (RIGHT HAND TRAFFIC)
-                     // Shift car to the correct lane side immediately to look natural and enter next tile correctly.
-                     // The logic must place the car on the RIGHT side of the road it is turning ONTO.
                      const laneOffset = TILE_SIZE * 0.25;
-                     
-                     // Normalize newAngle to checking
                      let checkAngle = newAngle % (Math.PI * 2);
                      if (checkAngle < 0) checkAngle += Math.PI * 2;
                      
                      if (Math.abs(checkAngle - 0) < 0.1 || Math.abs(checkAngle - 2*Math.PI) < 0.1) {
-                         // Turning East (0) -> Bottom Lane (+Y)
                          car.pos.y += laneOffset; 
                      } else if (Math.abs(checkAngle - Math.PI) < 0.1) {
-                         // Turning West (PI) -> Top Lane (-Y)
                          car.pos.y -= laneOffset;
                      } else if (Math.abs(checkAngle - Math.PI/2) < 0.1) {
-                         // Turning South (PI/2) -> Right Lane (Left on screen, -X)
-                         // Wait, X center is 0.5. Target is 0.25. So subtract offset.
                          car.pos.x -= laneOffset; 
                      } else if (Math.abs(checkAngle - 1.5*Math.PI) < 0.1) {
-                         // Turning North (3PI/2) -> Right Lane (Right on screen, +X)
-                         // Wait, X center is 0.5. Target is 0.75. So add offset.
                          car.pos.x += laneOffset;
                      }
-
                 } else {
-                    // Drive straight (leaving intersection or approaching it)
                     car.pos.x += Math.cos(car.angle) * car.speed;
                     car.pos.y += Math.sin(car.angle) * car.speed;
                 }
             } else {
-                // Unknown state (should be caught by !isDrivable), but just in case
                 car.speed = 0;
             }
 
-            // Sync target angle (for consistency if needed elsewhere)
             car.targetAngle = car.angle;
             
-            // Stuck detection
             if (car.speed < 0.5 && !brake) car.stuckTimer = (car.stuckTimer || 0) + 1;
             else car.stuckTimer = 0;
             if ((car.stuckTimer || 0) > 300) respawnVehicle(state, car);
         }
 
-        // Damage & Destruction Logic
+        // Damage Logic
         const maxHealth = (CAR_MODELS[car.model] as any)?.health || 100;
-        const healthRatio = car.health / maxHealth;
-
-        if (healthRatio < 0.5) {
-             if (Math.random() > 0.8) spawnParticle(state, car.pos, 'smoke', 1, { color: 'rgba(100,100,100,0.5)', speed: 0.5, size: 2 + Math.random() * 2 });
-             if (!car.damage.windows[0] && Math.random() > 0.995) car.damage.windows[0] = true;
-        }
-        
-        if (healthRatio < 0.25) {
-             if (Math.random() > 0.7) spawnParticle(state, car.pos, 'smoke', 1, { color: 'rgba(50,50,50,0.7)', speed: 0.8, size: 3 + Math.random() * 3 });
-             if (Math.random() > 0.9) spawnParticle(state, car.pos, 'fire', 1, { speed: 0.5, size: 2 });
-             if (Math.random() > 0.99) {
-                 const tire = Math.floor(Math.random() * 4);
-                 if (!car.damage.tires[tire]) car.damage.tires[tire] = true;
-             }
-        }
-
         if (car.health <= 0) {
             createExplosion(state, car.pos, 80);
-            
-            // Handle Player inside
             if (state.player.vehicleId === car.id) {
                 state.player.health = 0;
-                // Force ejection/death handled at start of updatePhysics next frame
             }
-            
             respawnVehicle(state, car);
         }
     });
 
-    // Player Vehicle
+    // Player Vehicle Physics
     if (state.player.state === 'driving' && state.player.vehicleId) {
         const car = state.vehicles.find(v => v.id === state.player.vehicleId);
         if (car) {
@@ -644,7 +753,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             const poppedTires = car.damage.tires.filter(t => t).length;
             if (poppedTires > 0) {
                 grip *= (1 - poppedTires * 0.15);
-                drag *= (1 - poppedTires * 0.05); // Reduce retention to increase drag (0.96 -> smaller)
+                drag *= (1 - poppedTires * 0.05);
             }
 
             const isGas = (keys.has('KeyW') || keys.has('ArrowUp')) && !state.isWeaponWheelOpen;
@@ -676,18 +785,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 if (isLeft) car.angle -= car.handling * dir * steerFactor;
                 if (isRight) car.angle += car.handling * dir * steerFactor;
             }
-            
-            if (Math.abs(vFwd) > 3 && poppedTires > 0) {
-                car.angle += (Math.random() - 0.5) * 0.05 * poppedTires;
-                if (Math.random() < 0.2 * poppedTires) {
-                     const offset = Math.random() > 0.5 ? 10 : -10;
-                     const sparkPos = {
-                         x: car.pos.x + Math.cos(car.angle + Math.PI/2) * offset,
-                         y: car.pos.y + Math.sin(car.angle + Math.PI/2) * offset
-                     };
-                     spawnParticle(state, sparkPos, 'spark', 1, { color: '#fbbf24', speed: 2 });
-                }
-            }
 
             vFwd *= drag;
             vLat *= (1 - grip);
@@ -701,14 +798,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             car.velocity.x = vFwd * nCos - vLat * nSin;
             car.velocity.y = vFwd * nSin + vLat * nCos;
             
-            const currentMaxSpeed = car.maxSpeed * (1 - poppedTires * 0.1);
-            const currentSpeed = Math.sqrt(car.velocity.x**2 + car.velocity.y**2);
-            if (currentSpeed > currentMaxSpeed) {
-                const ratio = currentMaxSpeed / currentSpeed;
-                car.velocity.x *= ratio;
-                car.velocity.y *= ratio;
-            }
-            
             car.speed = vFwd;
             const nextX = car.pos.x + car.velocity.x;
             const nextY = car.pos.y + car.velocity.y;
@@ -720,48 +809,26 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 const impactForce = Math.abs(car.speed);
                 car.velocity.x *= -0.5;
                 car.velocity.y *= -0.5;
-                if (impactForce > 4) {
-                     car.health -= impactForce * 5;
-                     if (impactForce > 8) {
-                         if (Math.random() > 0.6) car.damage.windows[0] = true; 
-                         if (Math.random() > 0.6) car.damage.windows[1] = true;
-                         spawnParticle(state, car.pos, 'debris', 3, { color: '#e5e7eb', speed: 2 });
-                     }
-                }
+                if (impactForce > 4) car.health -= impactForce * 5;
             }
 
-            // 2. Other Vehicles
+            // Car-Car Collision
             state.vehicles.forEach(other => {
                 if (other.id === car.id) return;
-                
                 const dist = Math.sqrt((car.pos.x - other.pos.x)**2 + (car.pos.y - other.pos.y)**2);
                 if (dist < 40) { 
-                    // Elastic Bounce
                     let angle = Math.atan2(other.pos.y - car.pos.y, other.pos.x - car.pos.x);
-                    // Prevent NaN if positions are identical
                     if (dist === 0) angle = Math.random() * Math.PI * 2;
-                    
                     const overlap = 40 - dist;
-                    
                     const pushX = Math.cos(angle) * overlap * 0.5;
                     const pushY = Math.sin(angle) * overlap * 0.5;
-                    
-                    car.pos.x -= pushX;
-                    car.pos.y -= pushY;
-                    other.pos.x += pushX;
-                    other.pos.y += pushY;
-                    
+                    car.pos.x -= pushX; car.pos.y -= pushY;
+                    other.pos.x += pushX; other.pos.y += pushY;
                     const impact = Math.abs(car.speed) + Math.abs(other.speed);
                     if (impact > 2) {
-                        car.speed *= -0.5;
-                        other.speed *= -0.5;
-                        
-                        // Reduced damage multiplier from 2 to 0.5 to prevent instant explosions
-                        car.health -= impact * 0.5;
-                        other.health -= impact * 0.5;
-                        
+                        car.speed *= -0.5; other.speed *= -0.5;
+                        car.health -= impact * 0.5; other.health -= impact * 0.5;
                         spawnParticle(state, {x: (car.pos.x+other.pos.x)/2, y: (car.pos.y+other.pos.y)/2}, 'spark', 3, { color: '#fbbf24', speed: 3 });
-                        spawnParticle(state, {x: (car.pos.x+other.pos.x)/2, y: (car.pos.y+other.pos.y)/2}, 'debris', 2, { color: '#9ca3af', speed: 2 });
                     }
                 }
             });
@@ -769,16 +836,9 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             state.player.pos.x = car.pos.x;
             state.player.pos.y = car.pos.y;
             state.player.angle = car.angle;
-            
-            // While driving, stamina regenerates slowly if timer allows
-            if (state.player.stamina < state.player.maxStamina) {
-                 if (state.player.staminaRechargeDelay > 0) state.player.staminaRechargeDelay--;
-                 else state.player.stamina += STAMINA_REGEN_RATE;
-            }
-
         }
     } else {
-        // Walking / Sprinting Logic
+        // Player Walking Logic
         if (!state.isWeaponWheelOpen) {
             let dx = 0, dy = 0;
             if (keys.has('KeyW') || keys.has('ArrowUp')) dy = -1;
@@ -795,12 +855,9 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 state.player.velocity.x += Math.cos(angle) * acceleration;
                 state.player.velocity.y += Math.sin(angle) * acceleration;
                 state.player.angle = angle;
-                
                 if (state.player.state !== 'punching') {
                     state.player.state = isSprinting ? 'running' : 'walking';
                 }
-
-                // Stamina Logic
                 if (isSprinting) {
                     state.player.stamina = Math.max(0, state.player.stamina - 1);
                     state.player.staminaRechargeDelay = STAMINA_REGEN_DELAY;
@@ -809,7 +866,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 if (state.player.state !== 'punching') state.player.state = 'idle';
             }
             
-            // Limit speed
             const speed = Math.sqrt(state.player.velocity.x ** 2 + state.player.velocity.y ** 2);
             if (speed > currentMaxSpeed) {
                 const ratio = currentMaxSpeed / speed;
@@ -818,13 +874,9 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             }
         }
         
-        // Regenerate Stamina
         if (state.player.stamina < state.player.maxStamina) {
-             if (state.player.staminaRechargeDelay > 0) {
-                 state.player.staminaRechargeDelay--;
-             } else {
-                 state.player.stamina = Math.min(state.player.maxStamina, state.player.stamina + STAMINA_REGEN_RATE);
-             }
+             if (state.player.staminaRechargeDelay > 0) state.player.staminaRechargeDelay--;
+             else state.player.stamina = Math.min(state.player.maxStamina, state.player.stamina + STAMINA_REGEN_RATE);
         }
 
         if (state.player.state === 'punching') {
@@ -859,46 +911,31 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
         for(const v of state.vehicles) {
             if (Math.abs(v.pos.x - nextX) > 50 || Math.abs(v.pos.y - nextY) > 50) continue;
             if (checkPointInVehicle(nextX, nextY, v, PLAYER_SIZE.x/2)) {
-                carCollision = true;
-                break;
+                carCollision = true; break;
             }
         }
 
         if (!touchingSolid && !carCollision) {
-            state.player.pos.x = nextX;
-            state.player.pos.y = nextY;
+            state.player.pos.x = nextX; state.player.pos.y = nextY;
         }
     }
 
-    // Global Vehicle-Pedestrian Collision (Runs for ALL vehicles now)
+    // Global Vehicle-Pedestrian Collision
     state.vehicles.forEach(car => {
-        // Skip if stationary to save performance
         if (Math.abs(car.speed) < 1) return;
-
         state.pedestrians.forEach(p => {
             if (p.state === 'dead' || p.vehicleId === car.id) return;
-
             if (checkPointInVehicle(p.pos.x, p.pos.y, car, 2)) {
                 const impactSpeed = Math.abs(car.speed);
-                
-                // Push out
                 const angleToPed = Math.atan2(p.pos.y - car.pos.y, p.pos.x - car.pos.x);
-                p.pos.x += Math.cos(angleToPed) * 5;
-                p.pos.y += Math.sin(angleToPed) * 5;
-
+                p.pos.x += Math.cos(angleToPed) * 5; p.pos.y += Math.sin(angleToPed) * 5;
                 if (impactSpeed > 2) {
                     const damage = impactSpeed * 15;
                     p.health -= damage;
                     spawnParticle(state, p.pos, 'blood', 4, { color: '#7f1d1d', speed: 2 });
-                    
-                    // Knockback
-                    p.velocity.x += Math.cos(car.angle) * impactSpeed;
-                    p.velocity.y += Math.sin(car.angle) * impactSpeed;
-
+                    p.velocity.x += Math.cos(car.angle) * impactSpeed; p.velocity.y += Math.sin(car.angle) * impactSpeed;
                     if (p.health <= 0) {
-                        p.state = 'dead';
-                        spawnDrops(state, p);
-                        // Only player gets wanted level for killing
+                        p.state = 'dead'; spawnDrops(state, p);
                         if (car.driverId === 'player') {
                             if (isPoliceNearby(state, p.pos)) {
                                 state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
@@ -906,9 +943,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                             }
                         }
                     } else {
-                        p.state = 'fleeing';
-                        p.actionTimer = 120;
-                        // Flee direction
+                        p.state = 'fleeing'; p.actionTimer = 120;
                         p.angle = Math.atan2(p.pos.y - car.pos.y, p.pos.x - car.pos.x);
                     }
                 }

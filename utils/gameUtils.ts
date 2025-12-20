@@ -1,5 +1,4 @@
 
-
 import { MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, COLORS } from "../constants";
 import { TileType } from "../types";
 
@@ -30,27 +29,22 @@ export const generateMap = (): number[][] => {
   // --- ZONING ---
   
   // 1. Hillside Heights (NW) - Grass & Mansions
-  // Green area in top-left
   fillRect(2, 2, 18, 18, TileType.GRASS);
   for(let y=3; y<18; y+=2) {
       for(let x=3; x<18; x+=2) {
-          // Sparse mansions
           if(Math.random() > 0.6) safeSet(x, y, TileType.BUILDING);
       }
   }
 
   // 2. Downtown (Top Center) - Financial District
-  // Concrete base with Skyscrapers
   fillRect(20, 2, 15, 18, TileType.SIDEWALK);
   for(let y=3; y<19; y++) {
       for(let x=21; x<34; x++) {
-          // Grid layout skyscrapers
           if((x+y)%2 === 0 && Math.random() > 0.3) safeSet(x, y, TileType.SKYSCRAPER);
       }
   }
 
-  // 3. Neon Coast (Right/East) - Nightlife
-  // Shops and high-rises
+  // 3. Neon Coast (Right/East)
   fillRect(35, 2, 13, 28, TileType.SIDEWALK);
   for(let y=3; y<28; y++) {
       for(let x=36; x<47; x++) {
@@ -59,8 +53,7 @@ export const generateMap = (): number[][] => {
       }
   }
 
-  // 4. Redline (Mid Left) - Gang Territory
-  // Dense low-rise buildings
+  // 4. Redline (Mid Left)
   fillRect(2, 20, 18, 12, TileType.SIDEWALK);
   for(let y=21; y<31; y++) {
       for(let x=3; x<19; x++) {
@@ -68,8 +61,7 @@ export const generateMap = (): number[][] => {
       }
   }
 
-  // 5. Rust Quarter (Center) - Abandoned Factories
-  // Using SHOP tile for industrial look (vents/awnings) mixed with buildings
+  // 5. Rust Quarter (Center)
   fillRect(20, 20, 15, 15, TileType.SIDEWALK);
   for(let y=21; y<34; y++) {
       for(let x=21; x<34; x++) {
@@ -77,83 +69,69 @@ export const generateMap = (): number[][] => {
       }
   }
 
-  // 6. Port Authority (Bottom Left) - Ships & Containers
-  // Main concrete dock area
+  // 6. Port Authority
   fillRect(2, 32, 18, 16, TileType.SIDEWALK);
-  
-  // Cutout for water/piers to create "fingers"
-  // Finger 1 (Top)
   fillRect(2, 36, 10, 3, TileType.WATER); 
-  // Finger 2 (Bottom)
   fillRect(2, 43, 10, 3, TileType.WATER);
 
-  // Generate Ships in the water cutouts
+  // Ships
   const spawnShip = (x: number, y: number, w: number, h: number) => {
-      // Ship Hull/Deck
       fillRect(x, y, w, h, TileType.SHIP_DECK);
-      // Cargo on Deck
       for(let cy = y + 1; cy < y + h - 1; cy++) {
           for(let cx = x + 1; cx < x + w - 1; cx++) {
               if (Math.random() > 0.3) safeSet(cx, cy, TileType.CONTAINER);
           }
       }
   }
-  // Ship 1 (Top Dock)
-  spawnShip(4, 37, 6, 1); // Small barge
-  // Ship 2 (Bottom Dock) - Larger
+  spawnShip(4, 37, 6, 1); 
   spawnShip(3, 44, 8, 1); 
 
-  // Container Yard (On the main dock concrete)
+  // Container Yard
   for(let y=33; y<46; y++) {
       for(let x=12; x<19; x++) {
-          // Leave some aisles for driving (every 3rd row/col)
           if(x % 3 !== 0 && y % 3 !== 0) {
-               // Random stacks
                safeSet(x, y, TileType.CONTAINER);
           }
       }
   }
 
-
-  // 7. Industrial Zone (Bottom Right) - Factories & Yards
+  // 7. Industrial Zone
   fillRect(35, 30, 13, 18, TileType.SIDEWALK);
   for(let y=31; y<47; y++) {
       for(let x=36; x<47; x++) {
-          // Dense large buildings
           if(Math.random() > 0.5) safeSet(x, y, TileType.BUILDING);
       }
   }
 
-  // --- ROADS (The "Vice Divide" Highway System) ---
-  
+  // --- ROADS ---
   const drawRoad = (x: number, y: number, horizontal: boolean) => {
       safeSet(x, y, horizontal ? TileType.ROAD_H : TileType.ROAD_V);
   };
 
-  // Outer Highway Loop
-  // Top
+  // Highway Loop
   for(let x=5; x<45; x++) drawRoad(x, 5, true);
-  // Bottom
   for(let x=5; x<45; x++) drawRoad(x, 45, true);
-  // Left
   for(let y=5; y<46; y++) drawRoad(5, y, false);
-  // Right
   for(let y=5; y<46; y++) drawRoad(45, y, false);
 
-  // Arterial Roads (Divides Districts)
-  
-  // Horizontal Split 1 (Separates Hillside/Downtown from Redline/Rust)
+  // Arterials
   for(let x=5; x<45; x++) drawRoad(x, 20, true);
-  
-  // Horizontal Split 2 (Separates Redline/Rust from Docks/Industrial)
   for(let x=5; x<45; x++) drawRoad(x, 35, true);
-
-  // Vertical Split 1 (Separates West districts from Center)
   for(let y=5; y<46; y++) drawRoad(20, y, false);
-  
-  // Vertical Split 2 (Separates Center from East districts)
   for(let y=5; y<46; y++) drawRoad(35, y, false);
 
+  // --- SPECIAL LOCATIONS ---
+  
+  // Hospital - Next to Top Highway (y=5)
+  // Placing at y=6 ensures it is directly adjacent to the road.
+  fillRect(22, 6, 3, 3, TileType.HOSPITAL);
+  
+  // Police Station - Next to Arterial (y=20)
+  fillRect(32, 17, 3, 3, TileType.POLICE_STATION);
+
+  // Clanker's Lab
+  safeSet(27, 27, TileType.SHOP); 
+  
   // --- FIX INTERSECTIONS ---
   for(let y=1; y<MAP_HEIGHT-1; y++) {
       for(let x=1; x<MAP_WIDTH-1; x++) {
@@ -162,29 +140,13 @@ export const generateMap = (): number[][] => {
               const d = map[y+1][x];
               const l = map[y][x-1];
               const r = map[y][x+1];
-              
               const isRoad = (t: number) => t === TileType.ROAD_H || t === TileType.ROAD_V || t === TileType.ROAD_CROSS;
-              
-              // If connected on multiple axes, it's an intersection
               if ((isRoad(u) || isRoad(d)) && (isRoad(l) || isRoad(r))) {
                   map[y][x] = TileType.ROAD_CROSS;
               }
           }
       }
   }
-
-  // --- SPECIAL LOCATIONS ---
-  
-  // Hospital (Located in Downtown near highway for easy access)
-  // Making it bigger (3x3)
-  fillRect(22, 14, 3, 3, TileType.HOSPITAL);
-  
-  // Police Station (Located near Rust Quarter/Downtown border)
-  // Making it bigger (3x3)
-  fillRect(25, 17, 3, 3, TileType.POLICE_STATION);
-
-  // Clanker's Lab (Hidden in Rust Quarter)
-  safeSet(27, 27, TileType.SHOP); 
 
   return map;
 };
@@ -200,17 +162,11 @@ export const checkCollision = (rect1: any, rect2: any) => {
 };
 
 export const getTileAt = (map: number[][], x: number, y: number): number => {
-    // Safety check for empty or invalid map
     if (!map || map.length === 0) return TileType.WATER;
-
     const tx = Math.floor(x / TILE_SIZE);
     const ty = Math.floor(y / TILE_SIZE);
-    
-    // Bounds check using actual map dimensions
     if (ty < 0 || ty >= map.length) return TileType.WATER;
     if (tx < 0 || tx >= map[0].length) return TileType.WATER;
-    
-    // Safe access
     return map[ty][tx] ?? TileType.WATER;
 }
 
