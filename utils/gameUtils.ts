@@ -1,4 +1,5 @@
 
+
 import { MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, COLORS } from "../constants";
 import { TileType } from "../types";
 
@@ -175,12 +176,12 @@ export const generateMap = (): number[][] => {
   // --- SPECIAL LOCATIONS ---
   
   // Hospital (Located in Downtown near highway for easy access)
-  safeSet(22, 15, TileType.HOSPITAL);
-  safeSet(23, 15, TileType.HOSPITAL);
+  // Making it bigger (3x3)
+  fillRect(22, 14, 3, 3, TileType.HOSPITAL);
   
   // Police Station (Located near Rust Quarter/Downtown border)
-  safeSet(25, 18, TileType.POLICE_STATION);
-  safeSet(26, 18, TileType.POLICE_STATION);
+  // Making it bigger (3x3)
+  fillRect(25, 17, 3, 3, TileType.POLICE_STATION);
 
   // Clanker's Lab (Hidden in Rust Quarter)
   safeSet(27, 27, TileType.SHOP); 

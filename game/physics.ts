@@ -1,5 +1,4 @@
 
-
 import { 
     Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType, Drop 
 } from '../types';
@@ -330,13 +329,18 @@ const respawnVehicle = (state: MutableGameState, car: Vehicle) => {
                 car.targetAngle = dir;
                 car.pos.y = ty * TILE_SIZE + (dir === 0 ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
             } else {
+                // Vertical Road
                 const dir = Math.random() > 0.5 ? Math.PI/2 : 3*Math.PI/2;
                 car.angle = dir;
                 car.targetAngle = dir;
+                
                 // RIGHT HAND TRAFFIC FIX:
-                // South (PI/2) -> Right side (0.75)
-                // North (3PI/2) -> Left side (0.25)
-                car.pos.x = tx * TILE_SIZE + (dir === Math.PI/2 ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
+                // South (PI/2) -> Right side (0.25 on screen coord)
+                // North (3PI/2) -> Right side (0.75 on screen coord)
+                // In tile grid, driving south means x increases to the left of the lane center? No.
+                // South (Down). Drivers stay to their right. The right side of the road is West (Left on screen).
+                // North (Up). Drivers stay to their right. The right side of the road is East (Right on screen).
+                car.pos.x = tx * TILE_SIZE + (dir === Math.PI/2 ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
             }
             spawned = true;
         }
@@ -495,8 +499,10 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 const targetAngle = isSouth ? Math.PI/2 : 3*Math.PI/2;
                 car.angle = targetAngle; // Force Angle
 
-                // Force Lane X (Right Hand Traffic: South is Right Side (0.75), North is Left Side (0.25))
-                const laneX = tileX * TILE_SIZE + (isSouth ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
+                // Force Lane X (Right Hand Traffic)
+                // South (Down) -> 0.25
+                // North (Up) -> 0.75
+                const laneX = tileX * TILE_SIZE + (isSouth ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
                 car.pos.x += (laneX - car.pos.x) * 0.2; // Snap 20% per frame
 
                 // Move Y
@@ -567,11 +573,13 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                          // Turning West (PI) -> Top Lane (-Y)
                          car.pos.y -= laneOffset;
                      } else if (Math.abs(checkAngle - Math.PI/2) < 0.1) {
-                         // Turning South (PI/2) -> Right Lane (+X)
-                         car.pos.x += laneOffset; 
+                         // Turning South (PI/2) -> Right Lane (Left on screen, -X)
+                         // Wait, X center is 0.5. Target is 0.25. So subtract offset.
+                         car.pos.x -= laneOffset; 
                      } else if (Math.abs(checkAngle - 1.5*Math.PI) < 0.1) {
-                         // Turning North (3PI/2) -> Left Lane (-X)
-                         car.pos.x -= laneOffset;
+                         // Turning North (3PI/2) -> Right Lane (Right on screen, +X)
+                         // Wait, X center is 0.5. Target is 0.75. So add offset.
+                         car.pos.x += laneOffset;
                      }
 
                 } else {
@@ -906,157 +914,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 }
             }
         });
-    });
-
-    // Bullets
-    state.bullets.forEach(b => {
-        b.pos.x += b.velocity.x;
-        b.pos.y += b.velocity.y;
-        b.timeLeft--;
-        if (b.type === 'rocket' && Math.random() > 0.5) spawnParticle(state, b.pos, 'smoke', 1, { color: '#ccc', speed: 0.5, size: 2 });
-    });
-    
-    state.bullets = state.bullets.filter(b => {
-        if (b.timeLeft <= 0) {
-            if (b.type === 'rocket' && b.explosionRadius) createExplosion(state, b.pos, b.explosionRadius);
-            return false;
-        }
-        if (isSolid(getTileAt(state.map, b.pos.x, b.pos.y))) {
-            if (b.type === 'rocket' && b.explosionRadius) createExplosion(state, b.pos, b.explosionRadius);
-            else if (b.type === 'standard') spawnParticle(state, b.pos, 'smoke', 3, { color: '#ccc', speed: 1 });
-            return false;
-        }
-
-        let hit = false;
-        if (b.ownerId !== 'player') {
-            const dist = Math.sqrt((state.player.pos.x - b.pos.x)**2 + (state.player.pos.y - b.pos.y)**2);
-            if (dist < 15) {
-                state.player.health -= b.damage;
-                state.lastDamageTaken = state.timeTicker;
-                spawnParticle(state, state.player.pos, 'blood', 6, { color: '#7f1d1d', speed: 2, spread: 3 });
-                hit = true;
-            }
-        }
-
-        state.pedestrians.forEach(p => {
-            if (p.state === 'dead' || p.id === b.ownerId) return;
-            const dist = Math.sqrt((p.pos.x - b.pos.x)**2 + (p.pos.y - b.pos.y)**2);
-            if (dist < 15) {
-                if (b.type === 'rocket' && b.explosionRadius) { createExplosion(state, b.pos, b.explosionRadius); hit = true; }
-                else {
-                    p.health -= b.damage;
-                    if (b.type !== 'fire') spawnParticle(state, p.pos, 'blood', 6, { color: '#7f1d1d', speed: 2, spread: 3 });
-                    if (p.health <= 0) {
-                        p.state = 'dead';
-                        spawnDrops(state, p);
-                        if (b.ownerId === 'player') {
-                            if (isPoliceNearby(state, p.pos)) {
-                                state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                                state.lastWantedTime = state.timeTicker;
-                            }
-                        }
-                    } else {
-                        if (p.role !== 'police') { p.state = 'fleeing'; p.actionTimer = 180; }
-                    }
-                    if (b.type !== 'fire') hit = true;
-                }
-            }
-        });
-        if (hit) return false;
-        
-        state.vehicles.forEach(v => {
-            const dist = Math.sqrt((v.pos.x - b.pos.x)**2 + (v.pos.y - b.pos.y)**2);
-            if (dist < 25) {
-                 if (b.type === 'rocket' && b.explosionRadius) { createExplosion(state, b.pos, b.explosionRadius); hit = true; }
-                 else {
-                     v.health -= 5;
-                     if (b.type !== 'fire') { spawnParticle(state, b.pos, 'spark', 4, { color: '#fbbf24', speed: 3 }); hit = true; }
-                     if (b.type === 'standard') {
-                         // Simple tire damage logic override for performance
-                         if (Math.random() > 0.9) v.damage.tires[Math.floor(Math.random()*4)] = true;
-                     }
-                 }
-            }
-        });
-        if (hit) return false;
-        return true;
-    });
-
-    // AI & Police Logic
-    state.pedestrians.forEach(p => {
-        if (p.state === 'dead') return;
-        if (p.actionTimer && p.actionTimer > 0) p.actionTimer--;
-        else {
-             if (p.state === 'fleeing') { p.state = 'walking'; p.actionTimer = 100; }
-             else if (p.state === 'shooting') { p.state = 'chasing'; p.actionTimer = 60; }
-             else if (Math.random() > 0.95) { p.angle += (Math.random()-0.5); p.actionTimer = 50; }
-        }
-
-        // Flee from moving cars
-        if (!p.vehicleId && p.state !== 'driving') {
-             for(const v of state.vehicles) {
-                 if (Math.abs(v.speed) > 3 && v.driverId === 'player') { // Only flee from fast PLAYER driven cars
-                     const dist = Math.sqrt((p.pos.x - v.pos.x)**2 + (p.pos.y - v.pos.y)**2);
-                     if (dist < 120) {
-                         // Check if moving towards
-                         const carVelX = Math.cos(v.angle);
-                         const carVelY = Math.sin(v.angle);
-                         const toPedX = p.pos.x - v.pos.x;
-                         const toPedY = p.pos.y - v.pos.y;
-                         if (carVelX * toPedX + carVelY * toPedY > 0) {
-                             p.state = 'fleeing';
-                             p.actionTimer = 60;
-                             p.angle = Math.atan2(toPedY, toPedX) + (Math.random() * 1 - 0.5); 
-                             break;
-                         }
-                     }
-                 }
-             }
-        }
-        
-        if (p.role === 'police' && state.wantedLevel > 0) {
-             const dx = state.player.pos.x - p.pos.x;
-             const dy = state.player.pos.y - p.pos.y;
-             const dist = Math.sqrt(dx*dx + dy*dy);
-             p.angle = Math.atan2(dy, dx);
-             
-             if (dist < 300) {
-                 if (dist < 150) {
-                     if (Math.random() > 0.92) {
-                         handleCombat(state, p);
-                         p.state = 'shooting';
-                         p.actionTimer = 30;
-                     } else {
-                         p.state = 'idle';
-                     }
-                 } else {
-                     p.state = 'chasing';
-                 }
-             } else {
-                 p.state = 'chasing';
-             }
-        }
-
-        if (p.state === 'fleeing' || p.state === 'walking' || p.state === 'chasing') {
-            let spd = p.state === 'fleeing' ? PEDESTRIAN_RUN_SPEED : PEDESTRIAN_SPEED;
-            if (p.state === 'chasing') spd = PEDESTRIAN_RUN_SPEED * 0.85; 
-
-            p.velocity.x = Math.cos(p.angle) * spd;
-            p.velocity.y = Math.sin(p.angle) * spd;
-            
-            const nextX = p.pos.x + p.velocity.x;
-            const nextY = p.pos.y + p.velocity.y;
-            const nextTile = getTileAt(state.map, nextX, nextY);
-            const isNextRoad = isDrivable(nextTile);
-            const canCrossRoad = p.state === 'fleeing' || p.state === 'chasing';
-
-            if (!isSolid(nextTile) && (!isNextRoad || canCrossRoad)) {
-                p.pos.x = nextX;
-                p.pos.y = nextY;
-            } else {
-                p.angle += Math.PI + (Math.random() - 0.5);
-            }
-        }
     });
 
     const targetCamX = state.player.pos.x - window.innerWidth / 2;

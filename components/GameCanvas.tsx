@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
@@ -97,6 +98,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         }
         if (!foundHospital) state.hospitalPos = { x: TILE_SIZE * 6, y: TILE_SIZE * 6 };
 
+        // Set Player to Hospital Spawn
+        state.player.pos = { ...state.hospitalPos };
+
         // Textures
         const ctx = canvasRef.current?.getContext('2d');
         if (ctx) {
@@ -132,12 +136,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                     angle = dir ? 0 : Math.PI;
                     posY = y * TILE_SIZE + (dir ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
                 } else if (tile === TileType.ROAD_V) {
-                    const dir = Math.random() > 0.5;
+                    const dir = Math.random() > 0.5; // True = South, False = North
                     angle = dir ? Math.PI/2 : 3*Math.PI/2;
                     // RIGHT HAND TRAFFIC FIX:
-                    // South (PI/2) -> Right side (0.75)
-                    // North (3PI/2) -> Left side (0.25)
-                    posX = x * TILE_SIZE + (dir ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
+                    // South (PI/2) -> Right side (0.25 on screen coord)
+                    // North (3PI/2) -> Right side (0.75 on screen coord)
+                    posX = x * TILE_SIZE + (dir ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
                 } else {
                      angle = Math.floor(Math.random() * 4) * (Math.PI/2);
                 }
