@@ -8,9 +8,10 @@ interface MapMenuProps {
   onResume: () => void;
   onQuit: () => void;
   onOptions: () => void;
+  onSave: () => void;
 }
 
-const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOptions }) => {
+const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOptions, onSave }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -74,6 +75,8 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
                      case TileType.POLICE_STATION: color = '#3b82f6'; break; // Blue
                      case TileType.CONTAINER: color = '#b45309'; break; // Orange-700
                      case TileType.SHIP_DECK: color = '#713f12'; break; // Brown
+                     case TileType.SAND: color = '#d6d3d1'; break;
+                     case TileType.WALL: color = '#171717'; break;
                      case TileType.ROAD_V:
                      case TileType.ROAD_H:
                      case TileType.ROAD_CROSS:
@@ -135,6 +138,9 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
                  <button onClick={onResume} className="text-left font-gta text-2xl text-gray-400 hover:text-yellow-400 transition-colors">
                      RESUME
                  </button>
+                 <button onClick={onSave} className="text-left font-gta text-2xl text-gray-400 hover:text-green-400 transition-colors">
+                     SAVE GAME
+                 </button>
                  <button onClick={onOptions} className="text-left font-gta text-2xl text-gray-400 hover:text-white transition-colors">
                      OPTIONS
                  </button>
@@ -144,7 +150,7 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
              </div>
 
              <div className="mt-auto text-gray-600 text-xs font-mono">
-                 <p>REACT CITY</p>
+                 <p>VICE DIVIDE</p>
                  <p>GPS SIGNAL: STRONG</p>
              </div>
         </div>

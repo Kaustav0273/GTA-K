@@ -131,7 +131,9 @@ export enum TileType {
   SKYSCRAPER = 9,
   SHOP = 10,
   CONTAINER = 11,
-  SHIP_DECK = 12
+  SHIP_DECK = 12,
+  SAND = 13,
+  WALL = 14
 }
 
 export interface GameSettings {
@@ -141,4 +143,5 @@ export interface GameSettings {
   retroFilter: boolean;
   frameLimiter: boolean;
   mouseSensitivity: number; // 0-100
+  mobileControlStyle: 'DPAD' | 'JOYSTICK';
 }

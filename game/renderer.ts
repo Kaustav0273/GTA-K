@@ -1,7 +1,7 @@
 
 import { Vehicle, Pedestrian, TileType, Drop, GameSettings } from '../types';
 import { MutableGameState } from './physics';
-import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS } from '../constants';
+import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS, CAR_MODELS } from '../constants';
 import { getTileAt, isSolid } from '../utils/gameUtils'; // Added import for helper
 
 // Helper to calculate building height consistently for drawing and occlusion checks
@@ -454,17 +454,35 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     
     const length = v.size.y;
     const width = v.size.x;
+    const modelData = CAR_MODELS[v.model];
+    const maxHealth = (modelData as any)?.health || 100;
+    const hpPct = v.health / maxHealth;
 
     // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fillRect(-length/2 + 2, -width/2 + 2, length, width);
 
-    // Wheels
-    ctx.fillStyle = '#171717';
-    ctx.fillRect(length/2 - 8, -width/2 - 1, 6, 2);
-    ctx.fillRect(length/2 - 8, width/2 - 1, 6, 2);
-    ctx.fillRect(-length/2 + 4, -width/2 - 1, 6, 2);
-    ctx.fillRect(-length/2 + 4, width/2 - 1, 6, 2);
+    // Wheels - Updated to handle popped tires
+    const drawWheel = (index: number, cx: number, cy: number) => {
+        const isPopped = v.damage.tires[index];
+        if (isPopped) {
+            ctx.fillStyle = '#171717'; 
+            // Flat tire look (rim only)
+            ctx.fillRect(cx, cy + 1, 6, 1);
+        } else {
+            ctx.fillStyle = '#171717';
+            ctx.fillRect(cx, cy, 6, 2);
+        }
+    };
+    
+    // Front Left (Index 0)
+    drawWheel(0, length/2 - 8, -width/2 - 1);
+    // Front Right (Index 1)
+    drawWheel(1, length/2 - 8, width/2 - 1);
+    // Rear Left (Index 2)
+    drawWheel(2, -length/2 + 4, -width/2 - 1);
+    // Rear Right (Index 3)
+    drawWheel(3, -length/2 + 4, width/2 - 1);
 
     // Body
     ctx.fillStyle = v.color;
@@ -483,7 +501,7 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         ctx.fillRect(-length/2 - 1, -width/2 + 1, 2, width - 2);
     }
 
-    // Model specific details
+    // Model specific details (unchanged mostly)
     if (v.model === 'pickup') {
          ctx.fillStyle = '#0f172a'; 
          ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, width - 4);
@@ -555,6 +573,31 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
          rtL = roofL - 8;
     }
     ctx.fillRect(rtX - rtL/2, -rtW/2, rtL, rtW);
+
+    // -- Visual Damage Overlay --
+    if (hpPct < 0.5) {
+        // Light Dents / Scratches
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        // Random looking jagged shape near front left
+        ctx.moveTo(length/2 - 10, -width/2 + 4);
+        ctx.lineTo(length/2 - 5, -width/2 + 8);
+        ctx.lineTo(length/2 - 12, -width/2 + 10);
+        ctx.fill();
+        
+        // Scratch on roof
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(5, 5); ctx.lineTo(2, 6); ctx.fill();
+    }
+    
+    if (hpPct < 0.2) {
+         // Heavy Damage / Burns
+         ctx.fillStyle = 'rgba(0,0,0,0.5)';
+         // Large dent rear
+         ctx.fillRect(-length/2 + 2, -5, 8, 10);
+         // Hood scorch
+         ctx.fillRect(length/2 - 12, -4, 10, 8);
+    }
     
     // Side Mirrors
     ctx.fillStyle = v.color;
@@ -575,7 +618,8 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     
     // Headlights
     ctx.fillStyle = '#fef08a'; 
-    ctx.shadowColor = '#fef08a'; ctx.shadowBlur = 6;
+    if (hpPct < 0.2 && v.damage.windows[0]) ctx.fillStyle = '#713f12'; // Broken light look
+    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
     ctx.fillRect(length/2 - 1, -width/2 + 2, 1, 5);
     ctx.fillRect(length/2 - 1, width/2 - 7, 1, 5);
     ctx.shadowBlur = 0;

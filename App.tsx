@@ -1,11 +1,11 @@
 
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import GameCanvas from './components/GameCanvas';
 import HUD from './components/HUD';
 import Phone from './components/Phone';
 import WeaponWheel from './components/WeaponWheel';
 import MapMenu from './components/MapMenu';
+import MobileControls from './components/MobileControls';
 import { GameState, Mission, EntityType, WeaponType, GameSettings } from './types';
 import { COLORS, STAMINA_MAX, PLAYER_SIZE } from './constants';
 
@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [isWeaponWheelOpen, setIsWeaponWheelOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [hasSaveGame, setHasSaveGame] = useState(false);
   
   // Settings State
   const [settings, setSettings] = useState<GameSettings>({
@@ -23,10 +24,11 @@ const App: React.FC = () => {
       drawDistance: 'ULTRA',
       retroFilter: true,
       frameLimiter: false,
-      mouseSensitivity: 50
+      mouseSensitivity: 50,
+      mobileControlStyle: 'DPAD'
   });
 
-  const [gameState, setGameState] = useState<GameState>({
+  const defaultGameState: GameState = {
     player: {
         id: 'player', 
         type: EntityType.PLAYER, 
@@ -59,7 +61,15 @@ const App: React.FC = () => {
     isPhoneOpen: false,
     paused: false,
     timeOfDay: 12
-  });
+  };
+
+  const [gameState, setGameState] = useState<GameState>(defaultGameState);
+
+  // Check for save game on mount
+  useEffect(() => {
+      const saved = localStorage.getItem('vice_divide_save');
+      if (saved) setHasSaveGame(true);
+  }, []);
 
   const handlePhoneToggle = () => setIsPhoneOpen(!isPhoneOpen);
   
@@ -75,11 +85,42 @@ const App: React.FC = () => {
       }));
   };
 
+  const handleSaveGame = () => {
+      try {
+          // We save the current gameState. 
+          // Note: map array is large but usually fits in localStorage (50x50 ints is small).
+          localStorage.setItem('vice_divide_save', JSON.stringify(gameState));
+          setHasSaveGame(true);
+          alert("GAME SAVED");
+      } catch (e) {
+          console.error("Save failed", e);
+          alert("Save Failed: Storage Full?");
+      }
+  };
+
+  const handleLoadGame = () => {
+      try {
+          const saved = localStorage.getItem('vice_divide_save');
+          if (saved) {
+              const parsed = JSON.parse(saved);
+              setGameState(parsed);
+              setGameStarted(true);
+          }
+      } catch (e) {
+          console.error("Load failed", e);
+          alert("Failed to load save file.");
+      }
+  };
+
   // Settings Handlers
   const toggleDrawDistance = () => {
       const levels: GameSettings['drawDistance'][] = ['LOW', 'MED', 'HIGH', 'ULTRA'];
       const currentIdx = levels.indexOf(settings.drawDistance);
       setSettings(prev => ({ ...prev, drawDistance: levels[(currentIdx + 1) % levels.length] }));
+  };
+
+  const toggleControlStyle = () => {
+      setSettings(prev => ({ ...prev, mobileControlStyle: prev.mobileControlStyle === 'DPAD' ? 'JOYSTICK' : 'DPAD' }));
   };
 
   return (
@@ -122,7 +163,7 @@ const App: React.FC = () => {
                 {!showSettings && (
                     <div className="flex flex-col items-start drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] mt-8 md:mt-0">
                         <div className="bg-white px-4 py-1 transform -rotate-2 mb-4 shadow-lg border-2 border-black inline-block">
-                            <span className="font-gta text-black text-xl md:text-2xl tracking-widest">REACT CITY STORIES</span>
+                            <span className="font-gta text-black text-xl md:text-2xl tracking-widest">VICE DIVIDE</span>
                         </div>
                         <h1 className="font-gta text-8xl md:text-[11rem] text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 leading-[0.8] tracking-tight filter drop-shadow-[5px_5px_0_#000]">
                             GTA K
@@ -130,7 +171,7 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-4 mt-6 ml-4">
                             <span className="font-gta text-3xl text-pink-500 tracking-widest drop-shadow-[2px_2px_0_#000]">BETA</span>
                             <div className="h-1.5 w-16 bg-pink-500 shadow-[2px_2px_0_#000]"></div>
-                            <span className="font-gta text-3xl text-white tracking-widest drop-shadow-[2px_2px_0_#000]">V5</span>
+                            <span className="font-gta text-3xl text-white tracking-widest drop-shadow-[2px_2px_0_#000]">V6</span>
                         </div>
                     </div>
                 )}
@@ -145,13 +186,27 @@ const App: React.FC = () => {
                     {!showSettings ? (
                         <>
                             <button 
-                                onClick={() => setGameStarted(true)}
+                                onClick={() => {
+                                    setGameState(defaultGameState); // Reset to default for new game
+                                    setGameStarted(true);
+                                }}
                                 className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300"
                             >
                                 <span className="font-gta text-6xl md:text-8xl text-white group-hover:text-yellow-400 transition-colors drop-shadow-[4px_4px_0_rgba(0,0,0,1)] tracking-wide">
                                     START GAME
                                 </span>
                             </button>
+
+                            {hasSaveGame && (
+                                <button 
+                                    onClick={handleLoadGame}
+                                    className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300"
+                                >
+                                    <span className="font-gta text-5xl md:text-7xl text-gray-300 group-hover:text-green-400 transition-colors drop-shadow-[3px_3px_0_rgba(0,0,0,1)] tracking-wide">
+                                        LOAD GAME
+                                    </span>
+                                </button>
+                            )}
                             
                             <button 
                                 onClick={() => setShowSettings(true)}
@@ -169,7 +224,7 @@ const App: React.FC = () => {
                             </button>
                         </>
                     ) : (
-                        <div className="w-full md:w-[600px] bg-black/80 p-8 border-l-8 border-yellow-400 backdrop-blur-md shadow-2xl animate-fade-in-up">
+                        <div className="w-full md:w-[600px] bg-black/80 p-8 border-l-8 border-yellow-400 backdrop-blur-md shadow-2xl animate-fade-in-up overflow-y-auto max-h-[80vh]">
                             <div className="space-y-6 font-mono text-white text-lg">
                                 {/* Audio */}
                                 <div className="space-y-2">
@@ -216,10 +271,20 @@ const App: React.FC = () => {
                                         <span className={`${settings.frameLimiter ? 'text-green-400' : 'text-red-500'} font-bold`}>{settings.frameLimiter ? 'ON' : 'OFF'}</span>
                                     </button>
                                 </div>
-                                
-                                <div className="h-px bg-white/20 my-4"></div>
 
-                                {/* Controls */}
+                                <div className="h-px bg-white/20 my-4"></div>
+                                
+                                {/* Mobile Controls */}
+                                <div className="space-y-2 md:hidden">
+                                     <button onClick={toggleControlStyle} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
+                                        <span className="text-gray-400 group-hover:text-white">MOBILE STEERING</span>
+                                        <span className="text-yellow-400 font-bold">{settings.mobileControlStyle}</span>
+                                    </button>
+                                </div>
+
+                                <div className="h-px bg-white/20 my-4 md:hidden"></div>
+
+                                {/* Controls Sensitivity */}
                                 <div className="flex justify-between items-center group">
                                     <span className="text-gray-400 group-hover:text-white">MOUSE SENSITIVITY</span>
                                     <div className="w-32 h-6 flex items-center bg-gray-700/50 rounded-full overflow-hidden relative cursor-pointer"
@@ -274,6 +339,7 @@ const App: React.FC = () => {
             activeWeapon={gameState.player.weapon}
             settings={settings}
             paused={showMap}
+            initialGameState={gameState}
           />
       )}
 
@@ -286,7 +352,16 @@ const App: React.FC = () => {
             gameState={gameState} 
             onPhoneClick={handlePhoneToggle}
             onRadarClick={() => setShowMap(true)} 
+            onWeaponClick={() => setIsWeaponWheelOpen(true)}
         />
+      )}
+      
+      {/* Mobile Controls Overlay */}
+      {gameStarted && !isPhoneOpen && !isWeaponWheelOpen && !showMap && (
+          <MobileControls 
+            isDriving={!!gameState.player.vehicleId} 
+            controlStyle={settings.mobileControlStyle}
+          />
       )}
 
       {/* Phone Layer */}
@@ -305,6 +380,7 @@ const App: React.FC = () => {
             isOpen={isWeaponWheelOpen}
             currentWeapon={gameState.player.weapon}
             onSelectWeapon={handleWeaponSelect}
+            onClose={() => setIsWeaponWheelOpen(false)}
           />
       )}
 
@@ -315,6 +391,7 @@ const App: React.FC = () => {
             onResume={() => setShowMap(false)}
             onQuit={() => { setShowMap(false); setGameStarted(false); }}
             onOptions={() => { setShowMap(false); setGameStarted(false); setShowSettings(true); }}
+            onSave={handleSaveGame}
           />
       )}
     </div>

@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { GameState } from '../types';
 import Radar from './Radar';
@@ -8,9 +7,10 @@ interface HUDProps {
   gameState: GameState;
   onPhoneClick: () => void;
   onRadarClick?: () => void;
+  onWeaponClick?: () => void;
 }
 
-const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick }) => {
+const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeaponClick }) => {
   const { player, wantedLevel, money, mission } = gameState;
 
   // Calculate Health Colors
@@ -104,14 +104,20 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick }) => {
             </div>
         </div>
 
-        {/* Phone & Weapon */}
-        <div className="flex gap-4 pointer-events-auto items-end">
+        {/* Phone & Weapon - Positioned absolutely on mobile to clear controls */}
+        <div className="flex gap-4 pointer-events-auto items-end md:static absolute bottom-64 right-4 md:bottom-auto md:right-auto z-50">
             <div className="flex flex-col items-center">
-                 <div className="w-16 h-16 bg-gray-900 rounded-full border-4 border-gray-700 flex items-center justify-center mb-2 shadow-lg relative">
+                 <div 
+                    className="w-16 h-16 bg-gray-900 rounded-full border-4 border-gray-700 flex items-center justify-center mb-2 shadow-lg relative cursor-pointer active:scale-95 transition-transform"
+                    onClick={onWeaponClick}
+                 >
                     <i className={`fas ${
                         player.weapon === 'pistol' ? 'fa-gun' : 
                         player.weapon === 'uzi' ? 'fa-person-rifle' : 
                         player.weapon === 'shotgun' ? 'fa-skull' : 
+                        player.weapon === 'sniper' ? 'fa-crosshairs' :
+                        player.weapon === 'rocket' ? 'fa-rocket' :
+                        player.weapon === 'flame' ? 'fa-fire' :
                         'fa-hand-fist'
                     } text-3xl text-gray-400`}></i>
                     <div className="absolute -bottom-1 -right-1 bg-gray-800 text-xs px-1 rounded border border-gray-600">

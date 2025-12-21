@@ -19,7 +19,10 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
         const { player, map, vehicles, pedestrians, mission } = gameState;
         
         // Radar Settings
-        const zoom = 0.12; 
+        // Adjust zoom relative to map size, or keep consistent? 
+        // 0.12 was fine for 50x50, might be okay for 128x128 but will see less.
+        // Let's keep it zoomed in for gameplay utility.
+        const zoom = 0.10; 
         const radarWidth = canvas.width;
         const radarHeight = canvas.height;
 
@@ -37,7 +40,6 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
         ctx.translate(-player.pos.x, -player.pos.y);
 
         // Calculate visible tile bounds to optimize rendering
-        // Viewport in world coords
         const viewW = radarWidth / zoom;
         const viewH = radarHeight / zoom;
         
@@ -46,13 +48,12 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
         const startY = Math.max(0, Math.floor((player.pos.y - viewH/2) / TILE_SIZE));
         const endY = Math.min(MAP_HEIGHT, Math.ceil((player.pos.y + viewH/2) / TILE_SIZE));
 
-        // Draw Map Tiles - Safety check for empty map
+        // Draw Map Tiles
         if (map && map.length > 0) {
             for (let y = startY; y < endY; y++) {
-                if (!map[y]) continue; // Skip invalid rows
+                if (!map[y]) continue; 
                 
                 for (let x = startX; x < endX; x++) {
-                    // Skip invalid columns
                     if (x < 0 || x >= map[y].length) continue;
 
                     const tile = map[y][x];
@@ -66,13 +67,17 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
                         case TileType.SIDEWALK: color = '#52525b'; break; // Zinc-600
                         case TileType.BUILDING: color = '#000000'; break;
                         case TileType.SKYSCRAPER: color = '#1e293b'; break; // Slate-800
-                        case TileType.SHOP: color = '#78350f'; break; // Amber-900 (Brownish)
+                        case TileType.SHOP: color = '#78350f'; break; // Amber-900
                         case TileType.HOSPITAL: color = '#ef4444'; break; // Red
                         case TileType.POLICE_STATION: color = '#3b82f6'; break; // Blue
+                        case TileType.CONTAINER: color = '#b45309'; break; 
+                        case TileType.SHIP_DECK: color = '#713f12'; break;
+                        case TileType.SAND: color = '#d6d3d1'; break;
+                        case TileType.WALL: color = '#171717'; break;
                         case TileType.ROAD_V:
                         case TileType.ROAD_H:
                         case TileType.ROAD_CROSS:
-                            color = '#a1a1aa'; // Zinc-400 (Roads lighter on radar)
+                            color = '#a1a1aa'; // Zinc-400
                             break;
                     }
 
@@ -84,27 +89,24 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
 
         // Draw Vehicles
         vehicles.forEach(v => {
-            // Simple rectangle for cars
             ctx.save();
             ctx.translate(v.pos.x, v.pos.y);
             ctx.rotate(v.angle);
             
-            // Highlight Police/Emergency
             if (v.model === 'police' || v.model === 'ambulance') {
-                ctx.fillStyle = '#3b82f6'; // Blue
-                // Flash red/blue for police
+                ctx.fillStyle = '#3b82f6'; 
                 if (Date.now() % 400 < 200) ctx.fillStyle = '#ef4444';
             } else if (v.id === player.vehicleId) {
-                ctx.fillStyle = '#ffffff'; // Player car white
+                ctx.fillStyle = '#ffffff'; 
             } else {
-                ctx.fillStyle = '#d4d4d8'; // Light gray
+                ctx.fillStyle = '#d4d4d8'; 
             }
 
             ctx.fillRect(-v.size.x/2, -v.size.y/2, v.size.x, v.size.y);
             ctx.restore();
         });
 
-        // Draw Pedestrians (Dots)
+        // Draw Pedestrians
         pedestrians.forEach(p => {
              if (p.state === 'dead' || p.id === 'player') return;
              
@@ -112,21 +114,20 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
              ctx.arc(p.pos.x, p.pos.y, 8, 0, Math.PI * 2);
              
              if (p.weapon === 'pistol') {
-                 ctx.fillStyle = '#ef4444'; // Red (Threat)
+                 ctx.fillStyle = '#ef4444'; 
              } else if (p.chatPartnerId) {
-                 ctx.fillStyle = '#facc15'; // Yellow (Interacting)
+                 ctx.fillStyle = '#facc15'; 
              } else {
-                 ctx.fillStyle = '#71717a'; // Zinc-500
+                 ctx.fillStyle = '#71717a'; 
              }
              ctx.fill();
         });
 
         ctx.restore();
 
-        // Draw Player Marker (Fixed Center)
+        // Draw Player Marker
         ctx.save();
         ctx.translate(radarWidth / 2, radarHeight / 2);
-        // Player marker arrow points in player's direction
         ctx.rotate(player.angle);
         
         ctx.fillStyle = '#ffffff';
@@ -139,7 +140,7 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
         ctx.fill();
         ctx.restore();
 
-        // Draw 'N' icon for North
+        // Draw 'N' icon
         ctx.save();
         ctx.fillStyle = 'white';
         ctx.font = 'bold 12px sans-serif';

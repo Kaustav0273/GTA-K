@@ -30,19 +30,53 @@ export interface MutableGameState {
     lastWantedTime: number; // Timestamp for wanted level decay
 }
 
-// Helper: Check if a point is inside a rotated vehicle
+// Get Corners of the vehicle OBB
+const getVehicleCorners = (v: Vehicle, posOverride?: Vector2) => {
+    const pos = posOverride || v.pos;
+    const cos = Math.cos(v.angle);
+    const sin = Math.sin(v.angle);
+    const hl = v.size.y / 2; // Half Length (Along X axis at 0 rotation)
+    const hw = v.size.x / 2; // Half Width (Along Y axis at 0 rotation)
+
+    // Helper to rotate and translate
+    const t = (lx: number, ly: number) => ({
+        x: pos.x + (lx * cos - ly * sin),
+        y: pos.y + (lx * sin + ly * cos)
+    });
+
+    return [
+        t(hl, -hw), // Front Right
+        t(hl, hw),  // Front Left
+        t(-hl, hw), // Rear Left
+        t(-hl, -hw) // Rear Right
+    ];
+};
+
+// Check if any corner of the vehicle is inside a solid tile
+const checkMapCollision = (v: Vehicle, map: number[][], nextPos: Vector2): boolean => {
+    const corners = getVehicleCorners(v, nextPos);
+    for (const c of corners) {
+        if (isSolid(getTileAt(map, c.x, c.y))) return true;
+    }
+    return false;
+};
+
+// Updated: Check if a point is inside a rotated vehicle (Aligned with Renderer)
 export const checkPointInVehicle = (x: number, y: number, v: Vehicle, buffer: number = 0): boolean => {
     const dx = x - v.pos.x;
     const dy = y - v.pos.y;
     
-    const angle = -(v.angle + Math.PI/2);
-    const localX = dx * Math.cos(angle) - dy * Math.sin(angle);
-    const localY = dx * Math.sin(angle) + dy * Math.cos(angle);
+    // Rotate point by -v.angle to bring it into local vehicle space (aligned with X/Y axes)
+    const cos = Math.cos(-v.angle);
+    const sin = Math.sin(-v.angle);
+    const localX = dx * cos - dy * sin;
+    const localY = dx * sin + dy * cos;
     
-    const halfW = (v.size.x / 2) + buffer;
-    const halfL = (v.size.y / 2) + buffer;
+    // Size Y is Length, Size X is Width
+    const halfLen = (v.size.y / 2) + buffer;
+    const halfWid = (v.size.x / 2) + buffer;
     
-    return Math.abs(localX) < halfW && Math.abs(localY) < halfL;
+    return Math.abs(localX) < halfLen && Math.abs(localY) < halfWid;
 };
 
 // Helper: Check if police are nearby to witness a crime
@@ -56,7 +90,7 @@ export const isPoliceNearby = (state: MutableGameState, pos: Vector2, range: num
     return false;
 };
 
-export const spawnParticle = (state: MutableGameState, pos: Vector2, type: Particle['type'], count: number = 1, options?: { color?: string, speed?: number, spread?: number, size?: number }) => {
+export const spawnParticle = (state: MutableGameState, pos: Vector2, type: Particle['type'], count: number = 1, options?: { color?: string, speed?: number, spread?: number, size?: number, life?: number }) => {
     if (state.particles.length > 200) {
         state.particles.splice(0, count);
     }
@@ -71,7 +105,7 @@ export const spawnParticle = (state: MutableGameState, pos: Vector2, type: Parti
                 y: pos.y + (Math.random() - 0.5) * spread 
             },
             velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
-            life: Math.random() * 30 + 30,
+            life: options?.life || (Math.random() * 30 + 30),
             maxLife: 60,
             color: options?.color || '#fff',
             size: options?.size || (Math.random() * 3 + 1),
@@ -321,7 +355,7 @@ const respawnVehicle = (state: MutableGameState, car: Vehicle) => {
             car.stuckTimer = 0;
             const modelData = CAR_MODELS[car.model];
             car.health = modelData ? (modelData as any).health || 100 : 100;
-            car.damage = { tires: [false,false,false,false], windows: [false,false] };
+            car.damage = { tires: [false, false, false, false], windows: [false, false] };
 
             if (tile === TileType.ROAD_H) {
                 const dir = Math.random() > 0.5 ? 0 : Math.PI;
@@ -610,6 +644,49 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
 
     // Vehicles (NPC Control)
     state.vehicles.forEach(car => {
+        // Vehicle Health Logic
+        const maxHealth = (CAR_MODELS[car.model] as any)?.health || 100;
+        const hpPct = car.health / maxHealth;
+
+        // 50% HP: Crack front window
+        if (hpPct <= 0.5) {
+            if (!car.damage.windows[0]) car.damage.windows[0] = true;
+        }
+        // 25% HP: Crack rear window, pop tires, smoke
+        if (hpPct <= 0.25) {
+            if (!car.damage.windows[1]) car.damage.windows[1] = true;
+            
+            // Chance to pop tire if not already
+            if (state.timeTicker % 120 === 0 && Math.random() < 0.3) {
+                const tireIdx = Math.floor(Math.random() * 4);
+                car.damage.tires[tireIdx] = true;
+            }
+
+            // Emit Smoke
+            if (state.timeTicker % 4 === 0) {
+                const hoodX = car.pos.x + Math.cos(car.angle) * (car.size.y/2 - 5);
+                const hoodY = car.pos.y + Math.sin(car.angle) * (car.size.y/2 - 5);
+                
+                spawnParticle(state, {x: hoodX, y: hoodY}, 'smoke', 1, { 
+                    color: hpPct < 0.1 ? '#171717' : '#525252', // Darker smoke if critical
+                    speed: 1, 
+                    spread: 5,
+                    size: Math.random() * 5 + 3,
+                    life: 60
+                });
+            }
+        }
+        // 10% HP: Fire
+        if (hpPct <= 0.1) {
+             if (state.timeTicker % 15 === 0) {
+                const hoodX = car.pos.x + Math.cos(car.angle) * (car.size.y/2 - 5);
+                const hoodY = car.pos.y + Math.sin(car.angle) * (car.size.y/2 - 5);
+                spawnParticle(state, {x: hoodX, y: hoodY}, 'fire', 1, { 
+                    color: '#ef4444', speed: 0.5, size: 6 
+                });
+            }
+        }
+
         if (car.driverId === 'npc') {
             const tileX = Math.floor(car.pos.x / TILE_SIZE);
             const tileY = Math.floor(car.pos.y / TILE_SIZE);
@@ -730,8 +807,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             if ((car.stuckTimer || 0) > 300) respawnVehicle(state, car);
         }
 
-        // Damage Logic
-        const maxHealth = (CAR_MODELS[car.model] as any)?.health || 100;
+        // Damage Logic (Death)
         if (car.health <= 0) {
             createExplosion(state, car.pos, 80);
             if (state.player.vehicleId === car.id) {
@@ -802,36 +878,17 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             const nextX = car.pos.x + car.velocity.x;
             const nextY = car.pos.y + car.velocity.y;
 
-            if (!isSolid(getTileAt(state.map, nextX, nextY))) {
+            // Better Static Map Collision (Corners)
+            if (!checkMapCollision(car, state.map, {x: nextX, y: nextY})) {
                 car.pos.x = nextX;
                 car.pos.y = nextY;
             } else {
                 const impactForce = Math.abs(car.speed);
                 car.velocity.x *= -0.5;
                 car.velocity.y *= -0.5;
+                car.speed *= -0.5; // Reflect speed
                 if (impactForce > 4) car.health -= impactForce * 5;
             }
-
-            // Car-Car Collision
-            state.vehicles.forEach(other => {
-                if (other.id === car.id) return;
-                const dist = Math.sqrt((car.pos.x - other.pos.x)**2 + (car.pos.y - other.pos.y)**2);
-                if (dist < 40) { 
-                    let angle = Math.atan2(other.pos.y - car.pos.y, other.pos.x - car.pos.x);
-                    if (dist === 0) angle = Math.random() * Math.PI * 2;
-                    const overlap = 40 - dist;
-                    const pushX = Math.cos(angle) * overlap * 0.5;
-                    const pushY = Math.sin(angle) * overlap * 0.5;
-                    car.pos.x -= pushX; car.pos.y -= pushY;
-                    other.pos.x += pushX; other.pos.y += pushY;
-                    const impact = Math.abs(car.speed) + Math.abs(other.speed);
-                    if (impact > 2) {
-                        car.speed *= -0.5; other.speed *= -0.5;
-                        car.health -= impact * 0.5; other.health -= impact * 0.5;
-                        spawnParticle(state, {x: (car.pos.x+other.pos.x)/2, y: (car.pos.y+other.pos.y)/2}, 'spark', 3, { color: '#fbbf24', speed: 3 });
-                    }
-                }
-            });
 
             state.player.pos.x = car.pos.x;
             state.player.pos.y = car.pos.y;
@@ -920,7 +977,58 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
         }
     }
 
-    // Global Vehicle-Pedestrian Collision
+    // Vehicle-Vehicle Global Collision Resolution
+    for (let i = 0; i < state.vehicles.length; i++) {
+        for (let j = i + 1; j < state.vehicles.length; j++) {
+            const v1 = state.vehicles[i];
+            const v2 = state.vehicles[j];
+            
+            // Fast Broadphase
+            const distSq = (v1.pos.x - v2.pos.x)**2 + (v1.pos.y - v2.pos.y)**2;
+            const rSum = (v1.size.y + v2.size.y) / 1.5; // Approximate radius
+            if (distSq < rSum * rSum) {
+                // Precise OBB Check
+                const c1 = getVehicleCorners(v1);
+                const c2 = getVehicleCorners(v2);
+
+                const c1_in_v2 = c1.some(c => checkPointInVehicle(c.x, c.y, v2));
+                const c2_in_v1 = c2.some(c => checkPointInVehicle(c.x, c.y, v1));
+
+                if (c1_in_v2 || c2_in_v1) {
+                    // Simple Separation Logic
+                    const angle = Math.atan2(v2.pos.y - v1.pos.y, v2.pos.x - v1.pos.x);
+                    const overlap = 2; // Fixed push amount per frame
+                    const pushX = Math.cos(angle) * overlap;
+                    const pushY = Math.sin(angle) * overlap;
+
+                    v1.pos.x -= pushX;
+                    v1.pos.y -= pushY;
+                    v2.pos.x += pushX;
+                    v2.pos.y += pushY;
+                    
+                    // Elastic Collision Response (Approximate)
+                    const v1v = Math.sqrt(v1.velocity.x**2 + v1.velocity.y**2);
+                    const v2v = Math.sqrt(v2.velocity.x**2 + v2.velocity.y**2);
+                    
+                    if (v1v > 0.1 || v2v > 0.1) {
+                         const totalV = v1v + v2v;
+                         spawnParticle(state, {x: (v1.pos.x+v2.pos.x)/2, y: (v1.pos.y+v2.pos.y)/2}, 'spark', 1, { color: '#fbbf24', speed: 2 });
+                         
+                         // Swap speeds roughly or dampen
+                         v1.speed *= -0.4;
+                         v2.speed *= -0.4;
+                         v1.velocity.x *= -0.4; v1.velocity.y *= -0.4;
+                         v2.velocity.x *= -0.4; v2.velocity.y *= -0.4;
+                         
+                         v1.health -= totalV;
+                         v2.health -= totalV;
+                    }
+                }
+            }
+        }
+    }
+
+    // Global Vehicle-Pedestrian Collision (Runover)
     state.vehicles.forEach(car => {
         if (Math.abs(car.speed) < 1) return;
         state.pedestrians.forEach(p => {

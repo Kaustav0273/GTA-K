@@ -1,5 +1,4 @@
 
-
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
@@ -21,12 +20,13 @@ interface GameCanvasProps {
     activeWeapon: WeaponType;
     settings: GameSettings;
     paused: boolean;
+    initialGameState: GameState;
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ 
     onGameStateUpdate, isPhoneOpen, activeMission, 
     onWeaponWheelToggle, isWeaponWheelOpen, activeWeapon,
-    settings, paused
+    settings, paused, initialGameState
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const requestRef = useRef<number>(0);
@@ -41,32 +41,46 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }, [isPhoneOpen, activeMission, settings, paused]);
     
     // Mutable Game State Container
-    const gameStateRef = useRef<MutableGameState>({
-        player: {
-            id: 'player', type: EntityType.PLAYER, role: 'civilian',
-            pos: { x: TILE_SIZE * 5, y: TILE_SIZE * 5 },
-            size: PLAYER_SIZE, angle: 0, velocity: { x: 0, y: 0 },
-            color: COLORS.player, health: 100, maxHealth: 100, armor: 0,
-            stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
-            state: 'idle', vehicleId: null, weapon: 'fist'
-        },
-        vehicles: [],
-        pedestrians: [],
-        bullets: [],
-        particles: [],
-        drops: [],
-        map: [],
-        camera: { x: 0, y: 0 },
-        money: 50,
-        wantedLevel: 0,
-        timeOfDay: 12,
-        lastShotTime: 0,
-        timeTicker: 0,
-        hospitalPos: { x: 0, y: 0 },
-        isWeaponWheelOpen: false,
-        lastDamageTaken: 0,
-        lastWantedTime: 0
-    });
+    // Initialize with props if available (Load Game), otherwise defaults
+    const gameStateRef = useRef<MutableGameState>(
+        (initialGameState && initialGameState.map && initialGameState.map.length > 0) 
+        ? {
+            ...initialGameState,
+            // Ensure runtime properties that might be missing from JSON save are present
+            lastShotTime: 0,
+            timeTicker: (initialGameState as any).timeTicker || 0,
+            hospitalPos: (initialGameState as any).hospitalPos || { x: 0, y: 0 },
+            isWeaponWheelOpen: false,
+            lastDamageTaken: (initialGameState as any).lastDamageTaken || 0,
+            lastWantedTime: (initialGameState as any).lastWantedTime || 0
+        }
+        : {
+            player: {
+                id: 'player', type: EntityType.PLAYER, role: 'civilian',
+                pos: { x: TILE_SIZE * 5, y: TILE_SIZE * 5 },
+                size: PLAYER_SIZE, angle: 0, velocity: { x: 0, y: 0 },
+                color: COLORS.player, health: 100, maxHealth: 100, armor: 0,
+                stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
+                state: 'idle', vehicleId: null, weapon: 'fist'
+            },
+            vehicles: [],
+            pedestrians: [],
+            bullets: [],
+            particles: [],
+            drops: [],
+            map: [],
+            camera: { x: 0, y: 0 },
+            money: 50,
+            wantedLevel: 0,
+            timeOfDay: 12,
+            lastShotTime: 0,
+            timeTicker: 0,
+            hospitalPos: { x: 0, y: 0 },
+            isWeaponWheelOpen: false,
+            lastDamageTaken: 0,
+            lastWantedTime: 0
+        }
+    );
 
     // Sync Props
     useEffect(() => {
@@ -77,47 +91,135 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Initialization
     useEffect(() => {
         const state = gameStateRef.current;
-        state.map = generateMap();
-
-        // Find Hospital and a valid spawn point on the ROAD in front of it
-        let foundHospital = false;
         
-        for(let y=0; y<MAP_HEIGHT; y++) {
-            for(let x=0; x<MAP_WIDTH; x++) {
-                if(state.map[y][x] === TileType.HOSPITAL) {
-                    const neighbors = [
-                        {dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}
-                    ];
-                    
-                    for(const n of neighbors) {
-                        const nx = x + n.dx;
-                        const ny = y + n.dy;
+        // If map is empty, generate new game world
+        if (!state.map || state.map.length === 0) {
+            state.map = generateMap();
+
+            // Find Hospital and a valid spawn point on the ROAD in front of it
+            let foundHospital = false;
+            
+            for(let y=0; y<MAP_HEIGHT; y++) {
+                for(let x=0; x<MAP_WIDTH; x++) {
+                    if(state.map[y][x] === TileType.HOSPITAL) {
+                        const neighbors = [
+                            {dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}
+                        ];
                         
-                        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-                            const tile = state.map[ny][nx];
-                            if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS) {
-                                state.hospitalPos = { 
-                                    x: nx * TILE_SIZE + TILE_SIZE/2, 
-                                    y: ny * TILE_SIZE + TILE_SIZE/2 
-                                };
-                                foundHospital = true; 
-                                break;
+                        for(const n of neighbors) {
+                            const nx = x + n.dx;
+                            const ny = y + n.dy;
+                            
+                            if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+                                const tile = state.map[ny][nx];
+                                if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS) {
+                                    state.hospitalPos = { 
+                                        x: nx * TILE_SIZE + TILE_SIZE/2, 
+                                        y: ny * TILE_SIZE + TILE_SIZE/2 
+                                    };
+                                    foundHospital = true; 
+                                    break;
+                                }
                             }
                         }
                     }
+                    if (foundHospital) break;
                 }
                 if (foundHospital) break;
             }
-            if (foundHospital) break;
-        }
-        
-        if (!foundHospital) {
-            console.warn("Could not find road spawn for hospital. Defaulting.");
-            state.hospitalPos = { x: TILE_SIZE * 5, y: TILE_SIZE * 5 };
-        }
+            
+            if (!foundHospital) {
+                console.warn("Could not find road spawn for hospital. Defaulting.");
+                state.hospitalPos = { x: TILE_SIZE * 5, y: TILE_SIZE * 5 };
+            }
 
-        // Set Player to Hospital Spawn immediately
-        state.player.pos = { ...state.hospitalPos };
+            // Set Player to Hospital Spawn immediately
+            state.player.pos = { ...state.hospitalPos };
+
+            // Spawn Vehicles
+            const modelKeys = Object.keys(CAR_MODELS) as Array<keyof typeof CAR_MODELS>;
+            let trafficCount = 35;
+            let attempts = 0;
+            
+            while (trafficCount > 0 && attempts < 500) {
+                attempts++;
+                const x = Math.floor(Math.random() * MAP_WIDTH);
+                const y = Math.floor(Math.random() * MAP_HEIGHT);
+                const tile = getTileAt(state.map, x * TILE_SIZE, y * TILE_SIZE);
+                
+                if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS) {
+                    let angle = 0;
+                    let posX = x * TILE_SIZE + TILE_SIZE/2;
+                    let posY = y * TILE_SIZE + TILE_SIZE/2;
+
+                    if (tile === TileType.ROAD_H) {
+                        const dir = Math.random() > 0.5;
+                        angle = dir ? 0 : Math.PI;
+                        posY = y * TILE_SIZE + (dir ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
+                    } else if (tile === TileType.ROAD_V) {
+                        const dir = Math.random() > 0.5; // True = South, False = North
+                        angle = dir ? Math.PI/2 : 3*Math.PI/2;
+                        posX = x * TILE_SIZE + (dir ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
+                    } else {
+                        angle = Math.floor(Math.random() * 4) * (Math.PI/2);
+                    }
+
+                    let overlap = false;
+                    for (const existing of state.vehicles) {
+                        if (Math.sqrt((existing.pos.x - posX)**2 + (existing.pos.y - posY)**2) < 80) { overlap = true; break; }
+                    }
+                    if (overlap) continue;
+
+                    const modelKey = modelKeys[Math.floor(Math.random() * modelKeys.length)];
+                    const model = CAR_MODELS[modelKey];
+                    
+                    state.vehicles.push({
+                        id: `traffic-${trafficCount}`, type: EntityType.VEHICLE, pos: { x: posX, y: posY },
+                        size: (model as any).size || { x: CAR_SIZE.x, y: CAR_SIZE.y }, angle, velocity: { x: 0, y: 0 },
+                        color: model.color, driverId: 'npc', model: modelKey, speed: 0, maxSpeed: model.maxSpeed,
+                        acceleration: model.acceleration, handling: model.handling, health: model.health,
+                        damage: { tires: [false, false, false, false], windows: [false, false] }, stuckTimer: 0, targetAngle: angle
+                    });
+                    trafficCount--;
+                }
+            }
+
+            // Spawn Pedestrians
+            for(let i=0; i<5; i++) {
+                // Police Spawns
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * MAP_WIDTH) * TILE_SIZE + TILE_SIZE / 2;
+                    y = Math.floor(Math.random() * MAP_HEIGHT) * TILE_SIZE + TILE_SIZE / 2;
+                } while (getTileAt(state.map, x, y) !== TileType.SIDEWALK);
+                
+                state.pedestrians.push({
+                    id: `cop-${i}`, type: EntityType.PEDESTRIAN, role: 'police', pos: { x, y }, size: PLAYER_SIZE,
+                    angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 }, color: '#1e3a8a', health: 150, maxHealth: 150,
+                    armor: 50, stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
+                    vehicleId: null, weapon: 'pistol', actionTimer: Math.random() * 200, state: 'walking'
+                });
+            }
+            
+            let pedsToSpawn = 50;
+            while (pedsToSpawn > 0) {
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * MAP_WIDTH) * TILE_SIZE + TILE_SIZE / 2;
+                    y = Math.floor(Math.random() * MAP_HEIGHT) * TILE_SIZE + TILE_SIZE / 2;
+                } while (getTileAt(state.map, x, y) !== TileType.SIDEWALK);
+
+                const basePed = {
+                    id: `ped-${pedsToSpawn}`, type: EntityType.PEDESTRIAN, role: 'civilian', pos: { x, y }, size: PLAYER_SIZE,
+                    angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 },
+                    color: Math.random() > 0.5 ? '#9ca3af' : '#4b5563', health: 100, maxHealth: 100, armor: 0,
+                    stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
+                    vehicleId: null, weapon: 'fist', actionTimer: Math.random() * 200, state: 'walking'
+                } as Pedestrian;
+                state.pedestrians.push(basePed);
+                pedsToSpawn--;
+            }
+        }
 
         // Textures
         const ctx = canvasRef.current?.getContext('2d');
@@ -131,93 +233,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             if (roadCanvas) groundTexturesRef.current['road'] = ctx.createPattern(roadCanvas, 'repeat');
             if (sidewalkCanvas) groundTexturesRef.current['sidewalk'] = ctx.createPattern(sidewalkCanvas, 'repeat');
             if (roofCanvas) groundTexturesRef.current['roof'] = ctx.createPattern(roofCanvas, 'repeat');
-        }
-
-        // Spawn Vehicles
-        const modelKeys = Object.keys(CAR_MODELS) as Array<keyof typeof CAR_MODELS>;
-        let trafficCount = 35;
-        let attempts = 0;
-        
-        while (trafficCount > 0 && attempts < 500) {
-            attempts++;
-            const x = Math.floor(Math.random() * MAP_WIDTH);
-            const y = Math.floor(Math.random() * MAP_HEIGHT);
-            const tile = getTileAt(state.map, x * TILE_SIZE, y * TILE_SIZE);
-            
-            if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS) {
-                let angle = 0;
-                let posX = x * TILE_SIZE + TILE_SIZE/2;
-                let posY = y * TILE_SIZE + TILE_SIZE/2;
-
-                if (tile === TileType.ROAD_H) {
-                    const dir = Math.random() > 0.5;
-                    angle = dir ? 0 : Math.PI;
-                    posY = y * TILE_SIZE + (dir ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
-                } else if (tile === TileType.ROAD_V) {
-                    const dir = Math.random() > 0.5; // True = South, False = North
-                    angle = dir ? Math.PI/2 : 3*Math.PI/2;
-                    // RIGHT HAND TRAFFIC FIX:
-                    // South (PI/2) -> Right side (0.25 on screen coord)
-                    // North (3PI/2) -> Right side (0.75 on screen coord)
-                    posX = x * TILE_SIZE + (dir ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
-                } else {
-                     angle = Math.floor(Math.random() * 4) * (Math.PI/2);
-                }
-
-                let overlap = false;
-                for (const existing of state.vehicles) {
-                    if (Math.sqrt((existing.pos.x - posX)**2 + (existing.pos.y - posY)**2) < 80) { overlap = true; break; }
-                }
-                if (overlap) continue;
-
-                const modelKey = modelKeys[Math.floor(Math.random() * modelKeys.length)];
-                const model = CAR_MODELS[modelKey];
-                
-                state.vehicles.push({
-                    id: `traffic-${trafficCount}`, type: EntityType.VEHICLE, pos: { x: posX, y: posY },
-                    size: (model as any).size || { x: CAR_SIZE.x, y: CAR_SIZE.y }, angle, velocity: { x: 0, y: 0 },
-                    color: model.color, driverId: 'npc', model: modelKey, speed: 0, maxSpeed: model.maxSpeed,
-                    acceleration: model.acceleration, handling: model.handling, health: model.health,
-                    damage: { tires: [false, false, false, false], windows: [false, false] }, stuckTimer: 0, targetAngle: angle
-                });
-                trafficCount--;
-            }
-        }
-
-        // Spawn Pedestrians
-        for(let i=0; i<5; i++) {
-            // Police Spawns
-            let x, y;
-            do {
-                x = Math.floor(Math.random() * MAP_WIDTH) * TILE_SIZE + TILE_SIZE / 2;
-                y = Math.floor(Math.random() * MAP_HEIGHT) * TILE_SIZE + TILE_SIZE / 2;
-            } while (getTileAt(state.map, x, y) !== TileType.SIDEWALK);
-            
-            state.pedestrians.push({
-                id: `cop-${i}`, type: EntityType.PEDESTRIAN, role: 'police', pos: { x, y }, size: PLAYER_SIZE,
-                angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 }, color: '#1e3a8a', health: 150, maxHealth: 150,
-                armor: 50, stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
-                vehicleId: null, weapon: 'pistol', actionTimer: Math.random() * 200, state: 'walking'
-            });
-        }
-        
-        let pedsToSpawn = 50;
-        while (pedsToSpawn > 0) {
-            let x, y;
-            do {
-                x = Math.floor(Math.random() * MAP_WIDTH) * TILE_SIZE + TILE_SIZE / 2;
-                y = Math.floor(Math.random() * MAP_HEIGHT) * TILE_SIZE + TILE_SIZE / 2;
-            } while (getTileAt(state.map, x, y) !== TileType.SIDEWALK);
-
-            const basePed = {
-                id: `ped-${pedsToSpawn}`, type: EntityType.PEDESTRIAN, role: 'civilian', pos: { x, y }, size: PLAYER_SIZE,
-                angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 },
-                color: Math.random() > 0.5 ? '#9ca3af' : '#4b5563', health: 100, maxHealth: 100, armor: 0,
-                stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
-                vehicleId: null, weapon: 'fist', actionTimer: Math.random() * 200, state: 'walking'
-            } as Pedestrian;
-            state.pedestrians.push(basePed);
-            pedsToSpawn--;
         }
 
         const handleKeyDown = (e: KeyboardEvent) => {
