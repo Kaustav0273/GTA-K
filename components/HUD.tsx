@@ -25,90 +25,94 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
   const staminaPercent = (player.stamina / (player.maxStamina || 1)) * 100;
 
   return (
-    <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between font-gta text-white">
-      {/* Top Right: Wanted Level & Money */}
-      <div className="flex justify-between items-start">
-         {/* Top Left: Mission Info */}
-        <div className="flex flex-col gap-2 max-w-md">
-            {mission && mission.active && (
-                <div className="bg-black/50 p-3 border-l-4 border-yellow-400 backdrop-blur-sm">
-                    <h3 className="text-yellow-400 text-lg">{mission.title}</h3>
-                    <p className="text-sm font-sans normal-case">{mission.objectiveText}</p>
-                </div>
-            )}
-        </div>
-
-        <div className="flex flex-col items-end gap-2">
+    <div className="absolute inset-0 pointer-events-none font-gta text-white select-none overflow-hidden">
+      
+      {/* 1. TOP RIGHT: Money & Wanted (Always here) */}
+      <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-10">
             <div className="flex gap-1">
             {Array.from({ length: 5 }).map((_, i) => (
                 <i
                 key={i}
-                className={`fas fa-star text-2xl drop-shadow-md ${
+                className={`fas fa-star text-xl md:text-2xl drop-shadow-md ${
                     i < wantedLevel ? 'text-white animate-pulse' : 'text-gray-600/50'
                 }`}
                 />
             ))}
             </div>
-            <div className="text-4xl text-green-400 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
+            <div className="text-3xl md:text-4xl text-green-400 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
             ${money.toLocaleString()}
             </div>
-        </div>
       </div>
 
-      {/* Bottom Row */}
-      <div className="flex justify-between items-end">
-        {/* Radar / Minimap Container */}
-        <div className="relative pointer-events-auto" onClick={onRadarClick}>
-             {/* Health & Armor Bars (Above Radar) */}
-             <div className="mb-2 w-56 flex flex-col gap-1">
+      {/* 2. RADAR & BARS */}
+      {/* Mobile: Top Left (Scaled down). Desktop: Bottom Left (Full size). */}
+      <div 
+        className="absolute pointer-events-auto cursor-pointer transition-all duration-300
+                   top-4 left-4 
+                   md:top-auto md:bottom-4 md:left-4"
+        onClick={onRadarClick}
+      >
+             {/* Bars */}
+             <div className="mb-1 md:mb-2 w-32 md:w-56 flex flex-col gap-1">
                 {/* Health */}
-                <div className="w-full h-3 bg-black/60 rounded overflow-hidden border border-gray-600">
-                    <div 
-                        className={`h-full ${healthColor} transition-all duration-300`} 
-                        style={{ width: `${Math.max(0, healthPercent)}%` }}
-                    ></div>
+                <div className="w-full h-2 md:h-3 bg-black/60 rounded overflow-hidden border border-gray-600">
+                    <div className={`h-full ${healthColor} transition-all duration-300`} style={{ width: `${Math.max(0, healthPercent)}%` }}></div>
                 </div>
-                {/* Armor (Only show if > 0) */}
+                {/* Armor */}
                 {armorPercent > 0 && (
-                    <div className="w-full h-2 bg-black/60 rounded overflow-hidden border border-gray-600">
-                        <div 
-                            className="h-full bg-blue-500 transition-all duration-300"
-                            style={{ width: `${armorPercent}%` }}
-                        ></div>
+                    <div className="w-full h-1.5 md:h-2 bg-black/60 rounded overflow-hidden border border-gray-600">
+                        <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${armorPercent}%` }}></div>
                     </div>
                 )}
-                {/* Stamina Bar */}
-                 <div className="w-full h-2 bg-black/60 rounded overflow-hidden border border-gray-600">
-                    <div 
-                        className="h-full bg-yellow-500 transition-all duration-300"
-                        style={{ width: `${Math.max(0, staminaPercent)}%` }}
-                    ></div>
+                {/* Stamina */}
+                 <div className="w-full h-1.5 md:h-2 bg-black/60 rounded overflow-hidden border border-gray-600">
+                    <div className="h-full bg-yellow-500 transition-all duration-300" style={{ width: `${Math.max(0, staminaPercent)}%` }}></div>
                 </div>
              </div>
 
-            <div className="w-56 h-36 bg-black/80 border-4 border-gray-600 rounded-lg shadow-2xl overflow-hidden relative cursor-pointer hover:border-gray-400 transition-colors">
+            {/* Minimap */}
+            <div className="w-32 h-24 md:w-56 md:h-36 bg-black/80 border-2 md:border-4 border-gray-600 rounded-lg shadow-2xl overflow-hidden relative group hover:border-gray-400 transition-colors">
                 <Radar gameState={gameState} />
-                {/* Gloss Effect */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
             </div>
-        </div>
+      </div>
 
-        {/* Controls Hint */}
-        <div className="hidden md:block text-white/60 text-xs font-sans text-center mb-2">
-            <div className="flex gap-4">
+      {/* 3. MISSION INFO */}
+      {/* Mobile: Top Center. Desktop: Top Left. */}
+      <div className="absolute transition-all duration-300
+                      top-4 left-1/2 -translate-x-1/2 w-64 items-center
+                      md:top-4 md:left-4 md:translate-x-0 md:w-auto md:max-w-md md:items-start
+                      flex flex-col gap-2 z-0"
+      >
+            {mission && mission.active && (
+                <div className="bg-black/50 p-2 md:p-3 border-l-4 border-yellow-400 backdrop-blur-sm shadow-lg pointer-events-auto">
+                    <h3 className="text-yellow-400 text-sm md:text-lg leading-tight drop-shadow-sm">{mission.title}</h3>
+                    <p className="text-xs md:text-sm font-sans normal-case text-white/90 drop-shadow-sm">{mission.objectiveText}</p>
+                </div>
+            )}
+      </div>
+
+      {/* 4. CONTROLS HINT (Desktop Only) */}
+      <div className="hidden md:block absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-xs font-sans text-center">
+            <div className="flex gap-4 bg-black/40 px-4 py-1 rounded-full backdrop-blur-sm border border-white/5">
                 <span><b className="text-white">WASD</b> Move</span>
                 <span><b className="text-white">SHIFT</b> Sprint</span>
                 <span><b className="text-white">F</b> Car</span>
                 <span><b className="text-white">TAB</b> Weapon</span>
                 <span><b className="text-white">SPACE</b> Action</span>
             </div>
-        </div>
+      </div>
 
-        {/* Phone & Weapon - Positioned absolutely on mobile to clear controls */}
-        <div className="flex gap-4 pointer-events-auto items-end md:static absolute bottom-64 right-4 md:bottom-auto md:right-auto z-50">
-            <div className="flex flex-col items-center">
+      {/* 5. PHONE & WEAPON TOGGLES */}
+      {/* Mobile: Absolute position above controls. Desktop: Bottom Right. */}
+      <div className="absolute pointer-events-auto flex gap-4 items-end z-50 transition-all duration-300
+                      bottom-64 right-4
+                      md:bottom-4 md:right-4"
+      >
+            {/* Weapon Icon */}
+            <div className="flex flex-col items-center group">
                  <div 
-                    className="w-16 h-16 bg-gray-900 rounded-full border-4 border-gray-700 flex items-center justify-center mb-2 shadow-lg relative cursor-pointer active:scale-95 transition-transform"
+                    className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 rounded-full border-2 md:border-4 border-gray-700 flex items-center justify-center mb-1 shadow-lg relative cursor-pointer active:scale-95 transition-transform"
                     onClick={onWeaponClick}
                  >
                     <i className={`fas ${
@@ -119,22 +123,25 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
                         player.weapon === 'rocket' ? 'fa-rocket' :
                         player.weapon === 'flame' ? 'fa-fire' :
                         'fa-hand-fist'
-                    } text-3xl text-gray-400`}></i>
-                    <div className="absolute -bottom-1 -right-1 bg-gray-800 text-xs px-1 rounded border border-gray-600">
+                    } text-xl md:text-3xl text-gray-400`}></i>
+                    <div className="absolute -bottom-1 -right-1 bg-gray-800 text-[10px] md:text-xs px-1 rounded border border-gray-600">
                         {player.weapon === 'fist' ? 'INF' : '999'}
                     </div>
                  </div>
+                 <span className="md:hidden text-[10px] text-white/50 bg-black/50 px-1 rounded backdrop-blur-sm">WEAPON</span>
             </div>
+            
+            {/* Phone Button */}
             <button 
                 onClick={onPhoneClick}
-                className="w-14 h-24 bg-black border-4 border-gray-800 rounded-lg hover:border-blue-500 transition-colors flex flex-col items-center justify-center group shadow-xl"
+                className="w-10 h-16 md:w-14 md:h-24 bg-black border-2 md:border-4 border-gray-800 rounded-lg hover:border-blue-500 transition-colors flex flex-col items-center justify-center group shadow-xl active:scale-95"
             >
-                <div className="w-10 h-16 bg-blue-500/20 group-hover:bg-blue-400/30 rounded flex items-center justify-center">
-                    <i className="fas fa-mobile-alt text-2xl text-blue-200"></i>
+                <div className="w-8 h-12 md:w-10 md:h-16 bg-blue-500/20 group-hover:bg-blue-400/30 rounded flex items-center justify-center">
+                    <i className="fas fa-mobile-alt text-lg md:text-2xl text-blue-200"></i>
                 </div>
             </button>
-        </div>
       </div>
+
     </div>
   );
 };

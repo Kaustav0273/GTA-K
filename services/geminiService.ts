@@ -1,13 +1,17 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Mission } from "../types";
 
 // NOTE: In a real app, never expose keys in client-side code without a proxy.
 // We are following the prompt instructions to use process.env.API_KEY.
+// We safely check for process to avoid ReferenceErrors in browser environments.
 
 let genAI: GoogleGenAI | null = null;
 
-if (process.env.API_KEY) {
-    genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+
+if (apiKey) {
+    genAI = new GoogleGenAI({ apiKey });
 }
 
 export const generateMission = async (

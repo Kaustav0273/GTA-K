@@ -774,6 +774,10 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
     const width = ctx.canvas.width;
     const height = ctx.canvas.height;
     
+    // Zoom Logic
+    const isMobile = width < 768;
+    const zoom = isMobile ? 0.6 : 1;
+    
     // Draw Distance Buffer Logic
     let buffer = 0;
     if (settings) {
@@ -789,13 +793,23 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
     ctx.fillRect(0, 0, width, height);
 
     ctx.save();
-    ctx.translate(-Math.floor(state.camera.x), -Math.floor(state.camera.y));
+    
+    // Apply Camera Transform with Zoom centered on the viewport
+    const camCenterX = state.camera.x + width / 2;
+    const camCenterY = state.camera.y + height / 2;
 
-    // Calculate Viewport with Buffer
-    const camX = state.camera.x - buffer;
-    const camY = state.camera.y - buffer;
-    const camW = width + (buffer * 2);
-    const camH = height + (buffer * 2);
+    ctx.translate(width / 2, height / 2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-camCenterX, -camCenterY);
+    
+    // Calculate Viewport bounds for culling (in World Space)
+    const visibleWidth = width / zoom;
+    const visibleHeight = height / zoom;
+    
+    const camX = camCenterX - visibleWidth / 2 - buffer;
+    const camY = camCenterY - visibleHeight / 2 - buffer;
+    const camW = visibleWidth + (buffer * 2);
+    const camH = visibleHeight + (buffer * 2);
 
     const startCol = Math.max(0, Math.floor(camX / TILE_SIZE));
     const endCol = Math.min(MAP_WIDTH, Math.floor((camX + camW) / TILE_SIZE) + 1);
