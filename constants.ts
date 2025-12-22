@@ -1,8 +1,4 @@
 
-
-
-
-
 export const TILE_SIZE = 128;
 export const MAP_WIDTH = 50; // In tiles
 export const MAP_HEIGHT = 50; // In tiles
@@ -25,6 +21,12 @@ export const COLORS = {
   uiDanger: '#ef4444', // Red
   uiWarning: '#fbbf24', // Yellow
 };
+
+export const CAR_COLORS = [
+  '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', 
+  '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#ffffff', 
+  '#94a3b8', '#000000', '#78350f', '#facc15', '#a3e635'
+];
 
 // Physics
 export const FRICTION = 0.92;

@@ -4,10 +4,10 @@ import {
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
 } from '../types';
 import { 
-    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, STAMINA_MAX, COLORS 
+    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, STAMINA_MAX, COLORS, CAR_COLORS
 } from '../constants';
 import { generateMap, getTileAt, createNoiseTexture, isSolid } from '../utils/gameUtils';
-import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle, isPoliceNearby } from '../game/physics';
+import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle, isPoliceNearby, playerInteract } from '../game/physics';
 import { renderGame } from '../game/renderer';
 
 interface GameCanvasProps {
@@ -172,11 +172,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
                     const modelKey = modelKeys[Math.floor(Math.random() * modelKeys.length)];
                     const model = CAR_MODELS[modelKey];
+                    const randomColor = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
                     
                     state.vehicles.push({
                         id: `traffic-${trafficCount}`, type: EntityType.VEHICLE, pos: { x: posX, y: posY },
                         size: (model as any).size || { x: CAR_SIZE.x, y: CAR_SIZE.y }, angle, velocity: { x: 0, y: 0 },
-                        color: model.color, driverId: 'npc', model: modelKey, speed: 0, maxSpeed: model.maxSpeed,
+                        color: randomColor, driverId: 'npc', model: modelKey, speed: 0, maxSpeed: model.maxSpeed,
                         acceleration: model.acceleration, handling: model.handling, health: model.health,
                         damage: { tires: [false, false, false, false], windows: [false, false] }, stuckTimer: 0, targetAngle: angle
                     });
@@ -238,7 +239,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const handleKeyDown = (e: KeyboardEvent) => {
             keysPressed.current.add(e.code);
             if (e.code === 'KeyM') state.money += 100;
-            if (e.code === 'KeyF') handleInteraction();
+            if (e.code === 'KeyF') playerInteract(state);
             if (e.code === 'Tab') { e.preventDefault(); onWeaponWheelToggle(true); }
         };
         const handleKeyUp = (e: KeyboardEvent) => {
@@ -257,44 +258,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
-    const handleInteraction = () => {
-        const state = gameStateRef.current;
-        const player = state.player;
-        
-        if (player.vehicleId) {
-            const vehicle = state.vehicles.find(v => v.id === player.vehicleId);
-            if (vehicle) {
-                vehicle.driverId = null; 
-                player.vehicleId = null;
-                player.state = 'idle';
-                player.pos.x += Math.cos(vehicle.angle + Math.PI/2) * 40;
-                player.pos.y += Math.sin(vehicle.angle + Math.PI/2) * 40;
-            }
-        } else {
-            let nearestCar: Vehicle | null = null;
-            let minDist = 60;
-            state.vehicles.forEach(v => {
-                const dist = Math.sqrt((v.pos.x - player.pos.x)**2 + (v.pos.y - player.pos.y)**2);
-                if (dist < minDist) { nearestCar = v; minDist = dist; }
-            });
-
-            if (nearestCar) {
-                const v = nearestCar as Vehicle;
-                v.driverId = player.id;
-                player.vehicleId = v.id;
-                player.state = 'driving';
-                player.pos = { ...v.pos };
-                
-                if (isPoliceNearby(state, player.pos)) {
-                    state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                    state.lastWantedTime = state.timeTicker;
-                }
-                
-                spawnParticle(state, v.pos, 'smoke', 5, { color: '#555', speed: 1, spread: 20 });
-            }
-        }
-    };
 
     const gameLoop = useCallback((time: number) => {
         requestRef.current = requestAnimationFrame(gameLoop);

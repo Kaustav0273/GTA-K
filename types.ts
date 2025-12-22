@@ -39,6 +39,7 @@ export interface Vehicle extends Entity {
   };
   stuckTimer?: number; // Frames stuck at 0 speed
   targetAngle: number;
+  lastPaintTime?: number; // Debounce for paint shop
 }
 
 export type WeaponType = 'fist' | 'pistol' | 'uzi' | 'shotgun' | 'sniper' | 'rocket' | 'flame';
@@ -53,11 +54,12 @@ export interface Pedestrian extends Entity {
   stamina: number; // Current stamina frames
   maxStamina: number; // Max stamina frames
   staminaRechargeDelay: number; // Frames until recharge starts
-  state: 'idle' | 'walking' | 'driving' | 'running' | 'fleeing' | 'dead' | 'texting' | 'chatting' | 'punching' | 'chasing' | 'shooting';
+  state: 'idle' | 'walking' | 'driving' | 'running' | 'fleeing' | 'dead' | 'texting' | 'chatting' | 'punching' | 'chasing' | 'shooting' | 'entering_vehicle' | 'exiting_vehicle';
   target?: Vector2; // For AI movement
   weapon: WeaponType;
   actionTimer?: number; // Time until next state change
   chatPartnerId?: string; // ID of the pedestrian they are chatting with
+  targetVehicleId?: string | null; // For entering animation
 }
 
 export interface Bullet {
@@ -133,7 +135,8 @@ export enum TileType {
   CONTAINER = 11,
   SHIP_DECK = 12,
   SAND = 13,
-  WALL = 14
+  WALL = 14,
+  PAINT_SHOP = 15
 }
 
 export interface GameSettings {
