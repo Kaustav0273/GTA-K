@@ -25,7 +25,8 @@ const App: React.FC = () => {
       retroFilter: true,
       frameLimiter: false,
       mouseSensitivity: 50,
-      mobileControlStyle: 'DPAD'
+      mobileControlStyle: 'DPAD',
+      isFullScreen: window.innerWidth < 768 // Default to true on mobile (simple width check)
   });
 
   const defaultGameState: GameState = {
@@ -104,12 +105,24 @@ const App: React.FC = () => {
           if (saved) {
               const parsed = JSON.parse(saved);
               setGameState(parsed);
-              setGameStarted(true);
+              enterGame();
           }
       } catch (e) {
           console.error("Load failed", e);
           alert("Failed to load save file.");
       }
+  };
+
+  // Helper to trigger full screen if enabled
+  const enterGame = () => {
+      if (settings.isFullScreen) {
+          if (!document.fullscreenElement) {
+              document.documentElement.requestFullscreen().catch(err => {
+                  console.warn(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+              });
+          }
+      }
+      setGameStarted(true);
   };
 
   // Settings Handlers
@@ -121,6 +134,22 @@ const App: React.FC = () => {
 
   const toggleControlStyle = () => {
       setSettings(prev => ({ ...prev, mobileControlStyle: prev.mobileControlStyle === 'DPAD' ? 'JOYSTICK' : 'DPAD' }));
+  };
+
+  const toggleFullScreenSetting = () => {
+      setSettings(prev => {
+          const newState = !prev.isFullScreen;
+          if (newState) {
+              if (!document.fullscreenElement) {
+                  document.documentElement.requestFullscreen().catch(err => console.warn(err));
+              }
+          } else {
+              if (document.fullscreenElement) {
+                  document.exitFullscreen().catch(err => console.warn(err));
+              }
+          }
+          return { ...prev, isFullScreen: newState };
+      });
   };
 
   return (
@@ -188,7 +217,7 @@ const App: React.FC = () => {
                             <button 
                                 onClick={() => {
                                     setGameState(defaultGameState); // Reset to default for new game
-                                    setGameStarted(true);
+                                    enterGame();
                                 }}
                                 className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300"
                             >
@@ -269,6 +298,11 @@ const App: React.FC = () => {
                                      <button onClick={() => setSettings(s => ({...s, frameLimiter: !s.frameLimiter}))} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
                                         <span className="text-gray-400 group-hover:text-white">FRAME LIMITER (30 FPS)</span>
                                         <span className={`${settings.frameLimiter ? 'text-green-400' : 'text-red-500'} font-bold`}>{settings.frameLimiter ? 'ON' : 'OFF'}</span>
+                                    </button>
+                                     {/* Full Screen Option */}
+                                     <button onClick={toggleFullScreenSetting} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
+                                        <span className="text-gray-400 group-hover:text-white">FULL SCREEN</span>
+                                        <span className={`${settings.isFullScreen ? 'text-green-400' : 'text-red-500'} font-bold`}>{settings.isFullScreen ? 'ON' : 'OFF'}</span>
                                     </button>
                                 </div>
 

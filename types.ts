@@ -144,4 +144,5 @@ export interface GameSettings {
   frameLimiter: boolean;
   mouseSensitivity: number; // 0-100
   mobileControlStyle: 'DPAD' | 'JOYSTICK';
+  isFullScreen: boolean;
 }
