@@ -172,12 +172,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
                     const modelKey = modelKeys[Math.floor(Math.random() * modelKeys.length)];
                     const model = CAR_MODELS[modelKey];
-                    const randomColor = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+                    
+                    let vehicleColor = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+                    if (['police', 'ambulance', 'swat', 'firetruck', 'taxi'].includes(modelKey)) {
+                        vehicleColor = model.color;
+                    } else if (modelKey === 'limo') {
+                        vehicleColor = Math.random() > 0.5 ? '#000000' : '#ffffff';
+                    }
                     
                     state.vehicles.push({
                         id: `traffic-${trafficCount}`, type: EntityType.VEHICLE, pos: { x: posX, y: posY },
                         size: (model as any).size || { x: CAR_SIZE.x, y: CAR_SIZE.y }, angle, velocity: { x: 0, y: 0 },
-                        color: randomColor, driverId: 'npc', model: modelKey, speed: 0, maxSpeed: model.maxSpeed,
+                        color: vehicleColor, driverId: 'npc', model: modelKey, speed: 0, maxSpeed: model.maxSpeed,
                         acceleration: model.acceleration, handling: model.handling, health: model.health,
                         damage: { tires: [false, false, false, false], windows: [false, false] }, stuckTimer: 0, targetAngle: angle
                     });

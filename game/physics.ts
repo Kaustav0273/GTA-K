@@ -356,8 +356,15 @@ const respawnVehicle = (state: MutableGameState, car: Vehicle) => {
             const modelData = CAR_MODELS[car.model];
             car.health = modelData ? (modelData as any).health || 100 : 100;
             car.damage = { tires: [false, false, false, false], windows: [false, false] };
-            // RANDOM CAR COLOR
-            car.color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+            
+            // COLOR LOGIC
+            if (['police', 'ambulance', 'swat', 'firetruck', 'taxi'].includes(car.model)) {
+                car.color = modelData.color;
+            } else if (car.model === 'limo') {
+                car.color = Math.random() > 0.5 ? '#000000' : '#ffffff';
+            } else {
+                car.color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+            }
 
             if (tile === TileType.ROAD_H) {
                 const dir = Math.random() > 0.5 ? 0 : Math.PI;
@@ -423,11 +430,14 @@ export const playerInteract = (state: MutableGameState) => {
 
         // Start Exit Animation
         player.state = 'exiting_vehicle';
-        player.actionTimer = 25; // Animation Duration
+        player.actionTimer = 40; // Total Exit Time (Door Open + Exit + Close)
         player.vehicleId = null; // Detach physics immediately
         vehicle.driverId = null; 
         
-        // Reset player physics props
+        // Pass target vehicle ID to handle door animation in renderer
+        player.targetVehicleId = vehicle.id; 
+        
+        // Setup positions for animation
         player.pos = { ...vehicle.pos }; // Start at center of car
         player.velocity = { x: 0, y: 0 };
         player.angle = exitAngle; // Face exit direction
@@ -446,13 +456,22 @@ export const playerInteract = (state: MutableGameState) => {
     });
 
     if (nearestCar) {
-        // Start Enter Animation
-        player.state = 'entering_vehicle';
-        player.targetVehicleId = nearestCar.id;
-        player.actionTimer = 25; // Animation Duration
+        // 1. Calculate Driver Door Position (Left side, slightly forward)
+        const doorOffsetSide = (nearestCar.size.x / 2) + 12;
+        const doorOffsetFwd = 5; 
         
-        // Face car
-        player.angle = Math.atan2(nearestCar.pos.y - player.pos.y, nearestCar.pos.x - player.pos.x);
+        const cx = Math.cos(nearestCar.angle);
+        const cy = Math.sin(nearestCar.angle);
+        
+        const localX = doorOffsetFwd;
+        const localY = -doorOffsetSide;
+        
+        const doorX = nearestCar.pos.x + (localX * cx - localY * cy);
+        const doorY = nearestCar.pos.y + (localX * cy + localY * cx);
+
+        player.state = 'walking_to_car';
+        player.targetVehicleId = nearestCar.id;
+        player.target = { x: doorX, y: doorY };
     }
 };
 
@@ -498,19 +517,69 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
     }
 
     // PLAYER ANIMATION STATES (BLOCKS CONTROLS)
-    if (state.player.state === 'entering_vehicle') {
+    if (state.player.state === 'walking_to_car') {
+        // CANCEL AUTO-WALK if player presses WASD
+        const isMoveKey = keys.has('KeyW') || keys.has('ArrowUp') || 
+                          keys.has('KeyS') || keys.has('ArrowDown') || 
+                          keys.has('KeyA') || keys.has('ArrowLeft') || 
+                          keys.has('KeyD') || keys.has('ArrowRight');
+        
+        if (isMoveKey) {
+            state.player.state = 'idle';
+            state.player.targetVehicleId = null;
+            state.player.target = undefined;
+            // Fall through to standard input handling
+        } else {
+            const target = state.player.target;
+            const vehicle = state.vehicles.find(v => v.id === state.player.targetVehicleId);
+            
+            if (target && vehicle) {
+                const dx = target.x - state.player.pos.x;
+                const dy = target.y - state.player.pos.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if (dist > 5) {
+                    // Walk towards door
+                    const angle = Math.atan2(dy, dx);
+                    state.player.angle = angle;
+                    state.player.pos.x += Math.cos(angle) * MAX_SPEED_WALK;
+                    state.player.pos.y += Math.sin(angle) * MAX_SPEED_WALK;
+                    
+                    // Keep target updated if car moves slightly
+                    const doorOffsetSide = (vehicle.size.x / 2) + 12;
+                    const doorOffsetFwd = 5;
+                    const cx = Math.cos(vehicle.angle);
+                    const cy = Math.sin(vehicle.angle);
+                    const localX = doorOffsetFwd;
+                    const localY = -doorOffsetSide;
+                    
+                    state.player.target = {
+                        x: vehicle.pos.x + (localX * cx - localY * cy),
+                        y: vehicle.pos.y + (localX * cy + localY * cx)
+                    };
+                } else {
+                    // Arrived at door, start entering animation
+                    state.player.state = 'entering_vehicle';
+                    state.player.actionTimer = 40; // 40 frames for door open/enter/close
+                    state.player.angle = vehicle.angle; // Align with car
+                }
+            } else {
+                state.player.state = 'idle';
+            }
+        }
+    }
+    else if (state.player.state === 'entering_vehicle') {
         if (state.player.actionTimer && state.player.actionTimer > 0) {
             state.player.actionTimer--;
-            const v = state.vehicles.find(v => v.id === state.player.targetVehicleId);
-            if (v) {
-                // Move towards car
-                const dx = v.pos.x - state.player.pos.x;
-                const dy = v.pos.y - state.player.pos.y;
-                state.player.pos.x += dx * 0.15;
-                state.player.pos.y += dy * 0.15;
-            } else {
-                // Car disappeared? Abort
-                state.player.state = 'idle';
+            
+            if (state.player.actionTimer < 30 && state.player.actionTimer > 10) {
+                const v = state.vehicles.find(v => v.id === state.player.targetVehicleId);
+                if (v) {
+                    const dx = v.pos.x - state.player.pos.x;
+                    const dy = v.pos.y - state.player.pos.y;
+                    state.player.pos.x += dx * 0.1;
+                    state.player.pos.y += dy * 0.1;
+                }
             }
         } else {
             // Enter
@@ -531,21 +600,22 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             }
             state.player.targetVehicleId = null;
         }
-        // Run other physics but skip Player Control Logic
     }
     else if (state.player.state === 'exiting_vehicle') {
         if (state.player.actionTimer && state.player.actionTimer > 0) {
             state.player.actionTimer--;
-            if (state.player.target) {
-                // Lerp to target
-                const dx = state.player.target.x - state.player.pos.x;
-                const dy = state.player.target.y - state.player.pos.y;
-                state.player.pos.x += dx * 0.2; // Slide out
-                state.player.pos.y += dy * 0.2;
+            if (state.player.actionTimer < 30 && state.player.actionTimer > 10) {
+                if (state.player.target) {
+                    const dx = state.player.target.x - state.player.pos.x;
+                    const dy = state.player.target.y - state.player.pos.y;
+                    state.player.pos.x += dx * 0.15; 
+                    state.player.pos.y += dy * 0.15;
+                }
             }
         } else {
             state.player.state = 'idle';
             state.player.target = undefined;
+            state.player.targetVehicleId = null;
         }
     }
 
@@ -821,7 +891,8 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             let brake = false;
             const fwdX = Math.cos(car.angle);
             const fwdY = Math.sin(car.angle);
-            const sensorDist = 120 + car.speed * 10;
+            const sensorDist = 140 + car.speed * 15;
+            const sensorWidth = 36; // Increased sensor width
             
             for(const other of state.vehicles) {
                 if (other.id === car.id) continue;
@@ -829,21 +900,27 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
                 const dy = other.pos.y - car.pos.y;
                 const distFwd = dx * fwdX + dy * fwdY;
                 const distSide = Math.abs(dx * -fwdY + dy * fwdX);
-                if (distFwd > 0 && distFwd < sensorDist && distSide < 20) {
+                
+                // Check if in front and close (including minor negative overlap)
+                if (distFwd > -30 && distFwd < sensorDist && distSide < sensorWidth) {
                      brake = true;
                      break;
                 }
             }
             if (!brake && !state.player.vehicleId) {
+                // Check against player if walking
                 const dx = state.player.pos.x - car.pos.x;
                 const dy = state.player.pos.y - car.pos.y;
                 const distFwd = dx * fwdX + dy * fwdY;
                 const distSide = Math.abs(dx * -fwdY + dy * fwdX);
-                if (distFwd > 0 && distFwd < sensorDist && distSide < 20) brake = true;
+                if (distFwd > 0 && distFwd < sensorDist && distSide < sensorWidth) brake = true;
             }
 
             // Speed Control
-            if (brake) car.speed *= 0.8;
+            if (brake) {
+                car.speed *= 0.9;
+                if (car.speed < 0.1) car.speed = 0;
+            }
             else if (car.speed < car.maxSpeed * 0.7) car.speed += car.acceleration;
 
             // 2. RAIL MOVEMENT
@@ -1041,7 +1118,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
         }
     } else {
         // Player Walking Logic (SKIP IF ANIMATING)
-        if (!state.isWeaponWheelOpen && state.player.state !== 'entering_vehicle' && state.player.state !== 'exiting_vehicle') {
+        if (!state.isWeaponWheelOpen && state.player.state !== 'entering_vehicle' && state.player.state !== 'exiting_vehicle' && state.player.state !== 'walking_to_car') {
             let dx = 0, dy = 0;
             if (keys.has('KeyW') || keys.has('ArrowUp')) dy = -1;
             if (keys.has('KeyS') || keys.has('ArrowDown')) dy = 1;
@@ -1088,7 +1165,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
 
         const shootKey = keys.has('Space');
         const weaponStats = WEAPON_STATS[state.player.weapon];
-        if (shootKey && !state.isWeaponWheelOpen && state.player.state !== 'entering_vehicle' && state.player.state !== 'exiting_vehicle') {
+        if (shootKey && !state.isWeaponWheelOpen && state.player.state !== 'entering_vehicle' && state.player.state !== 'exiting_vehicle' && state.player.state !== 'walking_to_car') {
             if (state.lastShotTime <= 0) {
                 handleCombat(state, state.player);
                 state.lastShotTime = weaponStats.fireRate;

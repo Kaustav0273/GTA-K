@@ -54,7 +54,7 @@ export interface Pedestrian extends Entity {
   stamina: number; // Current stamina frames
   maxStamina: number; // Max stamina frames
   staminaRechargeDelay: number; // Frames until recharge starts
-  state: 'idle' | 'walking' | 'driving' | 'running' | 'fleeing' | 'dead' | 'texting' | 'chatting' | 'punching' | 'chasing' | 'shooting' | 'entering_vehicle' | 'exiting_vehicle';
+  state: 'idle' | 'walking' | 'driving' | 'running' | 'fleeing' | 'dead' | 'texting' | 'chatting' | 'punching' | 'chasing' | 'shooting' | 'entering_vehicle' | 'exiting_vehicle' | 'walking_to_car';
   target?: Vector2; // For AI movement
   weapon: WeaponType;
   actionTimer?: number; // Time until next state change
