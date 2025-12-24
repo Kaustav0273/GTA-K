@@ -1,5 +1,4 @@
 
-
 import React, { useRef, useEffect } from 'react';
 import { GameState, TileType } from '../types';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT } from '../constants';
@@ -73,6 +72,7 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
                      case TileType.BUILDING: color = '#000000'; break;
                      case TileType.SKYSCRAPER: color = '#1e293b'; break; // Slate-800
                      case TileType.SHOP: color = '#78350f'; break; // Amber-900
+                     case TileType.MALL: color = '#f472b6'; break; // Pink-400
                      case TileType.HOSPITAL: color = '#ef4444'; break; // Red
                      case TileType.POLICE_STATION: color = '#3b82f6'; break; // Blue
                      case TileType.CONTAINER: color = '#b45309'; break; // Orange-700

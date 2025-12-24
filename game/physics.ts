@@ -6,7 +6,7 @@ import {
     TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, 
     ACCELERATION_WALK, MAX_SPEED_WALK, MAX_SPEED_SPRINT, BULLET_SPEED, BULLET_LIFETIME, 
     PEDESTRIAN_SPEED, PEDESTRIAN_RUN_SPEED, PANIC_DISTANCE, PHYSICS, WEAPON_STATS,
-    STAMINA_REGEN_DELAY, STAMINA_REGEN_RATE, CAR_COLORS, MAX_TRAFFIC
+    STAMINA_REGEN_DELAY, STAMINA_REGEN_RATE, CAR_COLORS
 } from '../constants';
 import { isSolid, getTileAt } from '../utils/gameUtils';
 
@@ -321,10 +321,10 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
     });
 };
 
-const spawnTraffic = (state: MutableGameState) => {
+const spawnTraffic = (state: MutableGameState, maxTraffic: number) => {
     // Check current traffic count (Exclude planes and player's car if they are driving)
     const trafficCount = state.vehicles.filter(v => v.driverId === 'npc').length;
-    if (trafficCount >= MAX_TRAFFIC) return;
+    if (trafficCount >= maxTraffic) return;
 
     // Try to spawn nearby
     let spawned = false;
@@ -489,7 +489,7 @@ export const playerInteract = (state: MutableGameState) => {
     }
 };
 
-export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
+export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTraffic: number) => {
     state.timeTicker++;
 
     // Health Regeneration
@@ -745,10 +745,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
         }
     });
 
-    // ... (Drops, Particles, Bullets, NPC Vehicles logic unchanged) ...
-    // To save tokens I will not repeat the massive unchanged blocks, assume they are there
-    // Re-implementing critical parts for context:
-
     state.drops.forEach(d => {
        const dx = state.player.pos.x - d.pos.x;
        const dy = state.player.pos.y - d.pos.y;
@@ -947,7 +943,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
         }
     }
 
-    if (state.timeTicker % 10 === 0) spawnTraffic(state);
+    if (state.timeTicker % 10 === 0) spawnTraffic(state, maxTraffic);
 
     // Player Vehicle Physics
     if (state.player.state === 'driving' && state.player.vehicleId) {

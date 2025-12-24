@@ -1,5 +1,4 @@
 
-
 import { MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, COLORS } from "../constants";
 import { TileType } from "../types";
 
@@ -30,53 +29,66 @@ export const generateMap = (): number[][] => {
       }
   }
 
+  // Shift constant to move original map down
+  const SHIFT_Y = 30;
+
   // ==========================================
-  // PHASE 1: BASE TERRAIN ZONING (No Buildings yet)
+  // PHASE 0: NEW NORTH AREAS (y=0 to y=30)
+  // ==========================================
+
+  // North West - Pine Hills (Residential/Suburbs)
+  fillRect(4, 4, 34, 26, TileType.GRASS);
+  
+  // North East - Uptown / Little Tokyo
+  fillRect(42, 4, 34, 26, TileType.SIDEWALK);
+  
+  // Central Park Lake Area
+  fillRect(38, 10, 4, 15, TileType.WATER); // Lake separation
+
+  // ==========================================
+  // PHASE 1: BASE TERRAIN ZONING (Original Map Shifted)
   // ==========================================
   
   // Hillside Heights (NW)
-  fillRect(2, 2, 18, 18, TileType.GRASS);
+  fillRect(2, 2 + SHIFT_Y, 18, 18, TileType.GRASS);
 
   // Downtown (Top Center)
-  fillRect(20, 2, 14, 18, TileType.SIDEWALK);
+  fillRect(20, 2 + SHIFT_Y, 14, 18, TileType.SIDEWALK);
 
   // Redline (Mid Left)
-  fillRect(2, 20, 18, 12, TileType.SIDEWALK);
+  fillRect(2, 20 + SHIFT_Y, 18, 12, TileType.SIDEWALK);
 
   // Rust Quarter (Center)
-  fillRect(20, 20, 14, 15, TileType.SIDEWALK);
+  fillRect(20, 20 + SHIFT_Y, 14, 15, TileType.SIDEWALK);
 
   // Port Authority (Bottom Left)
-  fillRect(2, 32, 18, 16, TileType.SIDEWALK);
-  fillRect(2, 36, 10, 3, TileType.WATER); 
-  fillRect(2, 43, 10, 3, TileType.WATER);
+  fillRect(2, 32 + SHIFT_Y, 18, 16, TileType.SIDEWALK);
+  fillRect(2, 36 + SHIFT_Y, 10, 3, TileType.WATER); 
+  fillRect(2, 43 + SHIFT_Y, 10, 3, TileType.WATER);
   // Ships Decks (Base)
-  fillRect(4, 37, 6, 1, TileType.SHIP_DECK);
-  fillRect(3, 44, 8, 1, TileType.SHIP_DECK);
+  fillRect(4, 37 + SHIFT_Y, 6, 1, TileType.SHIP_DECK);
+  fillRect(3, 44 + SHIFT_Y, 8, 1, TileType.SHIP_DECK);
 
   // Neon Coast / Industrial (Restored Zone)
   const neonX = 35;
   const neonW = 23; 
-  fillRect(neonX, 2, neonW, 46, TileType.SIDEWALK);
+  fillRect(neonX, 2 + SHIFT_Y, neonW, 46, TileType.SIDEWALK);
 
   // Airport (Right Side)
   const airportX = 58;
   const airportWidth = 20;
   // Base: Tarmac
-  fillRect(airportX, 2, airportWidth, 46, TileType.TARMAC);
+  fillRect(airportX, 2 + SHIFT_Y, airportWidth, 46, TileType.TARMAC);
   
   // Airport Frontage Area (Sidewalks for Terminals)
-  // We paint a strip of sidewalk at the airport entrance (x=58..60)
-  // This ensures footpaths generate correctly between the frontage road and terminals.
-  fillRect(airportX, 2, 3, 46, TileType.SIDEWALK);
+  fillRect(airportX, 2 + SHIFT_Y, 3, 46, TileType.SIDEWALK);
 
-  // Runway - Shortened to fit INSIDE the highway loop (y=5 to y=45)
-  // Starts at y=7, Ends at y=44 (Height 37)
-  fillRect(airportX + 14, 7, 3, 37, TileType.RUNWAY);
+  // Runway
+  fillRect(airportX + 14, 7 + SHIFT_Y, 3, 37, TileType.RUNWAY);
   
   // Taxiways
-  fillRect(airportX + 8, 10, 6, 2, TileType.TARMAC);
-  fillRect(airportX + 8, 36, 6, 2, TileType.TARMAC);
+  fillRect(airportX + 8, 10 + SHIFT_Y, 6, 2, TileType.TARMAC);
+  fillRect(airportX + 8, 36 + SHIFT_Y, 6, 2, TileType.TARMAC);
 
 
   // ==========================================
@@ -86,35 +98,57 @@ export const generateMap = (): number[][] => {
       safeSet(x, y, horizontal ? TileType.ROAD_H : TileType.ROAD_V);
   };
 
-  // Highway Loop
+  // --- NEW NORTH ROADS ---
+  // North Highway Loop (Top of Map)
+  for(let x=4; x<76; x++) drawRoad(x, 4, true);
+
+  // North Arterials
+  for(let x=4; x<38; x++) drawRoad(x, 15, true); // Mid Pine Hills
+  for(let x=42; x<76; x++) drawRoad(x, 15, true); // Mid Uptown
+  
+  for(let y=4; y<35; y++) drawRoad(20, y, false); // Pine Hills Vertical
+  
+  // FIXED: Uptown Vertical now aligned with Airport Road (x=58)
+  for(let y=4; y<=35; y++) drawRoad(58, y, false); 
+  
+  // --- CONNECTIONS (North to South) ---
+  // Connect Left Loop
+  for(let y=4; y<5 + SHIFT_Y; y++) drawRoad(5, y, false);
+  
+  // Connect Right Loop (FIXED: Alignment to 75, not 76)
+  for(let y=4; y<5 + SHIFT_Y; y++) drawRoad(75, y, false); 
+  
+  // Connect Neon Coast Vertical
+  for(let y=4; y<2 + SHIFT_Y; y++) drawRoad(neonX + 11, y, false);
+
+  // --- ORIGINAL ROADS (Shifted) ---
   const roadLimitX = airportX + 18; 
-  for(let x=5; x<roadLimitX; x++) drawRoad(x, 5, true); // Top
-  for(let x=5; x<roadLimitX; x++) drawRoad(x, 45, true); // Bottom
-  for(let y=5; y<46; y++) drawRoad(5, y, false); // Left
-  for(let y=5; y<46; y++) drawRoad(roadLimitX - 1, y, false); // Right
+  // Highway Loop
+  for(let x=5; x<roadLimitX; x++) drawRoad(x, 5 + SHIFT_Y, true); // Old Top
+  for(let x=5; x<roadLimitX; x++) drawRoad(x, 45 + SHIFT_Y, true); // Old Bottom
+  for(let y=5 + SHIFT_Y; y<46 + SHIFT_Y; y++) drawRoad(5, y, false); // Left
+  for(let y=5 + SHIFT_Y; y<46 + SHIFT_Y; y++) drawRoad(roadLimitX - 1, y, false); // Right (x=75)
 
   // Arterials (Left Side)
-  for(let x=5; x<35; x++) drawRoad(x, 20, true);
-  for(let x=5; x<35; x++) drawRoad(x, 35, true);
-  for(let y=5; y<46; y++) drawRoad(20, y, false);
+  for(let x=5; x<35; x++) drawRoad(x, 20 + SHIFT_Y, true);
+  for(let x=5; x<35; x++) drawRoad(x, 35 + SHIFT_Y, true);
+  for(let y=5 + SHIFT_Y; y<46 + SHIFT_Y; y++) drawRoad(20, y, false);
 
   // Arterials (Connecting Neon Coast)
   for(let x=35; x<airportX; x++) {
       if (x !== neonX + 11) { 
-        drawRoad(x, 20, true);
-        drawRoad(x, 35, true);
+        drawRoad(x, 20 + SHIFT_Y, true);
+        drawRoad(x, 35 + SHIFT_Y, true);
       }
   }
   
   // Neon Coast Vertical Road
-  for(let y=2; y<48; y++) {
+  for(let y=2 + SHIFT_Y; y<48 + SHIFT_Y; y++) {
       drawRoad(neonX + 11, y, false);
   }
 
-  // Airport Frontage Road (Vertical)
-  // Connects Top Highway (y=5) to Bottom Highway (y=45)
-  // Located at x=58, seamlessly connecting with Neon Coast arterials
-  for(let y=5; y<46; y++) {
+  // Airport Frontage Road
+  for(let y=5 + SHIFT_Y; y<46 + SHIFT_Y; y++) {
       drawRoad(airportX, y, false);
   }
 
@@ -149,50 +183,93 @@ export const generateMap = (): number[][] => {
   // PHASE 4: BUILDINGS & OBJECTS
   // ==========================================
   
-  // Helper to check if we can build
   const canBuild = (x: number, y: number) => {
       if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
       const t = map[y][x];
-      return t !== TileType.ROAD_H && t !== TileType.ROAD_V && t !== TileType.ROAD_CROSS && t !== TileType.FOOTPATH && t !== TileType.WATER && t !== TileType.RUNWAY && t !== TileType.TARMAC && t !== TileType.SHIP_DECK;
+      return t !== TileType.ROAD_H && t !== TileType.ROAD_V && t !== TileType.ROAD_CROSS && t !== TileType.FOOTPATH && t !== TileType.WATER && t !== TileType.RUNWAY && t !== TileType.TARMAC && t !== TileType.SHIP_DECK && t !== TileType.SHOP && t !== TileType.MALL;
   };
 
+  // --- NEW NORTH BUILDINGS ---
+  // Pine Hills Mansions
+  for(let y=6; y<28; y+=3) {
+      for(let x=6; x<34; x+=3) {
+          if(canBuild(x,y) && Math.random() > 0.4) safeSet(x, y, TileType.BUILDING);
+      }
+  }
+  // Uptown Skyscrapers
+  for(let y=6; y<28; y++) {
+      for(let x=44; x<74; x++) {
+          // EXCLUDE MALL AREA (Top Right)
+          if (x >= 60 && y < 16) continue;
+
+          if(canBuild(x,y) && (x+y)%3 === 0 && Math.random() > 0.2) safeSet(x, y, TileType.SKYSCRAPER);
+      }
+  }
+
+  // MALL GENERATION (Top Right)
+  // Adjusted to fit between x=58 and x=75 roads
+  const mallX = 60; // Shifted left to avoid cutting right road
+  const mallY = 5;
+  const mallW = 14; // Reduced width
+  
+  // Parking
+  fillRect(mallX, mallY, mallW, 9, TileType.TARMAC);
+  
+  // Main Building Structure - USING NEW MALL TILE
+  fillRect(mallX + 1, mallY + 1, mallW - 2, 7, TileType.MALL);
+  
+  // Internal details (Anchors - kept as standard building for now or could be MALL)
+  // Let's keep specific anchor points as generic buildings to break texture, or make them Mall too?
+  // Using generic building gives nice contrast.
+  safeSet(mallX + 1, mallY + 1, TileType.BUILDING); 
+  safeSet(mallX + mallW - 2, mallY + 1, TileType.BUILDING); 
+  safeSet(mallX + 1, mallY + 7, TileType.BUILDING); 
+  safeSet(mallX + mallW - 2, mallY + 7, TileType.BUILDING); 
+  
+  // Atrium / Open Air Center
+  fillRect(mallX + 5, mallY + 3, 4, 3, TileType.SIDEWALK);
+  // Mall Entrance Path
+  fillRect(mallX + 6, mallY + 8, 2, 2, TileType.SIDEWALK);
+
+
+  // --- ORIGINAL BUILDINGS (Shifted) ---
   // 1. Hillside Heights (NW)
-  for(let y=3; y<18; y+=2) {
+  for(let y=3 + SHIFT_Y; y<18 + SHIFT_Y; y+=2) {
       for(let x=3; x<18; x+=2) {
           if(canBuild(x,y) && Math.random() > 0.6) safeSet(x, y, TileType.BUILDING);
       }
   }
 
   // 2. Downtown
-  for(let y=3; y<19; y++) {
+  for(let y=3 + SHIFT_Y; y<19 + SHIFT_Y; y++) {
       for(let x=21; x<33; x++) {
           if(canBuild(x,y) && (x+y)%2 === 0 && Math.random() > 0.3) safeSet(x, y, TileType.SKYSCRAPER);
       }
   }
 
   // 3. Redline
-  for(let y=21; y<31; y++) {
+  for(let y=21 + SHIFT_Y; y<31 + SHIFT_Y; y++) {
       for(let x=3; x<19; x++) {
           if(canBuild(x,y) && Math.random() > 0.4) safeSet(x, y, TileType.BUILDING);
       }
   }
 
   // 4. Rust Quarter
-  for(let y=21; y<34; y++) {
+  for(let y=21 + SHIFT_Y; y<34 + SHIFT_Y; y++) {
       for(let x=21; x<33; x++) {
           if(canBuild(x,y) && Math.random() > 0.5) safeSet(x, y, Math.random() > 0.5 ? TileType.BUILDING : TileType.SHOP);
       }
   }
 
   // Ships Cargo
-  for(let cy = 38; cy < 38; cy++) { // Ship 1
+  for(let cy = 38 + SHIFT_Y; cy < 38 + SHIFT_Y; cy++) { 
       for(let cx = 5; cx < 9; cx++) {
           if (Math.random() > 0.3) safeSet(cx, cy, TileType.CONTAINER);
       }
   }
   
   // Container Yard
-  for(let y=33; y<46; y++) {
+  for(let y=33 + SHIFT_Y; y<46 + SHIFT_Y; y++) {
       for(let x=12; x<19; x++) {
           if(canBuild(x,y) && x % 3 !== 0 && y % 3 !== 0) {
                safeSet(x, y, TileType.CONTAINER);
@@ -200,22 +277,16 @@ export const generateMap = (): number[][] => {
       }
   }
 
-  // Neon Coast / Industrial (Restored Zone)
-  for(let y=2; y<48; y++) {
+  // Neon Coast
+  for(let y=2 + SHIFT_Y; y<48 + SHIFT_Y; y++) {
       for(let x=neonX; x<neonX+neonW; x++) {
            if (canBuild(x,y)) {
-               // High Density Building Generation
                if (Math.random() > 0.1) {
                     const rand = Math.random();
                     let type = TileType.BUILDING;
-                    
-                    if (rand > 0.6) {
-                        type = TileType.SHOP;
-                    } else if (rand > 0.4) {
-                        type = TileType.CONTAINER;
-                    } else {
-                        type = TileType.BUILDING;
-                    }
+                    if (rand > 0.6) type = TileType.SHOP;
+                    else if (rand > 0.4) type = TileType.CONTAINER;
+                    else type = TileType.BUILDING;
                     safeSet(x, y, type);
                }
            }
@@ -223,30 +294,26 @@ export const generateMap = (): number[][] => {
   }
 
   // Airport Terminals/Hangars
-  // Terminals at x=60. With Road at 58 and Footpath at 59, this aligns perfectly.
-  fillRect(airportX + 2, 15, 4, 10, TileType.AIRPORT_TERMINAL);
-  fillRect(airportX + 2, 28, 4, 10, TileType.AIRPORT_TERMINAL);
+  fillRect(airportX + 2, 15 + SHIFT_Y, 4, 10, TileType.AIRPORT_TERMINAL);
+  fillRect(airportX + 2, 28 + SHIFT_Y, 4, 10, TileType.AIRPORT_TERMINAL);
   
   // Hangars
-  // Moved Top Hangar down to y=9 to avoid overlap with Top Highway at y=5
-  fillRect(airportX + 2, 9, 4, 5, TileType.HANGAR);
-  // Bottom Hangar at y=40 fits (ends at 44, before road at 45)
-  fillRect(airportX + 2, 40, 4, 5, TileType.HANGAR);
+  fillRect(airportX + 2, 9 + SHIFT_Y, 4, 5, TileType.HANGAR);
+  fillRect(airportX + 2, 40 + SHIFT_Y, 4, 5, TileType.HANGAR);
 
 
   // ==========================================
-  // PHASE 5: SPECIAL LOCATIONS & FIXES
+  // PHASE 5: SPECIAL LOCATIONS
   // ==========================================
   
   // Hospital
-  fillRect(22, 6, 3, 3, TileType.HOSPITAL);
+  fillRect(22, 6 + SHIFT_Y, 3, 3, TileType.HOSPITAL);
   
   // Police Station
-  fillRect(28, 17, 3, 3, TileType.POLICE_STATION);
+  fillRect(28, 17 + SHIFT_Y, 3, 3, TileType.POLICE_STATION);
 
   // Pay 'n' Spray
-  // Moved to (21, 25) to be adjacent to vertical road at x=20
-  safeSet(21, 25, TileType.PAINT_SHOP); 
+  safeSet(21, 25 + SHIFT_Y, TileType.PAINT_SHOP); 
   
   // Fix Road Intersections
   for(let y=1; y<MAP_HEIGHT-1; y++) {
@@ -293,10 +360,10 @@ export const isSolid = (tile: number): boolean => {
            tile === TileType.POLICE_STATION || 
            tile === TileType.SKYSCRAPER || 
            tile === TileType.SHOP ||
+           tile === TileType.MALL ||
            tile === TileType.CONTAINER ||
            tile === TileType.AIRPORT_TERMINAL ||
            tile === TileType.HANGAR;
-           // PAINT_SHOP is NOT solid to allow entry
 }
 
 export const createNoiseTexture = (color: string, alpha: number = 0.1, density: number = 0.5) => {

@@ -1,5 +1,4 @@
 
-
 export enum EntityType {
   PLAYER = 'PLAYER',
   PEDESTRIAN = 'PEDESTRIAN',
@@ -150,13 +149,15 @@ export enum TileType {
   AIRPORT_TERMINAL = 17,
   HANGAR = 18,
   TARMAC = 19,
-  FOOTPATH = 20
+  FOOTPATH = 20,
+  MALL = 21
 }
 
 export interface GameSettings {
   sfxVolume: number; // 0-10
   musicVolume: number; // 0-10
   drawDistance: 'LOW' | 'MED' | 'HIGH' | 'ULTRA';
+  trafficDensity: 'LOW' | 'MED' | 'HIGH';
   retroFilter: boolean;
   frameLimiter: boolean;
   mouseSensitivity: number; // 0-100

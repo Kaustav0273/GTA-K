@@ -1,10 +1,9 @@
 
-
 export const TILE_SIZE = 128;
 export const MAP_WIDTH = 80; // Increased from 50 to 80
-export const MAP_HEIGHT = 50; // In tiles
+export const MAP_HEIGHT = 80; // Increased from 50 to 80 for new North areas
 
-export const MAX_TRAFFIC = 25; // Max number of NPC cars
+export const MAX_TRAFFIC = 75; // Increased traffic limit for High setting
 
 export const PLAYER_SIZE = { x: 14, y: 14 };
 export const CAR_SIZE = { x: 24, y: 56 }; // Reduced width from 28 to 24 for better lane clearance

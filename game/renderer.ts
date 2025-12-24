@@ -1,5 +1,4 @@
 
-
 import { Vehicle, Pedestrian, TileType, Drop, GameSettings } from '../types';
 import { MutableGameState } from './physics';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS, CAR_MODELS } from '../constants';
@@ -18,6 +17,8 @@ const getBuildingHeight = (tileType: TileType, px: number, py: number): number =
         return 120 + (seed % 60);
     } else if (tileType === TileType.SHOP) {
         return 40 + (seed % 15);
+    } else if (tileType === TileType.MALL) {
+        return 65; // High but flat
     } else if (tileType === TileType.BUILDING) {
         return 45 + (seed % 20);
     } else if (tileType === TileType.HOSPITAL) {
@@ -248,6 +249,10 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         baseColor = shopColors[seed % shopColors.length];
         roofColor = '#404040';
         windowColor = '#fef08a'; 
+    } else if (tileType === TileType.MALL) {
+        baseColor = '#f5f5f4'; // Stone-100 (Clean White/Beige)
+        roofColor = '#e7e5e4'; // Stone-200
+        windowColor = '#38bdf8'; // Sky Blue Glass
     } else if (tileType === TileType.BUILDING) {
         const resColors = ['#57534e', '#44403c', '#78716c', '#292524'];
         baseColor = resColors[seed % resColors.length];
@@ -310,6 +315,11 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         for(let i=0; i<w; i+=8) {
              ctx.fillRect(x + i, y + w - height, 2, height);
         }
+    } else if (tileType === TileType.MALL) {
+        // Mall Entrance / Glass Facade
+        ctx.fillStyle = windowColor;
+        // Large glass section
+        ctx.fillRect(x + 10, y + w - height + 10, w - 20, height - 20);
     } else if (tileType !== TileType.PAINT_SHOP && tileType !== TileType.CONTAINER && tileType !== TileType.SKYSCRAPER) {
         const stories = Math.floor(height / 15);
         const cols = Math.floor(w / 12);
@@ -369,7 +379,6 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
             ctx.fillRect(x + i, roofY, 4, w);
         }
     } else if (tileType === TileType.HOSPITAL) {
-        // ... existing hospital code
         ctx.fillStyle = '#ef4444';
         ctx.beginPath(); ctx.arc(centerX, roofCY, 20, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
@@ -388,6 +397,16 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         ctx.fillStyle = blinkRed; ctx.fillRect(x + w - 6, roofY, 6, 6);
         ctx.fillStyle = blinkRed; ctx.fillRect(x, roofY + w - 6, 6, 6);
         ctx.fillStyle = blinkBlue; ctx.fillRect(x + w - 6, roofY + w - 6, 6, 6);
+    } else if (tileType === TileType.MALL) {
+        // Skylights for Mall
+        ctx.fillStyle = '#38bdf8'; // Glass
+        // Random skylights based on seed to break uniformity
+        if (seed % 3 === 0) {
+            ctx.fillRect(x + 10, roofY + 10, w - 20, w - 20); // Big central
+        } else {
+            ctx.fillRect(x + 5, roofY + 5, w/2 - 10, w - 10);
+            ctx.fillRect(x + w/2 + 5, roofY + 5, w/2 - 10, w - 10);
+        }
     } else if (tileType === TileType.SHOP) {
         const awningColor = (seed % 2 === 0) ? '#ef4444' : '#22c55e';
         const awningY = y + w - 50; 
@@ -1069,7 +1088,7 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                         }
                     }
 
-                } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP || tile === TileType.CONTAINER || tile === TileType.PAINT_SHOP || tile === TileType.AIRPORT_TERMINAL || tile === TileType.HANGAR) {
+                } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP || tile === TileType.MALL || tile === TileType.CONTAINER || tile === TileType.PAINT_SHOP || tile === TileType.AIRPORT_TERMINAL || tile === TileType.HANGAR) {
                      // Ground Occlusion Patch
                      ctx.fillStyle = '#171717'; 
                      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);

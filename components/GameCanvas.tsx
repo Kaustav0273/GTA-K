@@ -4,7 +4,7 @@ import {
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
 } from '../types';
 import { 
-    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, STAMINA_MAX, COLORS, CAR_COLORS, MAX_TRAFFIC
+    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, STAMINA_MAX, COLORS, CAR_COLORS
 } from '../constants';
 import { generateMap, getTileAt, createNoiseTexture, isSolid } from '../utils/gameUtils';
 import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle, isPoliceNearby, playerInteract } from '../game/physics';
@@ -163,8 +163,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             const modelKeys = Object.keys(CAR_MODELS) as Array<keyof typeof CAR_MODELS>;
             const regularModels = modelKeys.filter(k => k !== 'plane' && k !== 'jet');
 
-            // Use MAX_TRAFFIC for initial pool
-            let trafficCount = MAX_TRAFFIC;
+            // Determine initial traffic count based on settings provided in props (or default if not available yet in this scope)
+            // Using settings passed to component which should be initial value on mount.
+            let maxTraffic = 50;
+            if (settings.trafficDensity === 'LOW') maxTraffic = 25;
+            else if (settings.trafficDensity === 'HIGH') maxTraffic = 75;
+
+            // Use calculated maxTraffic for initial pool
+            let trafficCount = maxTraffic;
             let attempts = 0;
             
             while (trafficCount > 0 && attempts < 500) {
@@ -221,10 +227,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             
             // SPAWN PLANES AT AIRPORT (Right side Tarmac area)
             // Airport is now at X=58. Tarmac parking area around X=62
+            // Shifted Y by 30 to accommodate new North area
             const planeSpawns = [
-                {x: 62, y: 15, model: 'plane'},
-                {x: 62, y: 22, model: 'jet'},
-                {x: 62, y: 30, model: 'plane'},
+                {x: 62, y: 45, model: 'plane'}, // 15 + 30
+                {x: 62, y: 52, model: 'jet'},   // 22 + 30
+                {x: 62, y: 60, model: 'plane'}, // 30 + 30
             ];
             
             planeSpawns.forEach((spawn, idx) => {
@@ -346,7 +353,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const ctx = canvasRef.current.getContext('2d');
         if (!ctx) return;
         
-        updatePhysics(gameStateRef.current, keysPressed.current);
+        // Dynamic Traffic Limit
+        let maxTraffic = 50;
+        if (settings.trafficDensity === 'LOW') maxTraffic = 25;
+        else if (settings.trafficDensity === 'HIGH') maxTraffic = 75;
+
+        updatePhysics(gameStateRef.current, keysPressed.current, maxTraffic);
         renderGame(ctx, gameStateRef.current, groundTexturesRef.current, settings);
 
         // Sync to React State for HUD (throttled)

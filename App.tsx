@@ -25,6 +25,7 @@ const App: React.FC = () => {
       sfxVolume: 8,
       musicVolume: 6,
       drawDistance: 'ULTRA',
+      trafficDensity: 'MED',
       retroFilter: true,
       frameLimiter: false,
       mouseSensitivity: 50,
@@ -143,6 +144,12 @@ const App: React.FC = () => {
       const levels: GameSettings['drawDistance'][] = ['LOW', 'MED', 'HIGH', 'ULTRA'];
       const currentIdx = levels.indexOf(settings.drawDistance);
       setSettings(prev => ({ ...prev, drawDistance: levels[(currentIdx + 1) % levels.length] }));
+  };
+
+  const toggleTrafficDensity = () => {
+      const levels: GameSettings['trafficDensity'][] = ['LOW', 'MED', 'HIGH'];
+      const currentIdx = levels.indexOf(settings.trafficDensity);
+      setSettings(prev => ({ ...prev, trafficDensity: levels[(currentIdx + 1) % levels.length] }));
   };
 
   const toggleControlStyle = () => {
@@ -314,6 +321,10 @@ const App: React.FC = () => {
                                      <button onClick={toggleDrawDistance} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
                                         <span className="text-gray-400 group-hover:text-white">DRAW DISTANCE</span>
                                         <span className="text-yellow-400 font-bold">{settings.drawDistance}</span>
+                                    </button>
+                                     <button onClick={toggleTrafficDensity} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
+                                        <span className="text-gray-400 group-hover:text-white">TRAFFIC DENSITY</span>
+                                        <span className="text-yellow-400 font-bold">{settings.trafficDensity}</span>
                                     </button>
                                      <button onClick={() => setSettings(s => ({...s, retroFilter: !s.retroFilter}))} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
                                         <span className="text-gray-400 group-hover:text-white">RETRO FILTER</span>
