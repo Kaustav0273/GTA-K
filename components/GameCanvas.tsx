@@ -1,10 +1,11 @@
 
+
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
 } from '../types';
 import { 
-    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, STAMINA_MAX, COLORS, CAR_COLORS
+    MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, STAMINA_MAX, COLORS, CAR_COLORS, MAX_TRAFFIC
 } from '../constants';
 import { generateMap, getTileAt, createNoiseTexture, isSolid } from '../utils/gameUtils';
 import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle, isPoliceNearby, playerInteract } from '../game/physics';
@@ -138,7 +139,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
             // Spawn Vehicles
             const modelKeys = Object.keys(CAR_MODELS) as Array<keyof typeof CAR_MODELS>;
-            let trafficCount = 35;
+            const regularModels = modelKeys.filter(k => k !== 'plane' && k !== 'jet');
+
+            // Use MAX_TRAFFIC for initial pool
+            let trafficCount = MAX_TRAFFIC;
             let attempts = 0;
             
             while (trafficCount > 0 && attempts < 500) {
@@ -170,7 +174,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                     }
                     if (overlap) continue;
 
-                    const modelKey = modelKeys[Math.floor(Math.random() * modelKeys.length)];
+                    const modelKey = regularModels[Math.floor(Math.random() * regularModels.length)];
                     const model = CAR_MODELS[modelKey];
                     
                     let vehicleColor = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
@@ -190,6 +194,36 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                     trafficCount--;
                 }
             }
+            
+            // SPAWN PLANES AT AIRPORT (Right side Tarmac area)
+            // Airport is now at X=58. Tarmac parking area around X=62
+            const planeSpawns = [
+                {x: 62, y: 15, model: 'plane'},
+                {x: 62, y: 22, model: 'jet'},
+                {x: 62, y: 30, model: 'plane'},
+            ];
+            
+            planeSpawns.forEach((spawn, idx) => {
+                 const modelKey = spawn.model as keyof typeof CAR_MODELS;
+                 const model = CAR_MODELS[modelKey];
+                 state.vehicles.push({
+                    id: `plane-${idx}`, type: EntityType.VEHICLE, 
+                    pos: { x: spawn.x * TILE_SIZE + TILE_SIZE/2, y: spawn.y * TILE_SIZE + TILE_SIZE/2 },
+                    size: (model as any).size, 
+                    angle: Math.PI / 2, // Facing Down (South)
+                    velocity: { x: 0, y: 0 },
+                    color: model.color, 
+                    driverId: null, // Parked
+                    model: modelKey, 
+                    speed: 0, 
+                    maxSpeed: model.maxSpeed,
+                    acceleration: model.acceleration, 
+                    handling: model.handling, 
+                    health: model.health,
+                    damage: { tires: [false, false, false, false], windows: [false, false] },
+                    targetAngle: Math.PI / 2
+                 });
+            });
 
             // Spawn Pedestrians
             for(let i=0; i<5; i++) {
@@ -214,7 +248,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 do {
                     x = Math.floor(Math.random() * MAP_WIDTH) * TILE_SIZE + TILE_SIZE / 2;
                     y = Math.floor(Math.random() * MAP_HEIGHT) * TILE_SIZE + TILE_SIZE / 2;
-                } while (getTileAt(state.map, x, y) !== TileType.SIDEWALK);
+                } while (getTileAt(state.map, x, y) !== TileType.SIDEWALK && getTileAt(state.map, x, y) !== TileType.AIRPORT_TERMINAL);
 
                 const basePed = {
                     id: `ped-${pedsToSpawn}`, type: EntityType.PEDESTRIAN, role: 'civilian', pos: { x, y }, size: PLAYER_SIZE,

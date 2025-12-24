@@ -1,4 +1,5 @@
 
+
 import { Vehicle, Pedestrian, TileType, Drop, GameSettings } from '../types';
 import { MutableGameState } from './physics';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS, CAR_MODELS } from '../constants';
@@ -27,6 +28,10 @@ const getBuildingHeight = (tileType: TileType, px: number, py: number): number =
         return 28 + (seed % 2) * 28; 
     } else if (tileType === TileType.PAINT_SHOP) {
         return 40;
+    } else if (tileType === TileType.AIRPORT_TERMINAL) {
+        return 60;
+    } else if (tileType === TileType.HANGAR) {
+        return 50;
     }
     return 50;
 };
@@ -261,6 +266,13 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     } else if (tileType === TileType.PAINT_SHOP) {
         baseColor = '#ca8a04';
         roofColor = '#854d0e';
+    } else if (tileType === TileType.AIRPORT_TERMINAL) {
+        baseColor = '#1e293b';
+        roofColor = '#334155';
+        windowColor = '#0ea5e9'; // Bright Blue Glass
+    } else if (tileType === TileType.HANGAR) {
+        baseColor = '#64748b';
+        roofColor = '#94a3b8'; // Metallic
     }
 
     // -- Ground Occlusion Patch --
@@ -268,7 +280,6 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     ctx.fillRect(x, y, w, w);
 
     // -- South Wall (Front Face) --
-    // Paint Shop is open, so we might skip the wall or make it look like a garage entrance
     if (tileType !== TileType.PAINT_SHOP) {
         const wallGrad = ctx.createLinearGradient(x, y + w - height, x, y + w);
         wallGrad.addColorStop(0, roofColor); 
@@ -285,42 +296,55 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         ctx.fillRect(x + 10, y + w - height, w - 20, height);
     }
 
-    // -- Windows on South Wall --
-    if (tileType !== TileType.PAINT_SHOP) {
+    // -- Windows / Details --
+    if (tileType === TileType.AIRPORT_TERMINAL) {
+        // Big Glass Panes
+        ctx.fillStyle = windowColor;
+        const paneW = 16;
+        for (let i = 4; i < w - 4; i += paneW + 4) {
+            ctx.fillRect(x + i, y + w - height + 4, paneW, height - 8);
+        }
+    } else if (tileType === TileType.HANGAR) {
+        // Hangar Door lines
+        ctx.fillStyle = '#475569';
+        for(let i=0; i<w; i+=8) {
+             ctx.fillRect(x + i, y + w - height, 2, height);
+        }
+    } else if (tileType !== TileType.PAINT_SHOP && tileType !== TileType.CONTAINER && tileType !== TileType.SKYSCRAPER) {
         const stories = Math.floor(height / 15);
         const cols = Math.floor(w / 12);
         ctx.fillStyle = windowColor;
-        
-        if (tileType === TileType.CONTAINER) {
-            ctx.fillStyle = 'rgba(0,0,0,0.2)';
-            for(let i=0; i<w; i+=4) {
-                ctx.fillRect(x + i, y + w - height, 2, height);
-            }
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.font = 'bold 8px monospace';
-            ctx.fillText((seed % 1000).toString(), x + 4, y + w - height/2);
-        } else if (tileType === TileType.SKYSCRAPER) {
-            ctx.fillStyle = 'rgba(255,255,255,0.1)';
-            for(let c=0; c<cols; c++) {
-                ctx.fillRect(x + 4 + c * 10, y + w - height, 6, height - 2);
-            }
-        } else {
-            for (let s=0; s < stories; s++) {
-                for (let c=0; c < cols; c++) {
-                    if ((x + y + s + c) % 7 !== 0) { 
-                        const wy = y + w - height + 5 + s * 14; 
-                        const wx = x + 4 + c * 10;
-                        if (wx + 6 < x + w && wy + 8 < y + w) ctx.fillRect(wx, wy, 6, 8);
-                    }
+        for (let s=0; s < stories; s++) {
+            for (let c=0; c < cols; c++) {
+                if ((x + y + s + c) % 7 !== 0) { 
+                    const wy = y + w - height + 5 + s * 14; 
+                    const wx = x + 4 + c * 10;
+                    if (wx + 6 < x + w && wy + 8 < y + w) ctx.fillRect(wx, wy, 6, 8);
                 }
             }
         }
+    } else if (tileType === TileType.SKYSCRAPER) {
+         ctx.fillStyle = 'rgba(255,255,255,0.1)';
+         const cols = Math.floor(w / 12);
+         for(let c=0; c<cols; c++) {
+            ctx.fillRect(x + 4 + c * 10, y + w - height, 6, height - 2);
+         }
     }
 
     // -- Roof --
     const roofY = y - height;
     ctx.fillStyle = roofColor;
     if (tileType === TileType.BUILDING && textures['roof']) ctx.fillStyle = textures['roof'];
+    
+    if (tileType === TileType.HANGAR) {
+        // Rounded Roof Effect via gradient
+        const grd = ctx.createLinearGradient(x, roofY, x + w, roofY);
+        grd.addColorStop(0, '#475569');
+        grd.addColorStop(0.5, '#cbd5e1');
+        grd.addColorStop(1, '#475569');
+        ctx.fillStyle = grd;
+    }
+    
     ctx.fillRect(x, roofY, w, w);
     
     // Roof Border
@@ -328,21 +352,24 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     ctx.lineWidth = 2;
     ctx.strokeRect(x, roofY, w, w);
 
-    if (tileType === TileType.CONTAINER) {
-        ctx.fillStyle = 'rgba(0,0,0,0.1)';
-        for(let i=0; i<w; i+=4) {
-            ctx.fillRect(x + i, roofY, 2, w);
-        }
-        if (height > 30) {
-            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-            ctx.beginPath(); ctx.moveTo(x, y + w - height/2); ctx.lineTo(x+w, y + w - height/2); ctx.stroke();
-        }
-    }
-
     // -- Roof Details --
     const roofCY = roofY + w/2;
     
-    if (tileType === TileType.HOSPITAL) {
+    if (tileType === TileType.AIRPORT_TERMINAL) {
+        ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x, roofY); ctx.lineTo(x+w, roofY+w); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+w, roofY); ctx.lineTo(x, roofY+w); ctx.stroke();
+        
+        ctx.fillStyle = '#0ea5e9';
+        ctx.fillRect(x + w/2 - 10, roofY + w/2 - 5, 20, 10);
+    } else if (tileType === TileType.HANGAR) {
+        // Ribs
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        for(let i=10; i<w; i+=20) {
+            ctx.fillRect(x + i, roofY, 4, w);
+        }
+    } else if (tileType === TileType.HOSPITAL) {
+        // ... existing hospital code
         ctx.fillStyle = '#ef4444';
         ctx.beginPath(); ctx.arc(centerX, roofCY, 20, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
@@ -377,55 +404,25 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         ctx.save();
         ctx.translate(centerX, roofCY);
         ctx.fillStyle = '#fff';
-        // Can body
         ctx.fillRect(-8, -8, 16, 24);
-        // Can top
         ctx.beginPath(); ctx.moveTo(-8, -8); ctx.lineTo(-6, -12); ctx.lineTo(6, -12); ctx.lineTo(8, -8); ctx.fill();
-        // Nozzle
         ctx.fillStyle = '#ef4444';
         ctx.fillRect(-3, -15, 6, 3);
-        
         ctx.restore();
-    } else if (tileType === TileType.SKYSCRAPER) {
-        if (seed % 5 === 0) {
-           ctx.fillStyle = '#222';
-           ctx.beginPath(); ctx.arc(centerX, roofCY, 18, 0, Math.PI*2); ctx.fill();
-           ctx.strokeStyle = '#eab308'; ctx.lineWidth = 2;
-           ctx.beginPath(); ctx.arc(centerX, roofCY, 14, 0, Math.PI*2); ctx.stroke();
-           ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#eab308'; ctx.textAlign = 'center'; ctx.fillText('H', centerX, roofCY+4);
-        } else {
-           ctx.strokeStyle = '#525252'; ctx.lineWidth = 2;
-           ctx.beginPath(); ctx.moveTo(centerX, roofCY); ctx.lineTo(centerX, roofCY - 15); ctx.stroke();
-           ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(centerX, roofCY - 15, 2, 0, Math.PI*2); ctx.fill(); 
-        }
-    } else if (tileType !== TileType.CONTAINER) {
-        const hasAC = seed % 3 === 0;
-        const hasVent = seed % 5 === 0;
-        const hasPipe = seed % 4 === 0;
-        if (hasAC) {
+    } 
+    // ... existing generic roof details
+    else if (tileType !== TileType.CONTAINER) {
+        if (seed % 3 === 0) { // AC
             const acX = x + 8 + (seed % 20);
             const acY = roofY + 8 + (seed % 20);
-            ctx.fillStyle = '#d4d4d8';
-            ctx.fillRect(acX, acY, 14, 14);
-            ctx.fillStyle = '#525252';
-            ctx.beginPath(); ctx.arc(acX + 7, acY + 7, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#d4d4d8'; ctx.fillRect(acX, acY, 14, 14);
+            ctx.fillStyle = '#525252'; ctx.beginPath(); ctx.arc(acX + 7, acY + 7, 5, 0, Math.PI*2); ctx.fill();
         }
-        if (hasVent) {
+        if (seed % 5 === 0) { // Vent
              const vX = x + w - 16;
              const vY = roofY + 10;
-             ctx.fillStyle = '#737373';
-             ctx.fillRect(vX, vY, 8, 8);
-             ctx.fillStyle = '#171717';
-             ctx.fillRect(vX+2, vY+2, 4, 4);
-        }
-        if (hasPipe) {
-            ctx.strokeStyle = '#525252';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); 
-            ctx.moveTo(x + 5, roofY + 5);
-            ctx.lineTo(x + 5, roofY + w - 10);
-            ctx.lineTo(x + w - 10, roofY + w - 10);
-            ctx.stroke();
+             ctx.fillStyle = '#737373'; ctx.fillRect(vX, vY, 8, 8);
+             ctx.fillStyle = '#171717'; ctx.fillRect(vX+2, vY+2, 4, 4);
         }
     }
     
@@ -433,19 +430,53 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
 };
 
 const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: TileType, textures: any, map: number[][], gridX: number, gridY: number) => {
-    ctx.fillStyle = textures['road'] || COLORS.road;
+    // Determine Base Color
+    let roadColor = textures['road'] || COLORS.road;
+    if (type === TileType.RUNWAY) roadColor = '#18181b'; // Zinc-950
+    else if (type === TileType.TARMAC) roadColor = '#3f3f46'; // Zinc-700
+    
+    ctx.fillStyle = roadColor;
     ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
     
-    const hasRoadTop = gridY > 0 && map[gridY-1][gridX] === TileType.ROAD_H;
-    const hasRoadBottom = gridY < MAP_HEIGHT-1 && map[gridY+1][gridX] === TileType.ROAD_H;
-    const hasRoadLeft = gridX > 0 && map[gridY][gridX-1] === TileType.ROAD_V;
-    const hasRoadRight = gridX < MAP_WIDTH-1 && map[gridY][gridX+1] === TileType.ROAD_V;
+    // TARMAC detail
+    if (type === TileType.TARMAC) {
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        if ((gridX + gridY) % 2 === 0) ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        return; // No markings for plain tarmac
+    }
 
-    ctx.strokeStyle = '#eab308';
-    ctx.lineWidth = 2;
+    const hasRoadTop = gridY > 0 && map[gridY-1][gridX] === type;
+    const hasRoadBottom = gridY < MAP_HEIGHT-1 && map[gridY+1][gridX] === type;
+    const hasRoadLeft = gridX > 0 && map[gridY][gridX-1] === type;
+    const hasRoadRight = gridX < MAP_WIDTH-1 && map[gridY][gridX+1] === type;
+
     const center = TILE_SIZE / 2;
 
-    if (type === TileType.ROAD_H) {
+    if (type === TileType.RUNWAY) {
+        // Dashed Center Line if middle of runway
+        // Simple logic: if left and right are also runway, we are middle
+        if (hasRoadLeft && hasRoadRight) {
+             ctx.fillStyle = '#fff';
+             ctx.fillRect(x + center - 4, y + 20, 8, TILE_SIZE - 40);
+        }
+        // Numbers
+        if (!hasRoadTop && hasRoadBottom) {
+             ctx.fillStyle = '#fff';
+             ctx.font = 'bold 40px monospace';
+             ctx.textAlign = 'center';
+             ctx.textBaseline = 'middle';
+             ctx.fillText('18', x + center, y + center);
+        } else if (hasRoadTop && !hasRoadBottom) {
+             ctx.fillStyle = '#fff';
+             ctx.font = 'bold 40px monospace';
+             ctx.textAlign = 'center';
+             ctx.textBaseline = 'middle';
+             ctx.fillText('36', x + center, y + center);
+        }
+        
+    } else if (type === TileType.ROAD_H) {
+        ctx.strokeStyle = '#eab308';
+        ctx.lineWidth = 2;
         ctx.beginPath();
         if (hasRoadTop || hasRoadBottom) {
              ctx.strokeStyle = 'rgba(255,255,255,0.5)';
@@ -465,6 +496,8 @@ const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: Til
         if (!hasRoadBottom) ctx.fillRect(x, y + TILE_SIZE - 4, TILE_SIZE, 4);
 
     } else if (type === TileType.ROAD_V) {
+        ctx.strokeStyle = '#eab308';
+        ctx.lineWidth = 2;
         ctx.beginPath();
         if (hasRoadLeft || hasRoadRight) {
              ctx.strokeStyle = 'rgba(255,255,255,0.5)';
@@ -500,19 +533,33 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     const length = v.size.y;
     const width = v.size.x;
     
+    // Simulate flight height for planes if moving fast?
+    let zHeight = 0;
+    if ((v.model === 'plane' || v.model === 'jet') && Math.abs(v.speed) > 15) {
+        zHeight = (Math.abs(v.speed) - 15) * 4;
+    }
+
     ctx.save();
-    // Simulate height off ground (~15px) + Sun Direction
-    const shadowDist = 15;
+    const shadowDist = 15 + zHeight;
     const shadowWorldX = v.pos.x + shadowDist * SHADOW_OFFSET_X;
     const shadowWorldY = v.pos.y + shadowDist * SHADOW_OFFSET_Y;
     
     ctx.translate(shadowWorldX, shadowWorldY);
-    ctx.rotate(v.angle); // Rotate shadow to match car orientation
+    ctx.rotate(v.angle); 
     
     ctx.fillStyle = SHADOW_COLOR;
-    // Removed blur for performance
     ctx.beginPath();
-    ctx.roundRect(-length/2, -width/2, length, width, 6);
+    // Shadow shape depends on model
+    if (v.model === 'plane' || v.model === 'jet') {
+         // Fuselage
+         ctx.roundRect(-length/2, -width/6, length, width/3, 6);
+         // Wings
+         ctx.fillRect(-length/6, -width/2, length/3, width);
+         // Tail
+         ctx.fillRect(-length/2, -width/4, length/6, width/2);
+    } else {
+         ctx.roundRect(-length/2, -width/2, length, width, 6);
+    }
     ctx.fill();
     ctx.restore();
 
@@ -521,202 +568,273 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     ctx.translate(v.pos.x, v.pos.y);
     ctx.rotate(v.angle);
     
+    // Scaling for takeoff effect
+    if (zHeight > 0) {
+        const scale = 1 + (zHeight / 200);
+        ctx.scale(scale, scale);
+    }
+    
     const modelData = CAR_MODELS[v.model];
     const maxHealth = (modelData as any)?.health || 100;
     const hpPct = v.health / maxHealth;
 
-    // Wheels
-    const drawWheel = (index: number, cx: number, cy: number) => {
-        const isPopped = v.damage.tires[index];
-        if (isPopped) {
-            ctx.fillStyle = '#171717'; 
-            ctx.fillRect(cx, cy + 1, 6, 1);
-        } else {
-            ctx.fillStyle = '#171717';
-            ctx.fillRect(cx, cy, 6, 2);
-        }
-    };
-    drawWheel(0, length/2 - 8, -width/2 - 1);
-    drawWheel(1, length/2 - 8, width/2 - 1);
-    drawWheel(2, -length/2 + 4, -width/2 - 1);
-    drawWheel(3, -length/2 + 4, width/2 - 1);
-
-    // Body
-    ctx.fillStyle = v.color;
-    ctx.beginPath();
-    ctx.roundRect(-length/2, -width/2, length, width, 4);
-    ctx.fill();
-
-    // Body Highlight (Top)
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.fillRect(-length/2 + 2, -width/4, length - 4, width/2);
-
-    // Bumpers
-    if (v.model !== 'supercar') {
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.fillRect(length/2 - 1, -width/2 + 1, 2, width - 2);
-        ctx.fillRect(-length/2 - 1, -width/2 + 1, 2, width - 2);
-    }
-
-    if (v.model === 'pickup') {
-         ctx.fillStyle = '#0f172a'; 
-         ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, width - 4);
-         ctx.fillStyle = '#334155';
-         ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, 2);
-         ctx.fillRect(-length/2 + 2, width/2 - 4, length/3, 2);
-         ctx.fillRect(-length/2 + 2, -width/2 + 2, 2, width - 4);
-    }
-
-    // Roof / Windshield Area
-    let roofL = length - 20;
-    let roofW = width - 4;
-    let roofOffset = 0; 
-
-    if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
-         roofL = length * 0.4;
-         roofOffset = length * 0.2; 
-    } else if (v.model === 'supercar') {
-         roofL = length * 0.5;
-         roofW = width - 6;
-    } else if (v.model === 'bus') {
-         roofL = length - 10;
-    } else if (v.model === 'compact') {
-         roofL = length - 14;
-    }
-
-    ctx.fillStyle = '#1f2937'; 
-    if (v.model === 'pickup' || v.model === 'truck') {
-         ctx.fillRect(roofOffset - roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
-    } else {
-         ctx.fillRect(-roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
-    }
-
-    const windshieldColor = v.damage.windows[0] ? '#e5e7eb' : '#38bdf8'; 
-    const rearWindowColor = v.damage.windows[1] ? '#e5e7eb' : '#38bdf8';
-    
-    ctx.fillStyle = windshieldColor;
-    if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
-         ctx.fillRect(roofOffset + roofL/2 - 3, -roofW/2 + 1, 3, roofW - 2);
-    } else if (v.model === 'bus') {
-         ctx.fillRect(length/2 - 6, -width/2 + 2, 4, width - 4);
-    } else {
-         ctx.fillRect(roofL/2 - 4, -roofW/2 + 1, 4, roofW - 2);
-    }
-
-    if (v.model !== 'truck' && v.model !== 'pickup' && v.model !== 'van' && v.model !== 'ambulance' && v.model !== 'swat' && v.model !== 'firetruck' && v.model !== 'bus') {
-        ctx.fillStyle = rearWindowColor;
-        ctx.fillRect(-roofL/2, -roofW/2 + 1, 3, roofW - 2);
-    }
-
-    ctx.fillStyle = v.color;
-    let rtL = roofL - 6; 
-    let rtW = roofW - 2;
-    let rtX = 0;
-    
-    if (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
-         rtL = roofL - 6;
-         rtX = roofOffset - 1; 
-    } else if (v.model === 'supercar') {
-         rtL = roofL - 8;
-    } else if (v.model === 'bus') {
-         rtL = length - 16;
-    } else {
-         rtL = roofL - 8;
-    }
-    ctx.fillRect(rtX - rtL/2, -rtW/2, rtL, rtW);
-
-    if (hpPct < 0.5) {
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.moveTo(length/2 - 10, -width/2 + 4);
-        ctx.lineTo(length/2 - 5, -width/2 + 8);
-        ctx.lineTo(length/2 - 12, -width/2 + 10);
-        ctx.fill();
+    if (v.model === 'plane' || v.model === 'jet') {
+        // PLANE RENDERING
+        const isJet = v.model === 'jet';
+        const fuselageW = width / 3;
         
-        ctx.beginPath();
-        ctx.moveTo(0, 0); ctx.lineTo(5, 5); ctx.lineTo(2, 6); ctx.fill();
-    }
-    
-    if (hpPct < 0.2) {
-         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-         ctx.fillRect(-length/2 + 2, -5, 8, 10);
-         ctx.fillRect(length/2 - 12, -4, 10, 8);
-    }
-    
-    ctx.fillStyle = v.color;
-    if (v.model !== 'bus' && v.model !== 'firetruck') {
-        const mirrorX = (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance') 
-            ? roofOffset + roofL/2 - 2 
-            : roofL/2 - 2;
-        ctx.beginPath();
-        ctx.moveTo(mirrorX, -width/2);
-        ctx.lineTo(mirrorX + 2, -width/2 - 3);
-        ctx.lineTo(mirrorX - 2, -width/2 - 3);
-        ctx.fill();
-        ctx.moveTo(mirrorX, width/2);
-        ctx.lineTo(mirrorX + 2, width/2 + 3);
-        ctx.lineTo(mirrorX - 2, width/2 + 3);
-        ctx.fill();
-    }
-    
-    ctx.fillStyle = '#fef08a'; 
-    if (hpPct < 0.2 && v.damage.windows[0]) ctx.fillStyle = '#713f12'; 
-    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
-    ctx.fillRect(length/2 - 1, -width/2 + 2, 1, 5);
-    ctx.fillRect(length/2 - 1, width/2 - 7, 1, 5);
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = '#ef4444';
-    ctx.fillRect(-length/2, -width/2 + 2, 1, 5);
-    ctx.fillRect(-length/2, width/2 - 7, 1, 5);
-    
-    if (v.model === 'supercar') {
         ctx.fillStyle = v.color;
-        ctx.fillRect(-length/2 + 2, -width/2, 4, width);
-        ctx.fillStyle = '#171717';
-        for(let i=0; i<3; i++) {
-             ctx.fillRect(-length/2 + 8 + i*3, -width/4, 2, width/2);
-        }
-    } else if (v.model === 'police' || v.model === 'swat' || v.model === 'ambulance' || v.model === 'firetruck') {
-        const time = Date.now() / 150;
-        const blink = Math.floor(time) % 2;
-        const color1 = blink ? '#2563eb' : '#dc2626';
-        const color2 = blink ? '#dc2626' : '#2563eb';
         
-        ctx.shadowColor = color1; ctx.shadowBlur = 10;
-        ctx.fillStyle = color1;
-        
-        if (v.model === 'ambulance' || v.model === 'swat') {
-            ctx.fillRect(roofOffset, -width/2 + 2, 4, 4);
-            ctx.shadowColor = color2; ctx.fillStyle = color2;
-            ctx.fillRect(roofOffset, width/2 - 6, 4, 4);
-        } else if (v.model === 'firetruck') {
-             ctx.fillRect(roofOffset + 10, -width/2 + 2, 4, 4);
-             ctx.shadowColor = color2; ctx.fillStyle = color2;
-             ctx.fillRect(roofOffset + 10, width/2 - 6, 4, 4);
-             ctx.fillStyle = '#cbd5e1';
-             ctx.fillRect(-length/2 + 5, -5, length - 20, 10);
-             ctx.fillStyle = '#64748b';
-             for(let i=0; i<length-20; i+=4) ctx.fillRect(-length/2 + 5 + i, -4, 1, 8);
+        // Wings
+        ctx.beginPath();
+        if (isJet) {
+            // Swept back wings
+            ctx.moveTo(length/6, -fuselageW/2);
+            ctx.lineTo(-length/2, -width/2);
+            ctx.lineTo(-length/6, -fuselageW/2);
+            ctx.lineTo(-length/6, fuselageW/2);
+            ctx.lineTo(-length/2, width/2);
+            ctx.lineTo(length/6, fuselageW/2);
         } else {
-            ctx.fillRect(-2, -width/2 + 6, 4, width - 12);
+            // Straight wings
+            ctx.roundRect(-length/6, -width/2, length/3, width, 2);
         }
+        ctx.fill();
+        
+        // Fuselage
+        ctx.fillStyle = isJet ? '#94a3b8' : '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(-length/2, -fuselageW/2, length, fuselageW, 10);
+        ctx.fill();
+
+        // Cockpit
+        ctx.fillStyle = '#0ea5e9'; // Glass
+        ctx.beginPath();
+        ctx.roundRect(length/4, -fuselageW/3, length/5, fuselageW/1.5, 3);
+        ctx.fill();
+        
+        // Tail
+        ctx.fillStyle = v.color;
+        ctx.beginPath();
+        ctx.moveTo(-length/2 + 5, -fuselageW/2);
+        ctx.lineTo(-length/2 - 10, -width/3);
+        ctx.lineTo(-length/2 - 10, width/3);
+        ctx.lineTo(-length/2 + 5, fuselageW/2);
+        ctx.fill();
+
+        // Propeller (if plane)
+        if (!isJet) {
+            const propAngle = (Date.now() / 50) % (Math.PI*2);
+            ctx.save();
+            ctx.translate(length/2, 0);
+            ctx.rotate(propAngle);
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-2, -25, 4, 50);
+            ctx.fillRect(-25, -2, 50, 4);
+            ctx.restore();
+        } else {
+            // Jet Engine Glow
+            if (v.speed > 5) {
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.6)';
+                ctx.beginPath(); ctx.arc(-length/2 - 5, 0, 8, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+    } else {
+        // CAR RENDERING (Existing)
+        const drawWheel = (index: number, cx: number, cy: number) => {
+            const isPopped = v.damage.tires[index];
+            if (isPopped) {
+                ctx.fillStyle = '#171717'; 
+                ctx.fillRect(cx, cy + 1, 6, 1);
+            } else {
+                ctx.fillStyle = '#171717';
+                ctx.fillRect(cx, cy, 6, 2);
+            }
+        };
+        drawWheel(0, length/2 - 8, -width/2 - 1);
+        drawWheel(1, length/2 - 8, width/2 - 1);
+        drawWheel(2, -length/2 + 4, -width/2 - 1);
+        drawWheel(3, -length/2 + 4, width/2 - 1);
+
+        // Body
+        ctx.fillStyle = v.color;
+        ctx.beginPath();
+        ctx.roundRect(-length/2, -width/2, length, width, 4);
+        ctx.fill();
+
+        // Body Highlight (Top)
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillRect(-length/2 + 2, -width/4, length - 4, width/2);
+
+        // Bumpers
+        if (v.model !== 'supercar') {
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(length/2 - 1, -width/2 + 1, 2, width - 2);
+            ctx.fillRect(-length/2 - 1, -width/2 + 1, 2, width - 2);
+        }
+
+        if (v.model === 'pickup') {
+            ctx.fillStyle = '#0f172a'; 
+            ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, width - 4);
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, 2);
+            ctx.fillRect(-length/2 + 2, width/2 - 4, length/3, 2);
+            ctx.fillRect(-length/2 + 2, -width/2 + 2, 2, width - 4);
+        }
+
+        // Roof / Windshield Area
+        let roofL = length - 20;
+        let roofW = width - 4;
+        let roofOffset = 0; 
+
+        if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
+            roofL = length * 0.4;
+            roofOffset = length * 0.2; 
+        } else if (v.model === 'supercar') {
+            roofL = length * 0.5;
+            roofW = width - 6;
+        } else if (v.model === 'bus') {
+            roofL = length - 10;
+        } else if (v.model === 'compact') {
+            roofL = length - 14;
+        }
+
+        ctx.fillStyle = '#1f2937'; 
+        if (v.model === 'pickup' || v.model === 'truck') {
+            ctx.fillRect(roofOffset - roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
+        } else {
+            ctx.fillRect(-roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
+        }
+
+        const windshieldColor = v.damage.windows[0] ? '#e5e7eb' : '#38bdf8'; 
+        const rearWindowColor = v.damage.windows[1] ? '#e5e7eb' : '#38bdf8';
+        
+        ctx.fillStyle = windshieldColor;
+        if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
+            ctx.fillRect(roofOffset + roofL/2 - 3, -roofW/2 + 1, 3, roofW - 2);
+        } else if (v.model === 'bus') {
+            ctx.fillRect(length/2 - 6, -width/2 + 2, 4, width - 4);
+        } else {
+            ctx.fillRect(roofL/2 - 4, -roofW/2 + 1, 4, roofW - 2);
+        }
+
+        if (v.model !== 'truck' && v.model !== 'pickup' && v.model !== 'van' && v.model !== 'ambulance' && v.model !== 'swat' && v.model !== 'firetruck' && v.model !== 'bus') {
+            ctx.fillStyle = rearWindowColor;
+            ctx.fillRect(-roofL/2, -roofW/2 + 1, 3, roofW - 2);
+        }
+
+        ctx.fillStyle = v.color;
+        let rtL = roofL - 6; 
+        let rtW = roofW - 2;
+        let rtX = 0;
+        
+        if (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
+            rtL = roofL - 6;
+            rtX = roofOffset - 1; 
+        } else if (v.model === 'supercar') {
+            rtL = roofL - 8;
+        } else if (v.model === 'bus') {
+            rtL = length - 16;
+        } else {
+            rtL = roofL - 8;
+        }
+        ctx.fillRect(rtX - rtL/2, -rtW/2, rtL, rtW);
+
+        // ... existing damage and details rendering for cars ...
+        if (hpPct < 0.5) {
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.moveTo(length/2 - 10, -width/2 + 4);
+            ctx.lineTo(length/2 - 5, -width/2 + 8);
+            ctx.lineTo(length/2 - 12, -width/2 + 10);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(5, 5); ctx.lineTo(2, 6); ctx.fill();
+        }
+        
+        if (hpPct < 0.2) {
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(-length/2 + 2, -5, 8, 10);
+            ctx.fillRect(length/2 - 12, -4, 10, 8);
+        }
+        
+        ctx.fillStyle = v.color;
+        if (v.model !== 'bus' && v.model !== 'firetruck') {
+            const mirrorX = (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance') 
+                ? roofOffset + roofL/2 - 2 
+                : roofL/2 - 2;
+            ctx.beginPath();
+            ctx.moveTo(mirrorX, -width/2);
+            ctx.lineTo(mirrorX + 2, -width/2 - 3);
+            ctx.lineTo(mirrorX - 2, -width/2 - 3);
+            ctx.fill();
+            ctx.moveTo(mirrorX, width/2);
+            ctx.lineTo(mirrorX + 2, width/2 + 3);
+            ctx.lineTo(mirrorX - 2, width/2 + 3);
+            ctx.fill();
+        }
+        
+        ctx.fillStyle = '#fef08a'; 
+        if (hpPct < 0.2 && v.damage.windows[0]) ctx.fillStyle = '#713f12'; 
+        ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
+        ctx.fillRect(length/2 - 1, -width/2 + 2, 1, 5);
+        ctx.fillRect(length/2 - 1, width/2 - 7, 1, 5);
         ctx.shadowBlur = 0;
-    } else if (v.model === 'taxi') {
-        ctx.fillStyle = '#facc15';
-        ctx.shadowColor = '#facc15'; ctx.shadowBlur = 5;
-        ctx.fillRect(-3, -6, 6, 12);
-        ctx.fillStyle = '#000';
-        ctx.fillRect(-3, -6, 2, 2); ctx.fillRect(-1, -6, 2, 2); ctx.fillRect(1, -6, 2, 2);
-        ctx.fillRect(-2, -4, 2, 2); ctx.fillRect(0, -4, 2, 2); ctx.fillRect(2, -4, 2, 2);
-        ctx.shadowBlur = 0;
-    } else if (v.model === 'bus') {
-        ctx.fillStyle = '#9ca3af'; 
-        const wins = 6;
-        const spacing = (length - 20) / wins;
-        for(let i=0; i<wins; i++) {
-             ctx.fillRect(-length/2 + 10 + i * spacing, -width/2 + 1, spacing - 2, 2);
-             ctx.fillRect(-length/2 + 10 + i * spacing, width/2 - 3, spacing - 2, 2);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(-length/2, -width/2 + 2, 1, 5);
+        ctx.fillRect(-length/2, width/2 - 7, 1, 5);
+        
+        if (v.model === 'supercar') {
+            ctx.fillStyle = v.color;
+            ctx.fillRect(-length/2 + 2, -width/2, 4, width);
+            ctx.fillStyle = '#171717';
+            for(let i=0; i<3; i++) {
+                ctx.fillRect(-length/2 + 8 + i*3, -width/4, 2, width/2);
+            }
+        } else if (v.model === 'police' || v.model === 'swat' || v.model === 'ambulance' || v.model === 'firetruck') {
+            const time = Date.now() / 150;
+            const blink = Math.floor(time) % 2;
+            const color1 = blink ? '#2563eb' : '#dc2626';
+            const color2 = blink ? '#dc2626' : '#2563eb';
+            
+            ctx.shadowColor = color1; ctx.shadowBlur = 10;
+            ctx.fillStyle = color1;
+            
+            if (v.model === 'ambulance' || v.model === 'swat') {
+                ctx.fillRect(roofOffset, -width/2 + 2, 4, 4);
+                ctx.shadowColor = color2; ctx.fillStyle = color2;
+                ctx.fillRect(roofOffset, width/2 - 6, 4, 4);
+            } else if (v.model === 'firetruck') {
+                ctx.fillRect(roofOffset + 10, -width/2 + 2, 4, 4);
+                ctx.shadowColor = color2; ctx.fillStyle = color2;
+                ctx.fillRect(roofOffset + 10, width/2 - 6, 4, 4);
+                ctx.fillStyle = '#cbd5e1';
+                ctx.fillRect(-length/2 + 5, -5, length - 20, 10);
+                ctx.fillStyle = '#64748b';
+                for(let i=0; i<length-20; i+=4) ctx.fillRect(-length/2 + 5 + i, -4, 1, 8);
+            } else {
+                ctx.fillRect(-2, -width/2 + 6, 4, width - 12);
+            }
+            ctx.shadowBlur = 0;
+        } else if (v.model === 'taxi') {
+            ctx.fillStyle = '#facc15';
+            ctx.shadowColor = '#facc15'; ctx.shadowBlur = 5;
+            ctx.fillRect(-3, -6, 6, 12);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(-3, -6, 2, 2); ctx.fillRect(-1, -6, 2, 2); ctx.fillRect(1, -6, 2, 2);
+            ctx.fillRect(-2, -4, 2, 2); ctx.fillRect(0, -4, 2, 2); ctx.fillRect(2, -4, 2, 2);
+            ctx.shadowBlur = 0;
+        } else if (v.model === 'bus') {
+            ctx.fillStyle = '#9ca3af'; 
+            const wins = 6;
+            const spacing = (length - 20) / wins;
+            for(let i=0; i<wins; i++) {
+                ctx.fillRect(-length/2 + 10 + i * spacing, -width/2 + 1, spacing - 2, 2);
+                ctx.fillRect(-length/2 + 10 + i * spacing, width/2 - 3, spacing - 2, 2);
+            }
         }
     }
     
@@ -882,10 +1000,15 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                              }
                         });
                     }
-                } else if (tile === TileType.SIDEWALK) {
+                } else if (tile === TileType.SIDEWALK || tile === TileType.FOOTPATH) {
                     ctx.fillStyle = textures['sidewalk'] || COLORS.sidewalk;
                     ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                     ctx.strokeStyle = '#57534e'; ctx.lineWidth = 1; ctx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+                    if (tile === TileType.FOOTPATH) {
+                        // slightly lighter for visibility
+                        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                    }
                     if (x % 5 === 0 && y % 5 === 0) {
                          ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(px+TILE_SIZE, py+TILE_SIZE, 3, 0, Math.PI*2); ctx.fill();
                     }
@@ -905,7 +1028,8 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                         }
                     }
 
-                } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP || tile === TileType.CONTAINER || tile === TileType.PAINT_SHOP) {
+                } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP || tile === TileType.CONTAINER || tile === TileType.PAINT_SHOP || tile === TileType.AIRPORT_TERMINAL || tile === TileType.HANGAR) {
+                     // Ground Occlusion Patch
                      ctx.fillStyle = '#171717'; 
                      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 

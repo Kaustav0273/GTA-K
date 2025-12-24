@@ -1,4 +1,5 @@
 
+
 export enum EntityType {
   PLAYER = 'PLAYER',
   PEDESTRIAN = 'PEDESTRIAN',
@@ -27,7 +28,7 @@ export interface Entity {
 export interface Vehicle extends Entity {
   type: EntityType.VEHICLE;
   driverId: string | null; // ID of the entity driving, or null
-  model: 'sedan' | 'sport' | 'truck' | 'taxi' | 'police' | 'muscle' | 'van' | 'limo' | 'ambulance' | 'supercar' | 'compact' | 'suv' | 'pickup' | 'swat' | 'firetruck' | 'bus';
+  model: 'sedan' | 'sport' | 'truck' | 'taxi' | 'police' | 'muscle' | 'van' | 'limo' | 'ambulance' | 'supercar' | 'compact' | 'suv' | 'pickup' | 'swat' | 'firetruck' | 'bus' | 'plane' | 'jet';
   speed: number;
   maxSpeed: number;
   acceleration: number;
@@ -136,7 +137,12 @@ export enum TileType {
   SHIP_DECK = 12,
   SAND = 13,
   WALL = 14,
-  PAINT_SHOP = 15
+  PAINT_SHOP = 15,
+  RUNWAY = 16,
+  AIRPORT_TERMINAL = 17,
+  HANGAR = 18,
+  TARMAC = 19,
+  FOOTPATH = 20
 }
 
 export interface GameSettings {

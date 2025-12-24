@@ -1,4 +1,5 @@
 
+
 import { 
     Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType, Drop 
 } from '../types';
@@ -6,7 +7,7 @@ import {
     TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, 
     ACCELERATION_WALK, MAX_SPEED_WALK, MAX_SPEED_SPRINT, BULLET_SPEED, BULLET_LIFETIME, 
     PEDESTRIAN_SPEED, PEDESTRIAN_RUN_SPEED, PANIC_DISTANCE, PHYSICS, WEAPON_STATS,
-    STAMINA_REGEN_DELAY, STAMINA_REGEN_RATE, CAR_COLORS
+    STAMINA_REGEN_DELAY, STAMINA_REGEN_RATE, CAR_COLORS, MAX_TRAFFIC
 } from '../constants';
 import { isSolid, getTileAt } from '../utils/gameUtils';
 
@@ -320,75 +321,87 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
     });
 };
 
-const respawnVehicle = (state: MutableGameState, car: Vehicle) => {
+const spawnTraffic = (state: MutableGameState) => {
+    // Check current traffic count (Exclude planes and player's car if they are driving)
+    const trafficCount = state.vehicles.filter(v => v.driverId === 'npc').length;
+    if (trafficCount >= MAX_TRAFFIC) return;
+
+    // Try to spawn nearby
     let spawned = false;
     let attempts = 0;
-    
-    while (!spawned && attempts < 20) {
-        attempts++;
-        const tx = Math.floor(Math.random() * MAP_WIDTH);
-        const ty = Math.floor(Math.random() * MAP_HEIGHT);
-        const tile = getTileAt(state.map, tx * TILE_SIZE, ty * TILE_SIZE);
+    const spawnRadius = 1600; // Just outside 1920 width
+    const minSpawnRadius = 1000;
 
+    while (!spawned && attempts < 5) {
+        attempts++;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = minSpawnRadius + Math.random() * (spawnRadius - minSpawnRadius);
+        
+        const spawnX = state.player.pos.x + Math.cos(angle) * dist;
+        const spawnY = state.player.pos.y + Math.sin(angle) * dist;
+        
+        // Bounds check
+        if (spawnX < 0 || spawnX >= MAP_WIDTH * TILE_SIZE || spawnY < 0 || spawnY >= MAP_HEIGHT * TILE_SIZE) continue;
+
+        const tile = getTileAt(state.map, spawnX, spawnY);
+        
         if (tile === TileType.ROAD_H || tile === TileType.ROAD_V) {
-            const px = tx * TILE_SIZE + TILE_SIZE/2;
-            const py = ty * TILE_SIZE + TILE_SIZE/2;
-            
-            // Check Camera distance to avoid popping in view
-            if (px > state.camera.x - 200 && px < state.camera.x + window.innerWidth + 200 &&
-                py > state.camera.y - 200 && py < state.camera.y + window.innerHeight + 200) {
-                continue;
+             const modelKeys = Object.keys(CAR_MODELS) as Array<keyof typeof CAR_MODELS>;
+             const regularModels = modelKeys.filter(k => k !== 'plane' && k !== 'jet');
+             const modelKey = regularModels[Math.floor(Math.random() * regularModels.length)];
+             const model = CAR_MODELS[modelKey];
+             let vehicleColor = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+             if (['police', 'ambulance', 'swat', 'firetruck', 'taxi'].includes(modelKey)) {
+                 vehicleColor = model.color;
+             } else if (modelKey === 'limo') {
+                 vehicleColor = Math.random() > 0.5 ? '#000000' : '#ffffff';
+             }
+
+             // Snap to lane
+             let px = Math.floor(spawnX / TILE_SIZE) * TILE_SIZE + TILE_SIZE/2;
+             let py = Math.floor(spawnY / TILE_SIZE) * TILE_SIZE + TILE_SIZE/2;
+             let angle = 0;
+
+             if (tile === TileType.ROAD_H) {
+                const dir = Math.random() > 0.5;
+                angle = dir ? 0 : Math.PI;
+                py = Math.floor(spawnY / TILE_SIZE) * TILE_SIZE + (dir ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
+            } else if (tile === TileType.ROAD_V) {
+                const dir = Math.random() > 0.5; 
+                angle = dir ? Math.PI/2 : 3*Math.PI/2;
+                px = Math.floor(spawnX / TILE_SIZE) * TILE_SIZE + (dir ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
             }
-            
+
+            // Overlap check
             let overlap = false;
-            for(const v of state.vehicles) {
-                if (Math.abs(v.pos.x - px) < 100 && Math.abs(v.pos.y - py) < 100) {
-                    overlap = true;
-                    break;
-                }
+            for (const v of state.vehicles) {
+                 if (Math.abs(v.pos.x - px) < 100 && Math.abs(v.pos.y - py) < 100) { overlap = true; break; }
             }
             if (overlap) continue;
 
-            car.pos.x = px;
-            car.pos.y = py;
-            car.speed = 0;
-            car.stuckTimer = 0;
-            const modelData = CAR_MODELS[car.model];
-            car.health = modelData ? (modelData as any).health || 100 : 100;
-            car.damage = { tires: [false, false, false, false], windows: [false, false] };
-            
-            // COLOR LOGIC
-            if (['police', 'ambulance', 'swat', 'firetruck', 'taxi'].includes(car.model)) {
-                car.color = modelData.color;
-            } else if (car.model === 'limo') {
-                car.color = Math.random() > 0.5 ? '#000000' : '#ffffff';
-            } else {
-                car.color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
-            }
-
-            if (tile === TileType.ROAD_H) {
-                const dir = Math.random() > 0.5 ? 0 : Math.PI;
-                car.angle = dir;
-                car.targetAngle = dir;
-                car.pos.y = ty * TILE_SIZE + (dir === 0 ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
-            } else {
-                // Vertical Road
-                const dir = Math.random() > 0.5 ? Math.PI/2 : 3*Math.PI/2;
-                car.angle = dir;
-                car.targetAngle = dir;
-                car.pos.x = tx * TILE_SIZE + (dir === Math.PI/2 ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
-            }
+            state.vehicles.push({
+                id: `traffic-${Date.now()}-${Math.random()}`,
+                type: EntityType.VEHICLE,
+                pos: { x: px, y: py },
+                size: (model as any).size || { x: CAR_SIZE.x, y: CAR_SIZE.y },
+                angle: angle,
+                velocity: { x: 0, y: 0 },
+                color: vehicleColor,
+                driverId: 'npc',
+                model: modelKey,
+                speed: 0,
+                maxSpeed: model.maxSpeed,
+                acceleration: model.acceleration,
+                handling: model.handling,
+                health: model.health,
+                damage: { tires: [false, false, false, false], windows: [false, false] },
+                stuckTimer: 0,
+                targetAngle: angle
+            });
             spawned = true;
         }
     }
-    
-    if (!spawned) {
-         car.pos.x = state.hospitalPos.x;
-         car.pos.y = state.hospitalPos.y;
-         car.speed = 0;
-         car.stuckTimer = 0;
-    }
-};
+}
 
 const isDrivable = (tile: number) => tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS;
 
@@ -838,7 +851,24 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
     state.bullets = state.bullets.filter(b => b.timeLeft > 0);
 
     // Vehicles (NPC Control)
-    state.vehicles.forEach(car => {
+    // Iterate backwards to allow safe removal (despawn)
+    for (let i = state.vehicles.length - 1; i >= 0; i--) {
+        const car = state.vehicles[i];
+        
+        // Skip update for player vehicle if physics handled below
+        // But we need AI update for others.
+        
+        // Despawn Logic (Distance Culling)
+        // Keep planes and player's car
+        if (car.driverId !== 'player' && car.model !== 'plane' && car.model !== 'jet') {
+             const distToPlayer = Math.sqrt((car.pos.x - state.player.pos.x)**2 + (car.pos.y - state.player.pos.y)**2);
+             // If far away and not visible (safe buffer)
+             if (distToPlayer > 2000) {
+                 state.vehicles.splice(i, 1);
+                 continue;
+             }
+        }
+
         // Vehicle Health Logic
         const maxHealth = (CAR_MODELS[car.model] as any)?.health || 100;
         const hpPct = car.health / maxHealth;
@@ -925,7 +955,9 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
 
             // 2. RAIL MOVEMENT
             if (!isDrivable(tile)) {
-                respawnVehicle(state, car);
+                // Remove Off-road vehicles
+                state.vehicles.splice(i, 1);
+                continue;
             } else if (tile === TileType.ROAD_H) {
                 const isEast = Math.abs(car.angle) < Math.PI/2;
                 const targetAngle = isEast ? 0 : Math.PI;
@@ -1006,7 +1038,12 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             
             if (car.speed < 0.5 && !brake) car.stuckTimer = (car.stuckTimer || 0) + 1;
             else car.stuckTimer = 0;
-            if ((car.stuckTimer || 0) > 300) respawnVehicle(state, car);
+            
+            // Remove stuck vehicles
+            if ((car.stuckTimer || 0) > 300) {
+                state.vehicles.splice(i, 1);
+                continue;
+            }
         }
 
         // Damage Logic (Death)
@@ -1015,9 +1052,16 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>) => {
             if (state.player.vehicleId === car.id) {
                 state.player.health = 0;
             }
-            respawnVehicle(state, car);
+            // Remove destroyed car
+            state.vehicles.splice(i, 1);
+            continue;
         }
-    });
+    }
+
+    // Try to spawn new traffic if needed (every 10 ticks to save perf)
+    if (state.timeTicker % 10 === 0) {
+        spawnTraffic(state);
+    }
 
     // Player Vehicle Physics
     if (state.player.state === 'driving' && state.player.vehicleId) {

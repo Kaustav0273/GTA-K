@@ -1,7 +1,10 @@
 
+
 export const TILE_SIZE = 128;
-export const MAP_WIDTH = 50; // In tiles
+export const MAP_WIDTH = 80; // Increased from 50 to 80
 export const MAP_HEIGHT = 50; // In tiles
+
+export const MAX_TRAFFIC = 25; // Max number of NPC cars
 
 export const PLAYER_SIZE = { x: 14, y: 14 };
 export const CAR_SIZE = { x: 24, y: 56 }; // Reduced width from 28 to 24 for better lane clearance
@@ -90,5 +93,9 @@ export const CAR_MODELS = {
   pickup: { color: '#78350f', maxSpeed: 9, acceleration: 0.14, handling: 0.025, health: 260, size: { x: 30, y: 68 } },
   swat: { color: '#111827', maxSpeed: 10, acceleration: 0.12, handling: 0.02, health: 600, size: { x: 34, y: 70 } },
   firetruck: { color: '#b91c1c', maxSpeed: 8, acceleration: 0.08, handling: 0.015, health: 800, size: { x: 36, y: 90 } },
-  bus: { color: '#0ea5e9', maxSpeed: 6, acceleration: 0.06, handling: 0.01, health: 700, size: { x: 36, y: 100 } }
+  bus: { color: '#0ea5e9', maxSpeed: 6, acceleration: 0.06, handling: 0.01, health: 700, size: { x: 36, y: 100 } },
+  
+  // Air
+  plane: { color: '#ffffff', maxSpeed: 30, acceleration: 0.15, handling: 0.02, health: 500, size: { x: 90, y: 80 } },
+  jet: { color: '#94a3b8', maxSpeed: 45, acceleration: 0.3, handling: 0.015, health: 350, size: { x: 60, y: 70 } }
 };

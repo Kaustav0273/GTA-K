@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect } from 'react';
 import { GameState, TileType } from '../types';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT } from '../constants';
@@ -68,6 +69,7 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
                      case TileType.GRASS: color = '#3f6212'; break; // Green-800
                      case TileType.WATER: color = '#1e3a8a'; break; // Blue-900
                      case TileType.SIDEWALK: color = '#52525b'; break; // Zinc-600
+                     case TileType.FOOTPATH: color = '#6b7280'; break; // Gray-500
                      case TileType.BUILDING: color = '#000000'; break;
                      case TileType.SKYSCRAPER: color = '#1e293b'; break; // Slate-800
                      case TileType.SHOP: color = '#78350f'; break; // Amber-900
@@ -77,6 +79,10 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
                      case TileType.SHIP_DECK: color = '#713f12'; break; // Brown
                      case TileType.SAND: color = '#d6d3d1'; break;
                      case TileType.WALL: color = '#171717'; break;
+                     case TileType.RUNWAY: color = '#171717'; break; // Dark
+                     case TileType.TARMAC: color = '#3f3f46'; break; // Grey
+                     case TileType.AIRPORT_TERMINAL: color = '#0ea5e9'; break; // Blue
+                     case TileType.HANGAR: color = '#94a3b8'; break; // Slate
                      case TileType.ROAD_V:
                      case TileType.ROAD_H:
                      case TileType.ROAD_CROSS:
@@ -96,6 +102,7 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
         ctx.rotate(v.angle);
         if (v.id === player.vehicleId) ctx.fillStyle = '#fff';
         else if (v.model === 'police' || v.model === 'swat') ctx.fillStyle = '#3b82f6';
+        else if (v.model === 'plane' || v.model === 'jet') ctx.fillStyle = '#fff';
         else ctx.fillStyle = '#d4d4d8';
         ctx.fillRect(-v.size.x/2, -v.size.y/2, v.size.x, v.size.y);
         ctx.restore();

@@ -2,6 +2,7 @@
 import React from 'react';
 import { GameState } from '../types';
 import Radar from './Radar';
+import { CAR_MODELS } from '../constants';
 
 interface HUDProps {
   gameState: GameState;
@@ -11,7 +12,7 @@ interface HUDProps {
 }
 
 const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeaponClick }) => {
-  const { player, wantedLevel, money, mission } = gameState;
+  const { player, wantedLevel, money, mission, vehicles } = gameState;
 
   // Calculate Health Colors
   const healthPercent = (player.health / player.maxHealth) * 100;
@@ -23,6 +24,24 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
   
   // Calculate Stamina
   const staminaPercent = (player.stamina / (player.maxStamina || 1)) * 100;
+
+  // Calculate Vehicle Health
+  let vehicleHealthPercent = 0;
+  let showVehicleHealth = false;
+  let vehicleBarColor = 'bg-slate-200';
+
+  if (player.vehicleId) {
+      const vehicle = vehicles.find(v => v.id === player.vehicleId);
+      if (vehicle) {
+          const modelData = CAR_MODELS[vehicle.model];
+          const maxHealth = modelData ? (modelData as any).health : 100;
+          vehicleHealthPercent = (vehicle.health / maxHealth) * 100;
+          showVehicleHealth = true;
+          
+          if (vehicleHealthPercent < 25) vehicleBarColor = 'bg-red-500 animate-pulse';
+          else if (vehicleHealthPercent < 50) vehicleBarColor = 'bg-slate-400';
+      }
+  }
 
   return (
     <div className="absolute inset-0 pointer-events-none font-gta text-white select-none overflow-hidden">
@@ -54,6 +73,18 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
       >
              {/* Bars */}
              <div className="mb-1 md:mb-2 w-32 md:w-56 flex flex-col gap-1">
+                
+                {/* Vehicle Health Bar */}
+                {showVehicleHealth && (
+                    <div className="w-full h-2 md:h-3 bg-black/60 rounded overflow-hidden border border-gray-600 shadow-sm relative">
+                        {/* Optional Icon Overlay */}
+                        <div className="absolute top-0 left-0 bottom-0 w-4 md:w-6 bg-black/20 z-10 flex items-center justify-center">
+                            <i className="fas fa-car text-[8px] md:text-[10px] text-black/50"></i>
+                        </div>
+                        <div className={`h-full ${vehicleBarColor} transition-all duration-300`} style={{ width: `${Math.max(0, vehicleHealthPercent)}%` }}></div>
+                    </div>
+                )}
+
                 {/* Health */}
                 <div className="w-full h-2 md:h-3 bg-black/60 rounded overflow-hidden border border-gray-600">
                     <div className={`h-full ${healthColor} transition-all duration-300`} style={{ width: `${Math.max(0, healthPercent)}%` }}></div>
