@@ -7,10 +7,12 @@ import WeaponWheel from './components/WeaponWheel';
 import MapMenu from './components/MapMenu';
 import MobileControls from './components/MobileControls';
 import CarShop from './components/CarShop';
+import SplashScreen from './components/SplashScreen';
 import { GameState, Mission, EntityType, WeaponType, GameSettings } from './types';
 import { COLORS, STAMINA_MAX, PLAYER_SIZE } from './constants';
 
 const App: React.FC = () => {
+  const [showSplash, setShowSplash] = useState(true);
   const [gameStarted, setGameStarted] = useState(false);
   const [isPhoneOpen, setIsPhoneOpen] = useState(false);
   const [isWeaponWheelOpen, setIsWeaponWheelOpen] = useState(false);
@@ -29,6 +31,14 @@ const App: React.FC = () => {
       mobileControlStyle: 'DPAD',
       isFullScreen: window.innerWidth < 768 // Default to true on mobile (simple width check)
   });
+
+  // Splash Screen Timer - Increased to 5s to allow particle animation to finish
+  useEffect(() => {
+      const timer = setTimeout(() => {
+          setShowSplash(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+  }, []);
 
   const defaultGameState: GameState = {
     player: {
@@ -162,9 +172,16 @@ const App: React.FC = () => {
   return (
     <div className="w-full h-screen bg-zinc-900 relative overflow-hidden select-none">
       
+      {/* Animated Splash Screen */}
+      <div 
+        className={`fixed inset-0 z-[100] transition-opacity duration-1000 ease-in-out pointer-events-none ${showSplash ? 'opacity-100' : 'opacity-0'}`}
+      >
+          {showSplash && <SplashScreen />}
+      </div>
+
       {/* Start Screen */}
       {!gameStarted && (
-        <div className="absolute inset-0 z-50 bg-zinc-900 flex overflow-hidden">
+        <div className={`absolute inset-0 z-50 bg-zinc-900 flex overflow-hidden transition-opacity duration-1000 ${!showSplash ? 'opacity-100' : 'opacity-0'}`}>
             {/* Background Panels (GTA Loading Style) */}
             <div className="absolute inset-0 z-0 grid grid-cols-12 grid-rows-2 h-full w-full pointer-events-none opacity-50">
                 {/* Top Left - Purple/City */}
