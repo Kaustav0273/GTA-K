@@ -6,6 +6,7 @@ import Phone from './components/Phone';
 import WeaponWheel from './components/WeaponWheel';
 import MapMenu from './components/MapMenu';
 import MobileControls from './components/MobileControls';
+import CarShop from './components/CarShop';
 import { GameState, Mission, EntityType, WeaponType, GameSettings } from './types';
 import { COLORS, STAMINA_MAX, PLAYER_SIZE } from './constants';
 
@@ -60,8 +61,10 @@ const App: React.FC = () => {
     wantedLevel: 0,
     mission: null,
     isPhoneOpen: false,
+    activeShop: 'none',
     paused: false,
-    timeOfDay: 12
+    timeOfDay: 12,
+    timeTicker: 0
   };
 
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
@@ -150,6 +153,10 @@ const App: React.FC = () => {
           }
           return { ...prev, isFullScreen: newState };
       });
+  };
+
+  const handleUpdateGameState = (updates: Partial<GameState>) => {
+      setGameState(prev => ({ ...prev, ...updates }));
   };
 
   return (
@@ -372,8 +379,9 @@ const App: React.FC = () => {
             isWeaponWheelOpen={isWeaponWheelOpen}
             activeWeapon={gameState.player.weapon}
             settings={settings}
-            paused={showMap}
+            paused={showMap || gameState.activeShop !== 'none'}
             initialGameState={gameState}
+            syncGameState={gameState}
           />
       )}
 
@@ -381,7 +389,7 @@ const App: React.FC = () => {
       {settings.retroFilter && <div className="scanlines pointer-events-none"></div>}
 
       {/* UI Layer */}
-      {gameStarted && !isWeaponWheelOpen && !showMap && (
+      {gameStarted && !isWeaponWheelOpen && !showMap && gameState.activeShop === 'none' && (
         <HUD 
             gameState={gameState} 
             onPhoneClick={handlePhoneToggle}
@@ -391,7 +399,7 @@ const App: React.FC = () => {
       )}
       
       {/* Mobile Controls Overlay */}
-      {gameStarted && !isPhoneOpen && !isWeaponWheelOpen && !showMap && (
+      {gameStarted && !isPhoneOpen && !isWeaponWheelOpen && !showMap && gameState.activeShop === 'none' && (
           <MobileControls 
             isDriving={!!gameState.player.vehicleId} 
             controlStyle={settings.mobileControlStyle}
@@ -426,6 +434,15 @@ const App: React.FC = () => {
             onQuit={() => { setShowMap(false); setGameStarted(false); }}
             onOptions={() => { setShowMap(false); setGameStarted(false); setShowSettings(true); }}
             onSave={handleSaveGame}
+          />
+      )}
+
+      {/* Car Shop Overlay */}
+      {gameState.activeShop === 'main' && (
+          <CarShop 
+            gameState={gameState}
+            onUpdate={handleUpdateGameState}
+            onClose={() => setGameState(prev => ({...prev, activeShop: 'none'}))}
           />
       )}
     </div>

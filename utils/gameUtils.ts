@@ -245,7 +245,8 @@ export const generateMap = (): number[][] => {
   fillRect(28, 17, 3, 3, TileType.POLICE_STATION);
 
   // Pay 'n' Spray
-  safeSet(27, 27, TileType.PAINT_SHOP); 
+  // Moved to (21, 25) to be adjacent to vertical road at x=20
+  safeSet(21, 25, TileType.PAINT_SHOP); 
   
   // Fix Road Intersections
   for(let y=1; y<MAP_HEIGHT-1; y++) {
@@ -295,6 +296,7 @@ export const isSolid = (tile: number): boolean => {
            tile === TileType.CONTAINER ||
            tile === TileType.AIRPORT_TERMINAL ||
            tile === TileType.HANGAR;
+           // PAINT_SHOP is NOT solid to allow entry
 }
 
 export const createNoiseTexture = (color: string, alpha: number = 0.1, density: number = 0.5) => {

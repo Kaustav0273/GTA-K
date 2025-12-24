@@ -1,5 +1,4 @@
 
-
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
     GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
@@ -22,12 +21,13 @@ interface GameCanvasProps {
     settings: GameSettings;
     paused: boolean;
     initialGameState: GameState;
+    syncGameState?: GameState;
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ 
     onGameStateUpdate, isPhoneOpen, activeMission, 
     onWeaponWheelToggle, isWeaponWheelOpen, activeWeapon,
-    settings, paused, initialGameState
+    settings, paused, initialGameState, syncGameState
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const requestRef = useRef<number>(0);
@@ -49,11 +49,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             ...initialGameState,
             // Ensure runtime properties that might be missing from JSON save are present
             lastShotTime: 0,
-            timeTicker: (initialGameState as any).timeTicker || 0,
+            timeTicker: initialGameState.timeTicker || 0,
             hospitalPos: (initialGameState as any).hospitalPos || { x: 0, y: 0 },
             isWeaponWheelOpen: false,
             lastDamageTaken: (initialGameState as any).lastDamageTaken || 0,
-            lastWantedTime: (initialGameState as any).lastWantedTime || 0
+            lastWantedTime: (initialGameState as any).lastWantedTime || 0,
+            activeShop: (initialGameState as any).activeShop || 'none'
         }
         : {
             player: {
@@ -79,7 +80,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             hospitalPos: { x: 0, y: 0 },
             isWeaponWheelOpen: false,
             lastDamageTaken: 0,
-            lastWantedTime: 0
+            lastWantedTime: 0,
+            activeShop: 'none'
         }
     );
 
@@ -88,6 +90,26 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         gameStateRef.current.player.weapon = activeWeapon;
         gameStateRef.current.isWeaponWheelOpen = isWeaponWheelOpen;
     }, [activeWeapon, isWeaponWheelOpen]);
+
+    // Sync State Logic (Fix for Garage Re-entry Loop)
+    // When GameCanvas resumes (unpaused), we sync the updated state from App (which has exit velocity/cooldowns)
+    useEffect(() => {
+        if (!paused && syncGameState) {
+            const internal = gameStateRef.current;
+            
+            // Sync critical parts modified by UI (like CarShop)
+            internal.money = syncGameState.money;
+            internal.activeShop = 'none'; // Force clear shop state internally
+            
+            // Sync Vehicles (car upgrades, colors, and critically: push velocity & cooldown)
+            // We match by ID to preserve object identity if needed, or just replace array if totally managed externally
+            // Replacing is safer for sync
+            internal.vehicles = syncGameState.vehicles.map(v => ({...v}));
+            
+            // Sync Player Weapon just in case
+            internal.player.weapon = syncGameState.player.weapon;
+        }
+    }, [paused, syncGameState]);
 
     // Initialization
     useEffect(() => {
@@ -189,7 +211,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                         size: (model as any).size || { x: CAR_SIZE.x, y: CAR_SIZE.y }, angle, velocity: { x: 0, y: 0 },
                         color: vehicleColor, driverId: 'npc', model: modelKey, speed: 0, maxSpeed: model.maxSpeed,
                         acceleration: model.acceleration, handling: model.handling, health: model.health,
-                        damage: { tires: [false, false, false, false], windows: [false, false] }, stuckTimer: 0, targetAngle: angle
+                        damage: { tires: [false, false, false, false], windows: [false, false] }, 
+                        deformation: { fl: 0, fr: 0, bl: 0, br: 0 },
+                        stuckTimer: 0, targetAngle: angle
                     });
                     trafficCount--;
                 }
@@ -221,6 +245,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                     handling: model.handling, 
                     health: model.health,
                     damage: { tires: [false, false, false, false], windows: [false, false] },
+                    deformation: { fl: 0, fr: 0, bl: 0, br: 0 },
                     targetAngle: Math.PI / 2
                  });
             });

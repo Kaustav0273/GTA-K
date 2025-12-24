@@ -38,6 +38,12 @@ export interface Vehicle extends Entity {
       tires: [boolean, boolean, boolean, boolean]; // FL, FR, RL, RR
       windows: [boolean, boolean]; // Front, Rear
   };
+  deformation: {
+      fl: number; // Front Left
+      fr: number; // Front Right
+      bl: number; // Back Left
+      br: number; // Back Right
+  };
   stuckTimer?: number; // Frames stuck at 0 speed
   targetAngle: number;
   lastPaintTime?: number; // Debounce for paint shop
@@ -107,8 +113,10 @@ export interface GameState {
   wantedLevel: number;
   mission: Mission | null;
   isPhoneOpen: boolean;
+  activeShop: 'none' | 'main'; // New field for shop UI
   paused: boolean;
   timeOfDay: number; // 0 - 24
+  timeTicker: number;
 }
 
 export interface Mission {

@@ -558,6 +558,7 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
          // Tail
          ctx.fillRect(-length/2, -width/4, length/6, width/2);
     } else {
+         // Simple shadow for car (could deform too but simple rect is fine for shadow)
          ctx.roundRect(-length/2, -width/2, length, width, 6);
     }
     ctx.fill();
@@ -579,7 +580,7 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     const hpPct = v.health / maxHealth;
 
     if (v.model === 'plane' || v.model === 'jet') {
-        // PLANE RENDERING
+        // PLANE RENDERING (Skip deformation for planes to keep it simple/aerodynamic)
         const isJet = v.model === 'jet';
         const fuselageW = width / 3;
         
@@ -641,7 +642,7 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         }
 
     } else {
-        // CAR RENDERING (Existing)
+        // CAR RENDERING WITH DEFORMATION
         const drawWheel = (index: number, cx: number, cy: number) => {
             const isPopped = v.damage.tires[index];
             if (isPopped) {
@@ -652,35 +653,64 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
                 ctx.fillRect(cx, cy, 6, 2);
             }
         };
+        // Wheels (positions roughly estimated)
+        // FL, FR, BL, BR
         drawWheel(0, length/2 - 8, -width/2 - 1);
         drawWheel(1, length/2 - 8, width/2 - 1);
         drawWheel(2, -length/2 + 4, -width/2 - 1);
         drawWheel(3, -length/2 + 4, width/2 - 1);
 
-        // Body
+        // Body Shape with Deformation
         ctx.fillStyle = v.color;
         ctx.beginPath();
-        ctx.roundRect(-length/2, -width/2, length, width, 4);
+
+        // Default deformation if missing (compatibility)
+        const def = v.deformation || { fl: 0, fr: 0, bl: 0, br: 0 };
+        
+        // Corners relative to center (0,0)
+        // FL: Front (+x), Left (-y)
+        const flX = length/2 - def.fl;
+        const flY = -width/2 + (def.fl * 0.3); // Squeeze Y slightly when crushing X
+
+        // FR: Front (+x), Right (+y)
+        const frX = length/2 - def.fr;
+        const frY = width/2 - (def.fr * 0.3);
+
+        // BR: Back (-x), Right (+y)
+        const brX = -length/2 + def.br;
+        const brY = width/2 - (def.br * 0.3);
+
+        // BL: Back (-x), Left (-y)
+        const blX = -length/2 + def.bl;
+        const blY = -width/2 + (def.bl * 0.3);
+
+        ctx.moveTo(flX, flY);
+        ctx.lineTo(frX, frY);
+        ctx.lineTo(brX, brY);
+        ctx.lineTo(blX, blY);
+        ctx.closePath();
         ctx.fill();
 
-        // Body Highlight (Top)
+        // Body Highlight (Top) - Adjusted to deformation slightly
         ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        ctx.fillRect(-length/2 + 2, -width/4, length - 4, width/2);
+        const safeL = (frX - brX) * 0.9; // Approximate length based on deformed right side
+        ctx.fillRect(-safeL/2, -width/4, safeL, width/2);
 
-        // Bumpers
+        // Bumpers (only draw if not heavily damaged)
         if (v.model !== 'supercar') {
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.fillRect(length/2 - 1, -width/2 + 1, 2, width - 2);
-            ctx.fillRect(-length/2 - 1, -width/2 + 1, 2, width - 2);
+            if (def.fr < 3 && def.fl < 3) ctx.fillRect(length/2 - 1 - Math.max(def.fr, def.fl), -width/2 + 1, 2, width - 2);
+            if (def.br < 3 && def.bl < 3) ctx.fillRect(-length/2 - 1 + Math.max(def.br, def.bl), -width/2 + 1, 2, width - 2);
         }
 
         if (v.model === 'pickup') {
             ctx.fillStyle = '#0f172a'; 
-            ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, width - 4);
+            ctx.fillRect(-length/2 + 2 + def.bl, -width/2 + 2, length/3, width - 4);
+            // Rails
             ctx.fillStyle = '#334155';
-            ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, 2);
-            ctx.fillRect(-length/2 + 2, width/2 - 4, length/3, 2);
-            ctx.fillRect(-length/2 + 2, -width/2 + 2, 2, width - 4);
+            ctx.fillRect(-length/2 + 2 + def.bl, -width/2 + 2, length/3, 2);
+            ctx.fillRect(-length/2 + 2 + def.br, width/2 - 4, length/3, 2);
+            ctx.fillRect(-length/2 + 2 + Math.max(def.bl, def.br), -width/2 + 2, 2, width - 4);
         }
 
         // Roof / Windshield Area
@@ -700,6 +730,13 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
             roofL = length - 14;
         }
 
+        // Deform Roof if impact is deep
+        const maxFrontDef = Math.max(def.fl, def.fr);
+        const maxRearDef = Math.max(def.bl, def.br);
+        // Shrink roof if car is crushed
+        if (maxFrontDef > 5) { roofL -= 2; roofOffset -= 2; }
+        if (maxRearDef > 5) { roofL -= 2; roofOffset += 2; }
+
         ctx.fillStyle = '#1f2937'; 
         if (v.model === 'pickup' || v.model === 'truck') {
             ctx.fillRect(roofOffset - roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
@@ -714,7 +751,7 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
             ctx.fillRect(roofOffset + roofL/2 - 3, -roofW/2 + 1, 3, roofW - 2);
         } else if (v.model === 'bus') {
-            ctx.fillRect(length/2 - 6, -width/2 + 2, 4, width - 4);
+            ctx.fillRect(length/2 - 6 - maxFrontDef, -width/2 + 2, 4, width - 4);
         } else {
             ctx.fillRect(roofL/2 - 4, -roofW/2 + 1, 4, roofW - 2);
         }
@@ -766,30 +803,34 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
                 ? roofOffset + roofL/2 - 2 
                 : roofL/2 - 2;
             ctx.beginPath();
-            ctx.moveTo(mirrorX, -width/2);
-            ctx.lineTo(mirrorX + 2, -width/2 - 3);
-            ctx.lineTo(mirrorX - 2, -width/2 - 3);
+            ctx.moveTo(mirrorX, -width/2 + (def.fl > 0 ? def.fl*0.5 : 0));
+            ctx.lineTo(mirrorX + 2, -width/2 - 3 + (def.fl > 0 ? def.fl*0.5 : 0));
+            ctx.lineTo(mirrorX - 2, -width/2 - 3 + (def.fl > 0 ? def.fl*0.5 : 0));
             ctx.fill();
-            ctx.moveTo(mirrorX, width/2);
-            ctx.lineTo(mirrorX + 2, width/2 + 3);
-            ctx.lineTo(mirrorX - 2, width/2 + 3);
+            
+            ctx.beginPath();
+            ctx.moveTo(mirrorX, width/2 - (def.fr > 0 ? def.fr*0.5 : 0));
+            ctx.lineTo(mirrorX + 2, width/2 + 3 - (def.fr > 0 ? def.fr*0.5 : 0));
+            ctx.lineTo(mirrorX - 2, width/2 + 3 - (def.fr > 0 ? def.fr*0.5 : 0));
             ctx.fill();
         }
         
         ctx.fillStyle = '#fef08a'; 
         if (hpPct < 0.2 && v.damage.windows[0]) ctx.fillStyle = '#713f12'; 
         ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
-        ctx.fillRect(length/2 - 1, -width/2 + 2, 1, 5);
-        ctx.fillRect(length/2 - 1, width/2 - 7, 1, 5);
+        // Headlights (move with deformation)
+        ctx.fillRect(length/2 - 1 - def.fl, -width/2 + 2 + (def.fl*0.2), 1, 5);
+        ctx.fillRect(length/2 - 1 - def.fr, width/2 - 7 - (def.fr*0.2), 1, 5);
         ctx.shadowBlur = 0;
 
         ctx.fillStyle = '#ef4444';
-        ctx.fillRect(-length/2, -width/2 + 2, 1, 5);
-        ctx.fillRect(-length/2, width/2 - 7, 1, 5);
+        // Taillights
+        ctx.fillRect(-length/2 + def.bl, -width/2 + 2 + (def.bl*0.2), 1, 5);
+        ctx.fillRect(-length/2 + def.br, width/2 - 7 - (def.br*0.2), 1, 5);
         
         if (v.model === 'supercar') {
             ctx.fillStyle = v.color;
-            ctx.fillRect(-length/2 + 2, -width/2, 4, width);
+            ctx.fillRect(-length/2 + 2 + maxRearDef, -width/2, 4, width);
             ctx.fillStyle = '#171717';
             for(let i=0; i<3; i++) {
                 ctx.fillRect(-length/2 + 8 + i*3, -width/4, 2, width/2);
