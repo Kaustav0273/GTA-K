@@ -150,7 +150,9 @@ export enum TileType {
   HANGAR = 18,
   TARMAC = 19,
   FOOTPATH = 20,
-  MALL = 21
+  MALL = 21,
+  CONSTRUCTION = 22,
+  FOOTBALL_FIELD = 23
 }
 
 export interface GameSettings {

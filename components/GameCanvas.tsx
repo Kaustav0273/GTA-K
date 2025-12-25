@@ -226,12 +226,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             }
             
             // SPAWN PLANES AT AIRPORT (Right side Tarmac area)
-            // Airport is now at X=58. Tarmac parking area around X=62
-            // Shifted Y by 30 to accommodate new North area
+            // Airport shifted to x=94. Tarmac parking area around x=98.
             const planeSpawns = [
-                {x: 62, y: 45, model: 'plane'}, // 15 + 30
-                {x: 62, y: 52, model: 'jet'},   // 22 + 30
-                {x: 62, y: 60, model: 'plane'}, // 30 + 30
+                {x: 98, y: 45, model: 'plane'}, 
+                {x: 98, y: 52, model: 'jet'},   
+                {x: 98, y: 60, model: 'plane'}, 
             ];
             
             planeSpawns.forEach((spawn, idx) => {

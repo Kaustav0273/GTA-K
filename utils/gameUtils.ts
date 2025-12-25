@@ -42,6 +42,13 @@ export const generateMap = (): number[][] => {
   // North East - Uptown / Little Tokyo
   fillRect(42, 4, 34, 26, TileType.SIDEWALK);
   
+  // NEW: Eastern Suburbs (Filling the gap between City and Airport)
+  fillRect(78, 4, 16, 26, TileType.GRASS); 
+  
+  // CONSTRUCTION SITE (Top Portion of New East Area)
+  // Resized to fit between y=4 (Hwy) and y=15 (Arterial), and left of x=90
+  fillRect(78, 6, 11, 8, TileType.CONSTRUCTION);
+
   // Central Park Lake Area
   fillRect(38, 10, 4, 15, TileType.WATER); // Lake separation
 
@@ -69,23 +76,35 @@ export const generateMap = (): number[][] => {
   fillRect(4, 37 + SHIFT_Y, 6, 1, TileType.SHIP_DECK);
   fillRect(3, 44 + SHIFT_Y, 8, 1, TileType.SHIP_DECK);
 
-  // Neon Coast / Industrial (Restored Zone)
+  // Neon Coast / Industrial (Original Zone)
   const neonX = 35;
   const neonW = 23; 
   fillRect(neonX, 2 + SHIFT_Y, neonW, 46, TileType.SIDEWALK);
 
-  // Airport (Right Side)
-  const airportX = 58;
-  const airportWidth = 20;
+  // NEW: "Sunnyvale" Strip (Connecting Industrial to Airport)
+  fillRect(neonX + neonW, 2 + SHIFT_Y, 32, 46, TileType.GRASS);
+
+  // SOCCER FIELD (Horizontal Layout in East Strip)
+  // Coordinates: x=70, y=38. Width 18, Height 10.
+  // Placed between y=35 (Mid Hwy) and y=50 (South Arterial)
+  fillRect(70, 38, 18, 10, TileType.FOOTBALL_FIELD);
+
+  // AIRPORT (Far East)
+  const airportX = 94; // Moved East
+  const airportWidth = 22; // Wider
+  
   // Base: Tarmac
   fillRect(airportX, 2 + SHIFT_Y, airportWidth, 46, TileType.TARMAC);
   
   // Airport Frontage Area (Sidewalks for Terminals)
-  fillRect(airportX, 2 + SHIFT_Y, 3, 46, TileType.SIDEWALK);
+  fillRect(airportX, 2 + SHIFT_Y, 4, 46, TileType.SIDEWALK);
 
-  // Runway
+  // Runway - Positioned East with buffer
   fillRect(airportX + 14, 7 + SHIFT_Y, 3, 37, TileType.RUNWAY);
   
+  // Buffer Zone (Grass between Runway and Edge Road)
+  fillRect(airportX + 17, 2 + SHIFT_Y, 4, 46, TileType.GRASS);
+
   // Taxiways
   fillRect(airportX + 8, 10 + SHIFT_Y, 6, 2, TileType.TARMAC);
   fillRect(airportX + 8, 36 + SHIFT_Y, 6, 2, TileType.TARMAC);
@@ -98,45 +117,48 @@ export const generateMap = (): number[][] => {
       safeSet(x, y, horizontal ? TileType.ROAD_H : TileType.ROAD_V);
   };
 
-  // --- NEW NORTH ROADS ---
-  // North Highway Loop (Top of Map)
-  for(let x=4; x<76; x++) drawRoad(x, 4, true);
+  // --- NEW ROADS ---
+  // North Highway Loop (Top of Map - Extended)
+  for(let x=4; x<116; x++) drawRoad(x, 4, true);
 
   // North Arterials
   for(let x=4; x<38; x++) drawRoad(x, 15, true); // Mid Pine Hills
-  for(let x=42; x<76; x++) drawRoad(x, 15, true); // Mid Uptown
+  for(let x=42; x<116; x++) drawRoad(x, 15, true); // Mid Uptown extended to Airport
   
   for(let y=4; y<35; y++) drawRoad(20, y, false); // Pine Hills Vertical
-  
-  // FIXED: Uptown Vertical now aligned with Airport Road (x=58)
-  for(let y=4; y<=35; y++) drawRoad(58, y, false); 
+  for(let y=4; y<=35; y++) drawRoad(58, y, false); // Central Ave
+  for(let y=4; y<=35; y++) drawRoad(90, y, false); // Airport Approach (New)
   
   // --- CONNECTIONS (North to South) ---
   // Connect Left Loop
   for(let y=4; y<5 + SHIFT_Y; y++) drawRoad(5, y, false);
   
-  // Connect Right Loop (FIXED: Alignment to 75, not 76)
-  for(let y=4; y<5 + SHIFT_Y; y++) drawRoad(75, y, false); 
+  // Connect Right Loop (Extended East)
+  for(let y=4; y<5 + SHIFT_Y; y++) drawRoad(115, y, false); 
   
   // Connect Neon Coast Vertical
   for(let y=4; y<2 + SHIFT_Y; y++) drawRoad(neonX + 11, y, false);
+  
+  // Connect Airport Approach
+  for(let y=4; y<5 + SHIFT_Y; y++) drawRoad(90, y, false);
 
-  // --- ORIGINAL ROADS (Shifted) ---
-  const roadLimitX = airportX + 18; 
+  // --- SOUTHERN ROADS (Shifted) ---
+  const roadLimitX = 116; // Extended East limit
+  
   // Highway Loop
   for(let x=5; x<roadLimitX; x++) drawRoad(x, 5 + SHIFT_Y, true); // Old Top
   for(let x=5; x<roadLimitX; x++) drawRoad(x, 45 + SHIFT_Y, true); // Old Bottom
   for(let y=5 + SHIFT_Y; y<46 + SHIFT_Y; y++) drawRoad(5, y, false); // Left
-  for(let y=5 + SHIFT_Y; y<46 + SHIFT_Y; y++) drawRoad(roadLimitX - 1, y, false); // Right (x=75)
+  for(let y=5 + SHIFT_Y; y<46 + SHIFT_Y; y++) drawRoad(roadLimitX - 1, y, false); // Right (x=115)
 
   // Arterials (Left Side)
   for(let x=5; x<35; x++) drawRoad(x, 20 + SHIFT_Y, true);
   for(let x=5; x<35; x++) drawRoad(x, 35 + SHIFT_Y, true);
   for(let y=5 + SHIFT_Y; y<46 + SHIFT_Y; y++) drawRoad(20, y, false);
 
-  // Arterials (Connecting Neon Coast)
+  // Arterials (Connecting Neon Coast and Sunnyvale)
   for(let x=35; x<airportX; x++) {
-      if (x !== neonX + 11) { 
+      if (x !== neonX + 11 && x !== 90) { 
         drawRoad(x, 20 + SHIFT_Y, true);
         drawRoad(x, 35 + SHIFT_Y, true);
       }
@@ -145,6 +167,11 @@ export const generateMap = (): number[][] => {
   // Neon Coast Vertical Road
   for(let y=2 + SHIFT_Y; y<48 + SHIFT_Y; y++) {
       drawRoad(neonX + 11, y, false);
+  }
+  
+  // Sunnyvale Vertical Road
+  for(let y=2 + SHIFT_Y; y<48 + SHIFT_Y; y++) {
+      drawRoad(90, y, false);
   }
 
   // Airport Frontage Road
@@ -186,7 +213,7 @@ export const generateMap = (): number[][] => {
   const canBuild = (x: number, y: number) => {
       if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
       const t = map[y][x];
-      return t !== TileType.ROAD_H && t !== TileType.ROAD_V && t !== TileType.ROAD_CROSS && t !== TileType.FOOTPATH && t !== TileType.WATER && t !== TileType.RUNWAY && t !== TileType.TARMAC && t !== TileType.SHIP_DECK && t !== TileType.SHOP && t !== TileType.MALL;
+      return t !== TileType.ROAD_H && t !== TileType.ROAD_V && t !== TileType.ROAD_CROSS && t !== TileType.FOOTPATH && t !== TileType.WATER && t !== TileType.RUNWAY && t !== TileType.TARMAC && t !== TileType.SHIP_DECK && t !== TileType.SHOP && t !== TileType.MALL && t !== TileType.CONSTRUCTION && t !== TileType.FOOTBALL_FIELD;
   };
 
   // --- NEW NORTH BUILDINGS ---
@@ -196,37 +223,44 @@ export const generateMap = (): number[][] => {
           if(canBuild(x,y) && Math.random() > 0.4) safeSet(x, y, TileType.BUILDING);
       }
   }
-  // Uptown Skyscrapers
+  // Uptown Skyscrapers (Extended)
   for(let y=6; y<28; y++) {
-      for(let x=44; x<74; x++) {
-          // EXCLUDE MALL AREA (Top Right)
-          if (x >= 60 && y < 16) continue;
+      for(let x=44; x<114; x++) {
+          // EXCLUDE MALL AREA
+          if (x >= 60 && x <= 74 && y < 16) continue;
+          // Airport exclusion
+          if (x > 90) continue;
+          // Construction Exclusion
+          if (x >= 78 && x < 90 && y >= 6 && y < 16) continue;
+          // Soccer Field Exclusion
+          if (x >= 70 && x < 90 && y >= 38 && y < 50) continue;
 
           if(canBuild(x,y) && (x+y)%3 === 0 && Math.random() > 0.2) safeSet(x, y, TileType.SKYSCRAPER);
       }
   }
+  
+  // Eastside Suburbs (North) - Filling around construction
+  for(let y=6; y<28; y+=3) {
+      for(let x=78; x<90; x+=3) {
+          if(canBuild(x,y) && Math.random() > 0.3) safeSet(x, y, TileType.BUILDING);
+      }
+  }
 
-  // MALL GENERATION (Top Right)
-  // Adjusted to fit between x=58 and x=75 roads
-  const mallX = 60; // Shifted left to avoid cutting right road
+  // MALL GENERATION (Top Center-Right)
+  const mallX = 60; 
   const mallY = 5;
-  const mallW = 14; // Reduced width
+  const mallW = 14; 
   
   // Parking
   fillRect(mallX, mallY, mallW, 9, TileType.TARMAC);
-  
-  // Main Building Structure - USING NEW MALL TILE
+  // Main Building Structure
   fillRect(mallX + 1, mallY + 1, mallW - 2, 7, TileType.MALL);
-  
-  // Internal details (Anchors - kept as standard building for now or could be MALL)
-  // Let's keep specific anchor points as generic buildings to break texture, or make them Mall too?
-  // Using generic building gives nice contrast.
+  // Internal details
   safeSet(mallX + 1, mallY + 1, TileType.BUILDING); 
   safeSet(mallX + mallW - 2, mallY + 1, TileType.BUILDING); 
   safeSet(mallX + 1, mallY + 7, TileType.BUILDING); 
   safeSet(mallX + mallW - 2, mallY + 7, TileType.BUILDING); 
-  
-  // Atrium / Open Air Center
+  // Atrium
   fillRect(mallX + 5, mallY + 3, 4, 3, TileType.SIDEWALK);
   // Mall Entrance Path
   fillRect(mallX + 6, mallY + 8, 2, 2, TileType.SIDEWALK);
@@ -289,6 +323,15 @@ export const generateMap = (): number[][] => {
                     else type = TileType.BUILDING;
                     safeSet(x, y, type);
                }
+           }
+      }
+  }
+  
+  // Sunnyvale (New Mid-East Residential)
+  for(let y=2 + SHIFT_Y; y<48 + SHIFT_Y; y+=3) {
+      for(let x=neonX + neonW + 2; x<airportX; x+=3) {
+           if (canBuild(x,y) && Math.random() > 0.3) {
+               safeSet(x, y, TileType.BUILDING);
            }
       }
   }
@@ -364,6 +407,7 @@ export const isSolid = (tile: number): boolean => {
            tile === TileType.CONTAINER ||
            tile === TileType.AIRPORT_TERMINAL ||
            tile === TileType.HANGAR;
+           // CONSTRUCTION and FOOTBALL_FIELD are drivable
 }
 
 export const createNoiseTexture = (color: string, alpha: number = 0.1, density: number = 0.5) => {

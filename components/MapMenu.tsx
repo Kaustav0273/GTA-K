@@ -83,6 +83,8 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
                      case TileType.TARMAC: color = '#3f3f46'; break; // Grey
                      case TileType.AIRPORT_TERMINAL: color = '#0ea5e9'; break; // Blue
                      case TileType.HANGAR: color = '#94a3b8'; break; // Slate
+                     case TileType.CONSTRUCTION: color = '#78350f'; break; // Brown
+                     case TileType.FOOTBALL_FIELD: color = '#15803d'; break; // Green
                      case TileType.ROAD_V:
                      case TileType.ROAD_H:
                      case TileType.ROAD_CROSS:

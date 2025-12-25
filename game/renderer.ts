@@ -1060,6 +1060,289 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                              }
                         });
                     }
+                } else if (tile === TileType.CONSTRUCTION) {
+                    // 1. Base Dirt Texture
+                    ctx.fillStyle = '#78350f'; // Base dirt
+                    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                    
+                    // Add mud patch variation
+                    const seed = x * 997 + y * 79;
+                    if (seed % 3 === 0) {
+                        ctx.fillStyle = '#5c2d08'; // Darker wet mud
+                        ctx.beginPath();
+                        ctx.ellipse(px + TILE_SIZE/2, py + TILE_SIZE/2, 40, 20, (seed % 4) * Math.PI/4, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+
+                    // 2. Construction Site Context (x: 78-88, y: 6-13)
+                    const cX = 78; const cY = 6; const cW = 11; const cH = 8;
+                    const relX = x - cX;
+                    const relY = y - cY;
+
+                    // Only draw detailed props if within the known construction bounds
+                    if (relX >= 0 && relX < cW && relY >= 0 && relY < cH) {
+                        
+                        // FENCE (Perimeter)
+                        const isTop = relY === 0;
+                        const isBottom = relY === cH - 1;
+                        const isLeft = relX === 0;
+                        const isRight = relX === cW - 1;
+                        
+                        // Fence Posts
+                        if (isTop || isBottom || isLeft || isRight) {
+                            ctx.fillStyle = 'rgba(0,0,0,0.3)'; // Shadow
+                            if (isTop) ctx.fillRect(px, py + 2, TILE_SIZE, 4);
+                            
+                            // Chainlink Color
+                            ctx.fillStyle = '#a8a29e'; 
+                            
+                            // Draw fence line
+                            if (isTop) ctx.fillRect(px, py, TILE_SIZE, 2);
+                            if (isBottom) ctx.fillRect(px, py + TILE_SIZE - 4, TILE_SIZE, 2);
+                            if (isLeft) ctx.fillRect(px, py, 2, TILE_SIZE);
+                            if (isRight) ctx.fillRect(px + TILE_SIZE - 2, py, 2, TILE_SIZE);
+                            
+                            // Posts every half tile
+                            ctx.fillStyle = '#57534e';
+                            if (isTop || isBottom) {
+                                ctx.fillRect(px + TILE_SIZE/2, py - 4, 4, 12);
+                            }
+                            if (isLeft || isRight) {
+                                ctx.fillRect(px - 2, py + TILE_SIZE/2, 8, 4);
+                            }
+                        }
+
+                        // INTERIOR ELEMENTS
+                        // Foundation Pit (Middle area)
+                        if (relX > 2 && relX < cW - 2 && relY > 2 && relY < cH - 2) {
+                            // Dug out earth
+                            ctx.fillStyle = '#451a03';
+                            ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                            
+                            // Concrete Footing
+                            if ((relX + relY) % 2 === 0) {
+                                // Concrete Slab
+                                ctx.fillStyle = '#d6d3d1';
+                                ctx.fillRect(px + 10, py + 10, TILE_SIZE - 20, TILE_SIZE - 20);
+                                // Rebar sticking out
+                                ctx.strokeStyle = '#44403c';
+                                ctx.lineWidth = 2;
+                                ctx.beginPath();
+                                ctx.moveTo(px + TILE_SIZE/2, py + 10);
+                                ctx.lineTo(px + TILE_SIZE/2, py + TILE_SIZE - 10);
+                                ctx.moveTo(px + 10, py + TILE_SIZE/2);
+                                ctx.lineTo(px + TILE_SIZE - 10, py + TILE_SIZE/2);
+                                ctx.stroke();
+                            }
+                        } 
+                        // Storage & Equipment (Perimeter interior)
+                        else if (!isTop && !isBottom && !isLeft && !isRight) {
+                            if (seed % 5 === 0) {
+                                // Lumber
+                                ctx.fillStyle = '#b45309';
+                                ctx.fillRect(px + 20, py + 30, 60, 20);
+                                ctx.fillStyle = '#d97706'; // Light wood top
+                                ctx.fillRect(px + 20, py + 30, 55, 15);
+                            } else if (seed % 7 === 0) {
+                                // Blue Pipe
+                                ctx.fillStyle = '#0ea5e9';
+                                ctx.fillRect(px + 30, py + 10, 20, 80);
+                                ctx.fillStyle = '#0284c7'; // Shading
+                                ctx.fillRect(px + 45, py + 10, 5, 80);
+                            } else if (seed % 11 === 0) {
+                                // Port-a-potty
+                                ctx.fillStyle = '#1e3a8a';
+                                ctx.fillRect(px + 40, py + 40, 25, 25);
+                                ctx.fillStyle = '#fff';
+                                ctx.fillRect(px + 45, py + 45, 15, 15);
+                            } else if (seed % 3 === 0) {
+                                // Tire Tracks
+                                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                                ctx.lineWidth = 12;
+                                ctx.beginPath();
+                                ctx.moveTo(px, py + 20);
+                                ctx.quadraticCurveTo(px + 60, py + 60, px + TILE_SIZE, py + 40);
+                                ctx.stroke();
+                            }
+                        }
+
+                        // CRANE BASE (Top Left corner of site)
+                        if (relX === 1 && relY === 1) {
+                            ctx.fillStyle = '#facc15'; // Yellow
+                            ctx.fillRect(px + 20, py + 20, TILE_SIZE - 40, TILE_SIZE - 40);
+                            // X brace
+                            ctx.strokeStyle = '#a16207';
+                            ctx.lineWidth = 4;
+                            ctx.beginPath();
+                            ctx.moveTo(px+20, py+20); ctx.lineTo(px+TILE_SIZE-20, py+TILE_SIZE-20);
+                            ctx.moveTo(px+TILE_SIZE-20, py+20); ctx.lineTo(px+20, py+TILE_SIZE-20);
+                            ctx.stroke();
+                            
+                            // Cast giant shadow for the arm (Visual flair only)
+                            renderList.push({
+                                y: py, // Low priority
+                                draw: () => {
+                                    ctx.save();
+                                    ctx.translate(px + TILE_SIZE/2, py + TILE_SIZE/2);
+                                    ctx.rotate(Date.now() / 5000); // Slow rotation
+                                    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                                    ctx.fillRect(0, -10, 400, 20); // Long arm shadow
+                                    ctx.restore();
+                                }
+                            });
+                        }
+                    }
+                } else if (tile === TileType.FOOTBALL_FIELD) {
+                    // FIELD DIMENSIONS (Horizontal: 18x10)
+                    const fieldX = 70;
+                    const fieldY = 38; // Adjusted to Y=38 to avoid overlapping road at Y=35
+                    const fieldW = 18;
+                    const fieldH = 10;
+                    
+                    // Relative coordinates in tiles
+                    const relX = x - fieldX;
+                    const relY = y - fieldY;
+                    
+                    // Check bounds just in case
+                    if (relX >= 0 && relX < fieldW && relY >= 0 && relY < fieldH) {
+                        
+                        // Base Grass Pattern (Vertical Mowing Stripes for Horizontal Field)
+                        // Alternating every 2 columns creates visual interest
+                        const stripe = Math.floor(relX / 2) % 2 === 0;
+                        ctx.fillStyle = stripe ? '#15803d' : '#16a34a'; // Green-700 vs Green-600
+                        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                        
+                        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                        const LINE_W = 6; // Thicker lines for visibility
+
+                        // --- BORDERS ---
+                        // Top Touchline
+                        if (relY === 0) ctx.fillRect(px, py + TILE_SIZE - LINE_W, TILE_SIZE, LINE_W);
+                        // Bottom Touchline
+                        if (relY === fieldH - 1) ctx.fillRect(px, py, TILE_SIZE, LINE_W);
+                        // Left Goal Line
+                        if (relX === 0 && relY > 0 && relY < fieldH - 1) ctx.fillRect(px + TILE_SIZE - LINE_W, py, LINE_W, TILE_SIZE);
+                        // Right Goal Line
+                        if (relX === fieldW - 1 && relY > 0 && relY < fieldH - 1) ctx.fillRect(px, py, LINE_W, TILE_SIZE);
+
+                        // --- CORNER ARCS ---
+                        // Top Left
+                        if (relX === 0 && relY === 0) {
+                             ctx.beginPath(); ctx.arc(px + TILE_SIZE - LINE_W/2, py + TILE_SIZE - LINE_W/2, 25, 0.5 * Math.PI, Math.PI); 
+                             ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = LINE_W; ctx.stroke();
+                             // Flag
+                             renderList.push({ y: py + TILE_SIZE, draw: () => { ctx.fillStyle = '#facc15'; ctx.fillRect(px + TILE_SIZE - 4, py + TILE_SIZE - 20, 2, 20); ctx.fillRect(px+TILE_SIZE-2, py+TILE_SIZE-20, 10, 6); }});
+                        }
+                        // Top Right
+                        if (relX === fieldW - 1 && relY === 0) {
+                             ctx.beginPath(); ctx.arc(px + LINE_W/2, py + TILE_SIZE - LINE_W/2, 25, 0, 0.5 * Math.PI); 
+                             ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = LINE_W; ctx.stroke();
+                             renderList.push({ y: py + TILE_SIZE, draw: () => { ctx.fillStyle = '#facc15'; ctx.fillRect(px+2, py + TILE_SIZE - 20, 2, 20); ctx.fillRect(px+4, py+TILE_SIZE-20, 10, 6); }});
+                        }
+                        // Bottom Left
+                        if (relX === 0 && relY === fieldH - 1) {
+                             ctx.beginPath(); ctx.arc(px + TILE_SIZE - LINE_W/2, py + LINE_W/2, 25, Math.PI, 1.5 * Math.PI); 
+                             ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = LINE_W; ctx.stroke();
+                             renderList.push({ y: py, draw: () => { ctx.fillStyle = '#facc15'; ctx.fillRect(px + TILE_SIZE - 4, py, 2, 20); ctx.fillRect(px+TILE_SIZE-2, py, 10, 6); }});
+                        }
+                        // Bottom Right
+                        if (relX === fieldW - 1 && relY === fieldH - 1) {
+                             ctx.beginPath(); ctx.arc(px + LINE_W/2, py + LINE_W/2, 25, 1.5 * Math.PI, 2 * Math.PI); 
+                             ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = LINE_W; ctx.stroke();
+                             renderList.push({ y: py, draw: () => { ctx.fillStyle = '#facc15'; ctx.fillRect(px+2, py, 2, 20); ctx.fillRect(px+4, py, 10, 6); }});
+                        }
+
+                        // --- CENTER ---
+                        const midX = Math.floor(fieldW / 2);
+                        // Center Line (Vertical)
+                        if (relX === midX) {
+                            if (relY > 0 && relY < fieldH - 1) ctx.fillRect(px, py, LINE_W, TILE_SIZE);
+                        }
+                        
+                        // Center Circle
+                        // Spans roughly 3x3 tiles centered at midX
+                        if (relX === midX && (relY === 4 || relY === 5)) {
+                             // Only draw from one anchor point (top-left of center cluster)
+                             // Center coordinate in pixels
+                             const cx = (fieldX + fieldW/2) * TILE_SIZE;
+                             const cy = (fieldY + fieldH/2) * TILE_SIZE;
+                             
+                             if (relY === 4) {
+                                 ctx.save();
+                                 // Circle
+                                 ctx.beginPath();
+                                 ctx.arc(cx, cy, TILE_SIZE * 1.2, 0, Math.PI * 2);
+                                 ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+                                 ctx.lineWidth = LINE_W;
+                                 ctx.stroke();
+                                 // Center Spot
+                                 ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                                 ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI*2); ctx.fill();
+                                 ctx.restore();
+                             }
+                        }
+
+                        // --- PENALTY AREAS ---
+                        const boxW = 3; // 3 tiles wide
+                        const boxH = 6; // 6 tiles high (centered vertically)
+                        const boxYStart = 2; // Starts at y index 2 (leaves 2 above, 2 below in a 10-high field)
+                        const boxYEnd = 7;
+
+                        // Left Goal Box
+                        // Vertical line at relX = 3
+                        if (relX === 3 && relY >= boxYStart && relY <= boxYEnd) {
+                            ctx.fillRect(px, py, LINE_W, TILE_SIZE);
+                        }
+                        // Horizontal lines
+                        if (relX < 3) {
+                            if (relY === boxYStart) ctx.fillRect(px + TILE_SIZE, py, TILE_SIZE, LINE_W); // Top edge of box
+                            if (relY === boxYEnd) ctx.fillRect(px + TILE_SIZE, py + TILE_SIZE - LINE_W, TILE_SIZE, LINE_W); // Bottom edge
+                        }
+                        // Left Penalty Spot
+                        if (relX === 2 && relY === 4) {
+                             ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                             ctx.beginPath(); ctx.arc(px + TILE_SIZE/2, py + TILE_SIZE, 6, 0, Math.PI*2); ctx.fill();
+                        }
+                        // Left Goal Post (Visual)
+                        if (relX === 0 && (relY === 4 || relY === 5)) {
+                             // Netting texture?
+                             ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                             ctx.fillRect(px, py, 20, TILE_SIZE);
+                             // Post
+                             renderList.push({ y: py + TILE_SIZE, draw: () => {
+                                 ctx.fillStyle = '#fff'; 
+                                 if (relY === 4) ctx.fillRect(px + TILE_SIZE - 10, py, 10, 10); // Top post
+                                 if (relY === 5) ctx.fillRect(px + TILE_SIZE - 10, py + TILE_SIZE - 10, 10, 10); // Bottom post
+                             }});
+                        }
+
+                        // Right Goal Box
+                        const rightBoxX = fieldW - 3; // 15
+                        // Vertical line
+                        if (relX === rightBoxX - 1 && relY >= boxYStart && relY <= boxYEnd) {
+                             ctx.fillRect(px + TILE_SIZE - LINE_W, py, LINE_W, TILE_SIZE);
+                        }
+                        // Horizontal lines
+                        if (relX >= rightBoxX) {
+                            if (relY === boxYStart) ctx.fillRect(px, py, TILE_SIZE, LINE_W);
+                            if (relY === boxYEnd) ctx.fillRect(px, py + TILE_SIZE - LINE_W, TILE_SIZE, LINE_W);
+                        }
+                        // Right Penalty Spot
+                        if (relX === fieldW - 3 && relY === 4) {
+                             ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                             ctx.beginPath(); ctx.arc(px + TILE_SIZE/2, py + TILE_SIZE, 6, 0, Math.PI*2); ctx.fill();
+                        }
+                        // Right Goal Post
+                        if (relX === fieldW - 1 && (relY === 4 || relY === 5)) {
+                             ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                             ctx.fillRect(px + TILE_SIZE - 20, py, 20, TILE_SIZE);
+                             renderList.push({ y: py + TILE_SIZE, draw: () => {
+                                 ctx.fillStyle = '#fff'; 
+                                 if (relY === 4) ctx.fillRect(px, py, 10, 10);
+                                 if (relY === 5) ctx.fillRect(px, py + TILE_SIZE - 10, 10, 10);
+                             }});
+                        }
+                    }
                 } else if (tile === TileType.SIDEWALK || tile === TileType.FOOTPATH) {
                     ctx.fillStyle = textures['sidewalk'] || COLORS.sidewalk;
                     ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
