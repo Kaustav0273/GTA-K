@@ -1,7 +1,7 @@
 
 export const TILE_SIZE = 128;
-export const MAP_WIDTH = 120; // Increased from 80 to 120 for Eastern expansion
-export const MAP_HEIGHT = 80; 
+export const MAP_WIDTH = 160; // Increased from 120
+export const MAP_HEIGHT = 160; // Increased from 120
 
 export const MAX_TRAFFIC = 75; 
 

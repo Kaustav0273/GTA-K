@@ -126,7 +126,7 @@ const Joystick = ({ isDriving }: { isDriving: boolean }) => {
 
 const MobileControls: React.FC<MobileControlsProps> = ({ isDriving, controlStyle }) => {
     return (
-        <div className="absolute inset-0 pointer-events-none z-40 md:hidden select-none">
+        <div className="absolute inset-0 pointer-events-none z-40 select-none">
             {/* Left Controls - Movement / Steering */}
             <div className="absolute bottom-6 left-6 w-48 h-48 pointer-events-auto flex items-end justify-start">
                  {controlStyle === 'JOYSTICK' ? (

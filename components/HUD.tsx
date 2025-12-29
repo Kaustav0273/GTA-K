@@ -9,9 +9,10 @@ interface HUDProps {
   onPhoneClick: () => void;
   onRadarClick?: () => void;
   onWeaponClick?: () => void;
+  showTouchControls: boolean;
 }
 
-const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeaponClick }) => {
+const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeaponClick, showTouchControls }) => {
   const { player, wantedLevel, money, mission, vehicles } = gameState;
 
   // Calculate Health Colors
@@ -43,6 +44,19 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
       }
   }
 
+  // Positioning Logic based on Touch Controls
+  const radarPositionClass = showTouchControls 
+      ? 'top-4 left-4' 
+      : 'top-4 left-4 md:top-auto md:bottom-4 md:left-4';
+
+  const buttonsPositionClass = showTouchControls
+      ? 'bottom-64 right-4'
+      : 'bottom-64 right-4 md:bottom-4 md:right-4';
+
+  const missionInfoPositionClass = showTouchControls
+      ? 'top-4 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-40' // Shift right to avoid top-left radar on mobile layout if needed, or center
+      : 'top-4 left-1/2 -translate-x-1/2 md:top-4 md:left-4 md:translate-x-0';
+
   return (
     <div className="absolute inset-0 pointer-events-none font-gta text-white select-none overflow-hidden">
       
@@ -64,11 +78,8 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
       </div>
 
       {/* 2. RADAR & BARS */}
-      {/* Mobile: Top Left (Scaled down). Desktop: Bottom Left (Full size). */}
       <div 
-        className="absolute pointer-events-auto cursor-pointer transition-all duration-300
-                   top-4 left-4 
-                   md:top-auto md:bottom-4 md:left-4"
+        className={`absolute pointer-events-auto cursor-pointer transition-all duration-300 ${radarPositionClass}`}
         onClick={onRadarClick}
       >
              {/* Bars */}
@@ -109,12 +120,7 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
       </div>
 
       {/* 3. MISSION INFO */}
-      {/* Mobile: Top Center. Desktop: Top Left. */}
-      <div className="absolute transition-all duration-300
-                      top-4 left-1/2 -translate-x-1/2 w-64 items-center
-                      md:top-4 md:left-4 md:translate-x-0 md:w-auto md:max-w-md md:items-start
-                      flex flex-col gap-2 z-0"
-      >
+      <div className={`absolute transition-all duration-300 w-64 items-center md:w-auto md:max-w-md md:items-start flex flex-col gap-2 z-0 ${missionInfoPositionClass}`}>
             {mission && mission.active && (
                 <div className="bg-black/50 p-2 md:p-3 border-l-4 border-yellow-400 backdrop-blur-sm shadow-lg pointer-events-auto">
                     <h3 className="text-yellow-400 text-sm md:text-lg leading-tight drop-shadow-sm">{mission.title}</h3>
@@ -123,23 +129,21 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
             )}
       </div>
 
-      {/* 4. CONTROLS HINT (Desktop Only) */}
-      <div className="hidden md:block absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-xs font-sans text-center">
-            <div className="flex gap-4 bg-black/40 px-4 py-1 rounded-full backdrop-blur-sm border border-white/5">
-                <span><b className="text-white">WASD</b> Move</span>
-                <span><b className="text-white">SHIFT</b> Sprint</span>
-                <span><b className="text-white">F</b> Car</span>
-                <span><b className="text-white">TAB</b> Weapon</span>
-                <span><b className="text-white">SPACE</b> Action</span>
-            </div>
-      </div>
+      {/* 4. CONTROLS HINT (Desktop Only - Hide if touch controls on) */}
+      {!showTouchControls && (
+          <div className="hidden md:block absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-xs font-sans text-center">
+                <div className="flex gap-4 bg-black/40 px-4 py-1 rounded-full backdrop-blur-sm border border-white/5">
+                    <span><b className="text-white">WASD</b> Move</span>
+                    <span><b className="text-white">SHIFT</b> Sprint</span>
+                    <span><b className="text-white">F</b> Car</span>
+                    <span><b className="text-white">TAB</b> Weapon</span>
+                    <span><b className="text-white">SPACE</b> Action</span>
+                </div>
+          </div>
+      )}
 
       {/* 5. PHONE & WEAPON TOGGLES */}
-      {/* Mobile: Absolute position above controls. Desktop: Bottom Right. */}
-      <div className="absolute pointer-events-auto flex gap-4 items-end z-50 transition-all duration-300
-                      bottom-64 right-4
-                      md:bottom-4 md:right-4"
-      >
+      <div className={`absolute pointer-events-auto flex gap-4 items-end z-50 transition-all duration-300 ${buttonsPositionClass}`}>
             {/* Weapon Icon */}
             <div className="flex flex-col items-center group">
                  <div 
@@ -159,7 +163,8 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
                         {player.weapon === 'fist' ? 'INF' : '999'}
                     </div>
                  </div>
-                 <span className="md:hidden text-[10px] text-white/50 bg-black/50 px-1 rounded backdrop-blur-sm">WEAPON</span>
+                 {/* Only show label if no touch controls or if screen is small */}
+                 <span className={`text-[10px] text-white/50 bg-black/50 px-1 rounded backdrop-blur-sm ${showTouchControls ? 'md:hidden' : 'md:hidden'}`}>WEAPON</span>
             </div>
             
             {/* Phone Button */}

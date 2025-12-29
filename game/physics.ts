@@ -29,6 +29,8 @@ export interface MutableGameState {
     activeShop: 'none' | 'main';
     lastDamageTaken: number; // Timestamp for health regen
     lastWantedTime: number; // Timestamp for wanted level decay
+    isWasted: boolean;
+    wastedStartTime: number;
 }
 
 // Get Corners of the vehicle OBB
@@ -345,7 +347,7 @@ const spawnTraffic = (state: MutableGameState, maxTraffic: number) => {
 
         const tile = getTileAt(state.map, spawnX, spawnY);
         
-        if (tile === TileType.ROAD_H || tile === TileType.ROAD_V) {
+        if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.RAIL_CROSSING) {
              const modelKeys = Object.keys(CAR_MODELS) as Array<keyof typeof CAR_MODELS>;
              const regularModels = modelKeys.filter(k => k !== 'plane' && k !== 'jet');
              const modelKey = regularModels[Math.floor(Math.random() * regularModels.length)];
@@ -366,7 +368,7 @@ const spawnTraffic = (state: MutableGameState, maxTraffic: number) => {
                 const dir = Math.random() > 0.5;
                 angle = dir ? 0 : Math.PI;
                 py = Math.floor(spawnY / TILE_SIZE) * TILE_SIZE + (dir ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
-            } else if (tile === TileType.ROAD_V) {
+            } else if (tile === TileType.ROAD_V || tile === TileType.RAIL_CROSSING) {
                 const dir = Math.random() > 0.5; 
                 angle = dir ? Math.PI/2 : 3*Math.PI/2;
                 px = Math.floor(spawnX / TILE_SIZE) * TILE_SIZE + (dir ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
@@ -404,7 +406,7 @@ const spawnTraffic = (state: MutableGameState, maxTraffic: number) => {
     }
 }
 
-const isDrivable = (tile: number) => tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS;
+const isDrivable = (tile: number) => tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS || tile === TileType.RAIL_CROSSING;
 
 export const playerInteract = (state: MutableGameState) => {
     const player = state.player;
@@ -508,21 +510,39 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         }
     }
 
-    if (state.player.health <= 0) {
-        state.player.health = 100;
-        state.player.stamina = state.player.maxStamina; 
-        state.player.state = 'idle';
-        state.player.pos = { ...state.hospitalPos };
-        state.player.vehicleId = null;
-        state.wantedLevel = 0;
-        state.lastDamageTaken = state.timeTicker; 
-        state.money = Math.max(0, state.money - 500);
-        state.pedestrians.forEach(p => {
-            if(p.role === 'police') {
-                p.state = 'walking';
-                p.actionTimer = 100;
-            }
-        });
+    // DEATH / WASTED LOGIC
+    if (state.player.health <= 0 && !state.isWasted) {
+        // Start Wasted Sequence
+        state.isWasted = true;
+        state.wastedStartTime = state.timeTicker;
+        state.player.state = 'dead'; // Trigger dead animation if any
+        return;
+    }
+
+    if (state.isWasted) {
+        // Wait ~3 seconds (180 ticks at 60fps)
+        if (state.timeTicker - state.wastedStartTime > 180) {
+             // RESPAWN
+             state.isWasted = false;
+             state.player.health = 100;
+             state.player.stamina = state.player.maxStamina; 
+             state.player.state = 'idle';
+             state.player.pos = { ...state.hospitalPos };
+             state.player.vehicleId = null;
+             state.wantedLevel = 0;
+             state.lastDamageTaken = state.timeTicker; 
+             state.money = Math.max(0, state.money - 500);
+             
+             // Reset Police Aggro
+             state.pedestrians.forEach(p => {
+                if(p.role === 'police') {
+                    p.state = 'walking';
+                    p.actionTimer = 100;
+                }
+             });
+        }
+        // Block all other physics/input for player while wasted, but let physics engine run for world
+        // Just return here to skip player input processing
         return;
     }
 
@@ -886,7 +906,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 const laneY = tileY * TILE_SIZE + (isEast ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
                 car.pos.y += (laneY - car.pos.y) * 0.2; 
                 car.pos.x += Math.cos(car.angle) * car.speed;
-            } else if (tile === TileType.ROAD_V) {
+            } else if (tile === TileType.ROAD_V || tile === TileType.RAIL_CROSSING) {
                 let normAngle = car.angle % (Math.PI * 2);
                 if (normAngle < 0) normAngle += Math.PI * 2;
                 const isSouth = normAngle > 0 && normAngle < Math.PI;
@@ -896,6 +916,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 car.pos.x += (laneX - car.pos.x) * 0.2; 
                 car.pos.y += Math.sin(car.angle) * car.speed;
             } else if (tile === TileType.ROAD_CROSS) {
+                // ... (Road Crossing Logic) ...
                 const centerX = tileX * TILE_SIZE + TILE_SIZE/2;
                 const centerY = tileY * TILE_SIZE + TILE_SIZE/2;
                 const toCenterX = centerX - car.pos.x;
@@ -937,6 +958,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
             createExplosion(state, car.pos, 80);
             if (state.player.vehicleId === car.id) {
                 state.player.health = 0;
+                // Since updatePhysics loops, the next tick (or bottom of this one) will catch the death state logic
             }
             state.vehicles.splice(i, 1);
             continue;

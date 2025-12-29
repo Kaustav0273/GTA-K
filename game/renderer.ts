@@ -18,7 +18,7 @@ const getBuildingHeight = (tileType: TileType, px: number, py: number): number =
     } else if (tileType === TileType.SHOP) {
         return 40 + (seed % 15);
     } else if (tileType === TileType.MALL) {
-        return 65; // High but flat
+        return 65; 
     } else if (tileType === TileType.BUILDING) {
         return 45 + (seed % 20);
     } else if (tileType === TileType.HOSPITAL) {
@@ -33,6 +33,8 @@ const getBuildingHeight = (tileType: TileType, px: number, py: number): number =
         return 60;
     } else if (tileType === TileType.HANGAR) {
         return 50;
+    } else if (tileType === TileType.TRAIN_STATION) {
+        return 90; // High roof
     }
     return 50;
 };
@@ -222,8 +224,8 @@ const drawBuildingShadow = (ctx: CanvasRenderingContext2D, x: number, y: number,
     ctx.restore();
 };
 
-export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number, tileType: TileType, textures: any, opacity: number = 1) => {
-    const w = TILE_SIZE;
+export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number, tileType: TileType, textures: any, opacity: number = 1, widthOverride?: number) => {
+    const w = widthOverride || TILE_SIZE;
     const height = getBuildingHeight(tileType, x, y);
 
     // Draw Projected Shadow First
@@ -278,27 +280,31 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     } else if (tileType === TileType.HANGAR) {
         baseColor = '#64748b';
         roofColor = '#94a3b8'; // Metallic
+    } else if (tileType === TileType.TRAIN_STATION) {
+        baseColor = '#57534e'; // Stone-600
+        roofColor = '#44403c'; // Stone-700
+        windowColor = '#7dd3fc'; // Sky Blue Light
     }
 
     // -- Ground Occlusion Patch --
     ctx.fillStyle = '#000';
-    ctx.fillRect(x, y, w, w);
+    ctx.fillRect(x, y, w, TILE_SIZE); // Keep TILE_SIZE for Y occlusion if single row, but typically square base
 
     // -- South Wall (Front Face) --
     if (tileType !== TileType.PAINT_SHOP) {
-        const wallGrad = ctx.createLinearGradient(x, y + w - height, x, y + w);
+        const wallGrad = ctx.createLinearGradient(x, y + TILE_SIZE - height, x, y + TILE_SIZE);
         wallGrad.addColorStop(0, roofColor); 
         wallGrad.addColorStop(1, '#000'); 
         ctx.fillStyle = wallGrad;
-        ctx.fillRect(x, y + w - height, w, height);
+        ctx.fillRect(x, y + TILE_SIZE - height, w, height);
     } else {
         // Garage Pillars
         ctx.fillStyle = baseColor;
-        ctx.fillRect(x, y + w - height, 10, height);
-        ctx.fillRect(x + w - 10, y + w - height, 10, height);
+        ctx.fillRect(x, y + TILE_SIZE - height, 10, height);
+        ctx.fillRect(x + w - 10, y + TILE_SIZE - height, 10, height);
         // Dark interior
         ctx.fillStyle = '#121212';
-        ctx.fillRect(x + 10, y + w - height, w - 20, height);
+        ctx.fillRect(x + 10, y + TILE_SIZE - height, w - 20, height);
     }
 
     // -- Windows / Details --
@@ -307,29 +313,48 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         ctx.fillStyle = windowColor;
         const paneW = 16;
         for (let i = 4; i < w - 4; i += paneW + 4) {
-            ctx.fillRect(x + i, y + w - height + 4, paneW, height - 8);
+            ctx.fillRect(x + i, y + TILE_SIZE - height + 4, paneW, height - 8);
         }
     } else if (tileType === TileType.HANGAR) {
         // Hangar Door lines
         ctx.fillStyle = '#475569';
         for(let i=0; i<w; i+=8) {
-             ctx.fillRect(x + i, y + w - height, 2, height);
+             ctx.fillRect(x + i, y + TILE_SIZE - height, 2, height);
         }
     } else if (tileType === TileType.MALL) {
         // Mall Entrance / Glass Facade
         ctx.fillStyle = windowColor;
         // Large glass section
-        ctx.fillRect(x + 10, y + w - height + 10, w - 20, height - 20);
-    } else if (tileType !== TileType.PAINT_SHOP && tileType !== TileType.CONTAINER && tileType !== TileType.SKYSCRAPER) {
+        ctx.fillRect(x + 10, y + TILE_SIZE - height + 10, w - 20, height - 20);
+    } else if (tileType === TileType.CONTAINER) {
+        // Corrugated effect
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        for(let i=0; i<w; i+=8) {
+            ctx.fillRect(x + i, y + TILE_SIZE - height, 2, height);
+        }
+        // Door outline on right end
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(x + w - 4, y + TILE_SIZE - height + 2, 2, height - 4);
+    } else if (tileType === TileType.TRAIN_STATION) {
+        // Grand Arches
+        ctx.fillStyle = windowColor;
+        // Three large arches
+        const archW = w / 3;
+        for(let i=0; i<3; i++) {
+            ctx.beginPath();
+            ctx.ellipse(x + archW*i + archW/2, y + TILE_SIZE - height/2, archW/3, height/3, 0, Math.PI, 0);
+            ctx.fill();
+        }
+    } else if (tileType !== TileType.PAINT_SHOP && tileType !== TileType.SKYSCRAPER) {
         const stories = Math.floor(height / 15);
         const cols = Math.floor(w / 12);
         ctx.fillStyle = windowColor;
         for (let s=0; s < stories; s++) {
             for (let c=0; c < cols; c++) {
                 if ((x + y + s + c) % 7 !== 0) { 
-                    const wy = y + w - height + 5 + s * 14; 
+                    const wy = y + TILE_SIZE - height + 5 + s * 14; 
                     const wx = x + 4 + c * 10;
-                    if (wx + 6 < x + w && wy + 8 < y + w) ctx.fillRect(wx, wy, 6, 8);
+                    if (wx + 6 < x + w && wy + 8 < y + TILE_SIZE) ctx.fillRect(wx, wy, 6, 8);
                 }
             }
         }
@@ -337,7 +362,7 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
          ctx.fillStyle = 'rgba(255,255,255,0.1)';
          const cols = Math.floor(w / 12);
          for(let c=0; c<cols; c++) {
-            ctx.fillRect(x + 4 + c * 10, y + w - height, 6, height - 2);
+            ctx.fillRect(x + 4 + c * 10, y + TILE_SIZE - height, 6, height - 2);
          }
     }
 
@@ -346,38 +371,64 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     ctx.fillStyle = roofColor;
     if (tileType === TileType.BUILDING && textures['roof']) ctx.fillStyle = textures['roof'];
     
-    if (tileType === TileType.HANGAR) {
+    if (tileType === TileType.HANGAR || tileType === TileType.TRAIN_STATION) {
         // Rounded Roof Effect via gradient
         const grd = ctx.createLinearGradient(x, roofY, x + w, roofY);
-        grd.addColorStop(0, '#475569');
-        grd.addColorStop(0.5, '#cbd5e1');
-        grd.addColorStop(1, '#475569');
+        if (tileType === TileType.TRAIN_STATION) {
+            grd.addColorStop(0, '#44403c');
+            grd.addColorStop(0.5, '#78716c'); // Glassy/Metallic center
+            grd.addColorStop(1, '#44403c');
+        } else {
+            grd.addColorStop(0, '#475569');
+            grd.addColorStop(0.5, '#cbd5e1');
+            grd.addColorStop(1, '#475569');
+        }
         ctx.fillStyle = grd;
     }
     
-    ctx.fillRect(x, roofY, w, w);
+    ctx.fillRect(x, roofY, w, TILE_SIZE);
     
     // Roof Border
     ctx.strokeStyle = '#171717';
     ctx.lineWidth = 2;
-    ctx.strokeRect(x, roofY, w, w);
+    ctx.strokeRect(x, roofY, w, TILE_SIZE);
 
     // -- Roof Details --
-    const roofCY = roofY + w/2;
+    const roofCY = roofY + TILE_SIZE/2;
     
     if (tileType === TileType.AIRPORT_TERMINAL) {
         ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(x, roofY); ctx.lineTo(x+w, roofY+w); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x+w, roofY); ctx.lineTo(x, roofY+w); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, roofY); ctx.lineTo(x+w, roofY+TILE_SIZE); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+w, roofY); ctx.lineTo(x, roofY+TILE_SIZE); ctx.stroke();
         
         ctx.fillStyle = '#0ea5e9';
-        ctx.fillRect(x + w/2 - 10, roofY + w/2 - 5, 20, 10);
+        ctx.fillRect(x + w/2 - 10, roofY + TILE_SIZE/2 - 5, 20, 10);
     } else if (tileType === TileType.HANGAR) {
         // Ribs
         ctx.fillStyle = 'rgba(0,0,0,0.1)';
         for(let i=10; i<w; i+=20) {
-            ctx.fillRect(x + i, roofY, 4, w);
+            ctx.fillRect(x + i, roofY, 4, TILE_SIZE);
         }
+    } else if (tileType === TileType.TRAIN_STATION) {
+        // Glass Skylights strips
+        ctx.fillStyle = '#bae6fd';
+        for(let i=10; i<w; i+=20) {
+            ctx.fillRect(x + i, roofY, 10, TILE_SIZE);
+        }
+        // Clock Tower at front center
+        ctx.fillStyle = '#57534e';
+        const towerH = 30;
+        ctx.fillRect(x + w/2 - 10, roofY + TILE_SIZE - 10, 20, 10); // Base on roof
+        // Draw separate tall rect? Just fake it on top
+        ctx.fillRect(x + w/2 - 8, roofY + TILE_SIZE - 10 - towerH, 16, towerH);
+        
+        // Clock Face
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x+w/2, roofY + TILE_SIZE - 10 - towerH + 8, 6, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x+w/2, roofY + TILE_SIZE - 10 - towerH + 8); ctx.lineTo(x+w/2, roofY + TILE_SIZE - 10 - towerH + 4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+w/2, roofY + TILE_SIZE - 10 - towerH + 8); ctx.lineTo(x+w/2 + 3, roofY + TILE_SIZE - 10 - towerH + 8); ctx.stroke();
+
     } else if (tileType === TileType.HOSPITAL) {
         ctx.fillStyle = '#ef4444';
         ctx.beginPath(); ctx.arc(centerX, roofCY, 20, 0, Math.PI * 2); ctx.fill();
@@ -395,21 +446,21 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         const blinkRed = Math.floor(time) % 2 !== 0 ? '#ef4444' : '#991b1b';
         ctx.fillStyle = blinkBlue; ctx.fillRect(x, roofY, 6, 6);
         ctx.fillStyle = blinkRed; ctx.fillRect(x + w - 6, roofY, 6, 6);
-        ctx.fillStyle = blinkRed; ctx.fillRect(x, roofY + w - 6, 6, 6);
-        ctx.fillStyle = blinkBlue; ctx.fillRect(x + w - 6, roofY + w - 6, 6, 6);
+        ctx.fillStyle = blinkRed; ctx.fillRect(x, roofY + TILE_SIZE - 6, 6, 6);
+        ctx.fillStyle = blinkBlue; ctx.fillRect(x + w - 6, roofY + TILE_SIZE - 6, 6, 6);
     } else if (tileType === TileType.MALL) {
         // Skylights for Mall
         ctx.fillStyle = '#38bdf8'; // Glass
         // Random skylights based on seed to break uniformity
         if (seed % 3 === 0) {
-            ctx.fillRect(x + 10, roofY + 10, w - 20, w - 20); // Big central
+            ctx.fillRect(x + 10, roofY + 10, w - 20, TILE_SIZE - 20); // Big central
         } else {
-            ctx.fillRect(x + 5, roofY + 5, w/2 - 10, w - 10);
-            ctx.fillRect(x + w/2 + 5, roofY + 5, w/2 - 10, w - 10);
+            ctx.fillRect(x + 5, roofY + 5, w/2 - 10, TILE_SIZE - 10);
+            ctx.fillRect(x + w/2 + 5, roofY + 5, w/2 - 10, TILE_SIZE - 10);
         }
     } else if (tileType === TileType.SHOP) {
         const awningColor = (seed % 2 === 0) ? '#ef4444' : '#22c55e';
-        const awningY = y + w - 50; 
+        const awningY = y + TILE_SIZE - 50; 
         
         ctx.fillStyle = awningColor;
         for(let i=0; i<w; i+=8) {
@@ -417,7 +468,7 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
             ctx.fillRect(x + i, awningY, 8, 12);
         }
         ctx.fillStyle = '#262626';
-        ctx.fillRect(x + 10, roofY + 10, w - 20, w - 20);
+        ctx.fillRect(x + 10, roofY + 10, w - 20, TILE_SIZE - 20);
     } else if (tileType === TileType.PAINT_SHOP) {
         // Spray Can Icon
         ctx.save();
@@ -472,13 +523,10 @@ const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: Til
     const center = TILE_SIZE / 2;
 
     if (type === TileType.RUNWAY) {
-        // Dashed Center Line if middle of runway
-        // Simple logic: if left and right are also runway, we are middle
         if (hasRoadLeft && hasRoadRight) {
              ctx.fillStyle = '#fff';
              ctx.fillRect(x + center - 4, y + 20, 8, TILE_SIZE - 40);
         }
-        // Numbers
         if (!hasRoadTop && hasRoadBottom) {
              ctx.fillStyle = '#fff';
              ctx.font = 'bold 40px monospace';
@@ -492,7 +540,6 @@ const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: Til
              ctx.textBaseline = 'middle';
              ctx.fillText('36', x + center, y + center);
         }
-        
     } else if (type === TileType.ROAD_H) {
         ctx.strokeStyle = '#eab308';
         ctx.lineWidth = 2;
@@ -504,16 +551,10 @@ const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: Til
              ctx.strokeStyle = '#eab308';
              ctx.setLineDash([10, 10]);
         }
-        
-        ctx.moveTo(x, y + center);
-        ctx.lineTo(x + TILE_SIZE, y + center);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        
+        ctx.moveTo(x, y + center); ctx.lineTo(x + TILE_SIZE, y + center); ctx.stroke(); ctx.setLineDash([]);
         ctx.fillStyle = '#d4d4d8';
         if (!hasRoadTop) ctx.fillRect(x, y, TILE_SIZE, 4);
         if (!hasRoadBottom) ctx.fillRect(x, y + TILE_SIZE - 4, TILE_SIZE, 4);
-
     } else if (type === TileType.ROAD_V) {
         ctx.strokeStyle = '#eab308';
         ctx.lineWidth = 2;
@@ -525,471 +566,217 @@ const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: Til
              ctx.strokeStyle = '#eab308';
              ctx.setLineDash([10, 10]);
         }
-
-        ctx.moveTo(x + center, y);
-        ctx.lineTo(x + center, y + TILE_SIZE);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
+        ctx.moveTo(x + center, y); ctx.lineTo(x + center, y + TILE_SIZE); ctx.stroke(); ctx.setLineDash([]);
         ctx.fillStyle = '#d4d4d8';
         if (!hasRoadLeft) ctx.fillRect(x, y, 4, TILE_SIZE);
         if (!hasRoadRight) ctx.fillRect(x + TILE_SIZE - 4, y, 4, TILE_SIZE);
-
-    } else if (type === TileType.ROAD_CROSS) {
-         ctx.fillStyle = '#fff';
-         const cwW = 12;
-         const cwL = TILE_SIZE - 10;
-         
-         ctx.fillRect(x + 5, y + 4, cwL, cwW);
-         ctx.fillRect(x + 5, y + TILE_SIZE - 16, cwL, cwW);
-         ctx.fillRect(x + 4, y + 5, cwW, cwL);
-         ctx.fillRect(x + TILE_SIZE - 16, y + 5, cwW, cwL);
+    } else if (type === TileType.ROAD_CROSS || type === TileType.RAIL_CROSSING) {
+         if (type === TileType.RAIL_CROSSING) {
+             ctx.fillStyle = '#d6d3d1'; ctx.fillRect(x, y + 30, TILE_SIZE, 6); ctx.fillRect(x, y + TILE_SIZE - 36, TILE_SIZE, 6);
+             ctx.fillStyle = '#1c1917'; ctx.fillRect(x, y + 36, TILE_SIZE, 2); ctx.fillRect(x, y + TILE_SIZE - 30, TILE_SIZE, 2);
+             ctx.fillStyle = '#fbbf24'; ctx.fillRect(x + 10, y + 20, TILE_SIZE - 20, 2); ctx.fillRect(x + 10, y + TILE_SIZE - 22, TILE_SIZE - 20, 2);
+         } else {
+             ctx.fillStyle = '#fff';
+             const cwW = 12; const cwL = TILE_SIZE - 10;
+             ctx.fillRect(x + 5, y + 4, cwL, cwW); ctx.fillRect(x + 5, y + TILE_SIZE - 16, cwL, cwW);
+             ctx.fillRect(x + 4, y + 5, cwW, cwL); ctx.fillRect(x + TILE_SIZE - 16, y + 5, cwW, cwL);
+         }
     }
 };
 
 const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
-    // 1. Draw SHADOW (Before car body, translated by global light direction)
     const length = v.size.y;
     const width = v.size.x;
-    
-    // Simulate flight height for planes if moving fast?
     let zHeight = 0;
     if ((v.model === 'plane' || v.model === 'jet') && Math.abs(v.speed) > 15) {
         zHeight = (Math.abs(v.speed) - 15) * 4;
     }
-
     ctx.save();
     const shadowDist = 15 + zHeight;
     const shadowWorldX = v.pos.x + shadowDist * SHADOW_OFFSET_X;
     const shadowWorldY = v.pos.y + shadowDist * SHADOW_OFFSET_Y;
-    
     ctx.translate(shadowWorldX, shadowWorldY);
     ctx.rotate(v.angle); 
-    
     ctx.fillStyle = SHADOW_COLOR;
     ctx.beginPath();
-    // Shadow shape depends on model
     if (v.model === 'plane' || v.model === 'jet') {
-         // Fuselage
          ctx.roundRect(-length/2, -width/6, length, width/3, 6);
-         // Wings
          ctx.fillRect(-length/6, -width/2, length/3, width);
-         // Tail
          ctx.fillRect(-length/2, -width/4, length/6, width/2);
     } else {
-         // Simple shadow for car (could deform too but simple rect is fine for shadow)
          ctx.roundRect(-length/2, -width/2, length, width, 6);
     }
     ctx.fill();
     ctx.restore();
 
-    // 2. Draw VEHICLE BODY
     ctx.save();
     ctx.translate(v.pos.x, v.pos.y);
     ctx.rotate(v.angle);
-    
-    // Scaling for takeoff effect
-    if (zHeight > 0) {
-        const scale = 1 + (zHeight / 200);
-        ctx.scale(scale, scale);
-    }
-    
+    if (zHeight > 0) { const scale = 1 + (zHeight / 200); ctx.scale(scale, scale); }
     const modelData = CAR_MODELS[v.model];
     const maxHealth = (modelData as any)?.health || 100;
     const hpPct = v.health / maxHealth;
 
     if (v.model === 'plane' || v.model === 'jet') {
-        // PLANE RENDERING (Skip deformation for planes to keep it simple/aerodynamic)
         const isJet = v.model === 'jet';
         const fuselageW = width / 3;
-        
         ctx.fillStyle = v.color;
-        
-        // Wings
         ctx.beginPath();
         if (isJet) {
-            // Swept back wings
-            ctx.moveTo(length/6, -fuselageW/2);
-            ctx.lineTo(-length/2, -width/2);
-            ctx.lineTo(-length/6, -fuselageW/2);
-            ctx.lineTo(-length/6, fuselageW/2);
-            ctx.lineTo(-length/2, width/2);
-            ctx.lineTo(length/6, fuselageW/2);
+            ctx.moveTo(length/6, -fuselageW/2); ctx.lineTo(-length/2, -width/2); ctx.lineTo(-length/6, -fuselageW/2);
+            ctx.lineTo(-length/6, fuselageW/2); ctx.lineTo(-length/2, width/2); ctx.lineTo(length/6, fuselageW/2);
         } else {
-            // Straight wings
             ctx.roundRect(-length/6, -width/2, length/3, width, 2);
         }
         ctx.fill();
-        
-        // Fuselage
         ctx.fillStyle = isJet ? '#94a3b8' : '#ffffff';
-        ctx.beginPath();
-        ctx.roundRect(-length/2, -fuselageW/2, length, fuselageW, 10);
-        ctx.fill();
-
-        // Cockpit
-        ctx.fillStyle = '#0ea5e9'; // Glass
-        ctx.beginPath();
-        ctx.roundRect(length/4, -fuselageW/3, length/5, fuselageW/1.5, 3);
-        ctx.fill();
-        
-        // Tail
+        ctx.beginPath(); ctx.roundRect(-length/2, -fuselageW/2, length, fuselageW, 10); ctx.fill();
+        ctx.fillStyle = '#0ea5e9'; 
+        ctx.beginPath(); ctx.roundRect(length/4, -fuselageW/3, length/5, fuselageW/1.5, 3); ctx.fill();
         ctx.fillStyle = v.color;
         ctx.beginPath();
-        ctx.moveTo(-length/2 + 5, -fuselageW/2);
-        ctx.lineTo(-length/2 - 10, -width/3);
-        ctx.lineTo(-length/2 - 10, width/3);
-        ctx.lineTo(-length/2 + 5, fuselageW/2);
+        ctx.moveTo(-length/2 + 5, -fuselageW/2); ctx.lineTo(-length/2 - 10, -width/3);
+        ctx.lineTo(-length/2 - 10, width/3); ctx.lineTo(-length/2 + 5, fuselageW/2);
         ctx.fill();
-
-        // Propeller (if plane)
         if (!isJet) {
             const propAngle = (Date.now() / 50) % (Math.PI*2);
-            ctx.save();
-            ctx.translate(length/2, 0);
-            ctx.rotate(propAngle);
-            ctx.fillStyle = '#111';
-            ctx.fillRect(-2, -25, 4, 50);
-            ctx.fillRect(-25, -2, 50, 4);
+            ctx.save(); ctx.translate(length/2, 0); ctx.rotate(propAngle);
+            ctx.fillStyle = '#111'; ctx.fillRect(-2, -25, 4, 50); ctx.fillRect(-25, -2, 50, 4);
             ctx.restore();
         } else {
-            // Jet Engine Glow
-            if (v.speed > 5) {
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.6)';
-                ctx.beginPath(); ctx.arc(-length/2 - 5, 0, 8, 0, Math.PI*2); ctx.fill();
-            }
+            if (v.speed > 5) { ctx.fillStyle = 'rgba(239, 68, 68, 0.6)'; ctx.beginPath(); ctx.arc(-length/2 - 5, 0, 8, 0, Math.PI*2); ctx.fill(); }
         }
-
     } else {
-        // CAR RENDERING WITH DEFORMATION
         const drawWheel = (index: number, cx: number, cy: number) => {
             const isPopped = v.damage.tires[index];
-            if (isPopped) {
-                ctx.fillStyle = '#171717'; 
-                ctx.fillRect(cx, cy + 1, 6, 1);
-            } else {
-                ctx.fillStyle = '#171717';
-                ctx.fillRect(cx, cy, 6, 2);
-            }
+            if (isPopped) { ctx.fillStyle = '#171717'; ctx.fillRect(cx, cy + 1, 6, 1); } 
+            else { ctx.fillStyle = '#171717'; ctx.fillRect(cx, cy, 6, 2); }
         };
-        // Wheels (positions roughly estimated)
-        // FL, FR, BL, BR
-        drawWheel(0, length/2 - 8, -width/2 - 1);
-        drawWheel(1, length/2 - 8, width/2 - 1);
-        drawWheel(2, -length/2 + 4, -width/2 - 1);
-        drawWheel(3, -length/2 + 4, width/2 - 1);
+        drawWheel(0, length/2 - 8, -width/2 - 1); drawWheel(1, length/2 - 8, width/2 - 1);
+        drawWheel(2, -length/2 + 4, -width/2 - 1); drawWheel(3, -length/2 + 4, width/2 - 1);
 
-        // Body Shape with Deformation
         ctx.fillStyle = v.color;
         ctx.beginPath();
-
-        // Default deformation if missing (compatibility)
         const def = v.deformation || { fl: 0, fr: 0, bl: 0, br: 0 };
-        
-        // Corners relative to center (0,0)
-        // FL: Front (+x), Left (-y)
-        const flX = length/2 - def.fl;
-        const flY = -width/2 + (def.fl * 0.3); // Squeeze Y slightly when crushing X
+        const flX = length/2 - def.fl; const flY = -width/2 + (def.fl * 0.3);
+        const frX = length/2 - def.fr; const frY = width/2 - (def.fr * 0.3);
+        const brX = -length/2 + def.br; const brY = width/2 - (def.br * 0.3);
+        const blX = -length/2 + def.bl; const blY = -width/2 + (def.bl * 0.3);
+        ctx.moveTo(flX, flY); ctx.lineTo(frX, frY); ctx.lineTo(brX, brY); ctx.lineTo(blX, blY);
+        ctx.closePath(); ctx.fill();
 
-        // FR: Front (+x), Right (+y)
-        const frX = length/2 - def.fr;
-        const frY = width/2 - (def.fr * 0.3);
-
-        // BR: Back (-x), Right (+y)
-        const brX = -length/2 + def.br;
-        const brY = width/2 - (def.br * 0.3);
-
-        // BL: Back (-x), Left (-y)
-        const blX = -length/2 + def.bl;
-        const blY = -width/2 + (def.bl * 0.3);
-
-        ctx.moveTo(flX, flY);
-        ctx.lineTo(frX, frY);
-        ctx.lineTo(brX, brY);
-        ctx.lineTo(blX, blY);
-        ctx.closePath();
-        ctx.fill();
-
-        // Body Highlight (Top) - Adjusted to deformation slightly
         ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        const safeL = (frX - brX) * 0.9; // Approximate length based on deformed right side
+        const safeL = (frX - brX) * 0.9;
         ctx.fillRect(-safeL/2, -width/4, safeL, width/2);
 
-        // Bumpers (only draw if not heavily damaged)
         if (v.model !== 'supercar') {
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             if (def.fr < 3 && def.fl < 3) ctx.fillRect(length/2 - 1 - Math.max(def.fr, def.fl), -width/2 + 1, 2, width - 2);
             if (def.br < 3 && def.bl < 3) ctx.fillRect(-length/2 - 1 + Math.max(def.br, def.bl), -width/2 + 1, 2, width - 2);
         }
-
         if (v.model === 'pickup') {
-            ctx.fillStyle = '#0f172a'; 
-            ctx.fillRect(-length/2 + 2 + def.bl, -width/2 + 2, length/3, width - 4);
-            // Rails
-            ctx.fillStyle = '#334155';
-            ctx.fillRect(-length/2 + 2 + def.bl, -width/2 + 2, length/3, 2);
-            ctx.fillRect(-length/2 + 2 + def.br, width/2 - 4, length/3, 2);
-            ctx.fillRect(-length/2 + 2 + Math.max(def.bl, def.br), -width/2 + 2, 2, width - 4);
+            ctx.fillStyle = '#0f172a'; ctx.fillRect(-length/2 + 2 + def.bl, -width/2 + 2, length/3, width - 4);
+            ctx.fillStyle = '#334155'; ctx.fillRect(-length/2 + 2 + def.bl, -width/2 + 2, length/3, 2);
+            ctx.fillRect(-length/2 + 2 + def.br, width/2 - 4, length/3, 2); ctx.fillRect(-length/2 + 2 + Math.max(def.bl, def.br), -width/2 + 2, 2, width - 4);
         }
 
-        // Roof / Windshield Area
-        let roofL = length - 20;
-        let roofW = width - 4;
-        let roofOffset = 0; 
-
-        if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
-            roofL = length * 0.4;
-            roofOffset = length * 0.2; 
-        } else if (v.model === 'supercar') {
-            roofL = length * 0.5;
-            roofW = width - 6;
-        } else if (v.model === 'bus') {
-            roofL = length - 10;
-        } else if (v.model === 'compact') {
-            roofL = length - 14;
-        }
-
-        // Deform Roof if impact is deep
-        const maxFrontDef = Math.max(def.fl, def.fr);
-        const maxRearDef = Math.max(def.bl, def.br);
-        // Shrink roof if car is crushed
-        if (maxFrontDef > 5) { roofL -= 2; roofOffset -= 2; }
-        if (maxRearDef > 5) { roofL -= 2; roofOffset += 2; }
+        let roofL = length - 20; let roofW = width - 4; let roofOffset = 0; 
+        if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') { roofL = length * 0.4; roofOffset = length * 0.2; } 
+        else if (v.model === 'supercar') { roofL = length * 0.5; roofW = width - 6; } else if (v.model === 'bus') { roofL = length - 10; } else if (v.model === 'compact') { roofL = length - 14; }
+        const maxFrontDef = Math.max(def.fl, def.fr); const maxRearDef = Math.max(def.bl, def.br);
+        if (maxFrontDef > 5) { roofL -= 2; roofOffset -= 2; } if (maxRearDef > 5) { roofL -= 2; roofOffset += 2; }
 
         ctx.fillStyle = '#1f2937'; 
-        if (v.model === 'pickup' || v.model === 'truck') {
-            ctx.fillRect(roofOffset - roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
-        } else {
-            ctx.fillRect(-roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
-        }
+        if (v.model === 'pickup' || v.model === 'truck') ctx.fillRect(roofOffset - roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
+        else ctx.fillRect(-roofL/2 - 1, -roofW/2 - 1, roofL + 2, roofW + 2);
 
         const windshieldColor = v.damage.windows[0] ? '#e5e7eb' : '#38bdf8'; 
         const rearWindowColor = v.damage.windows[1] ? '#e5e7eb' : '#38bdf8';
-        
         ctx.fillStyle = windshieldColor;
-        if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
-            ctx.fillRect(roofOffset + roofL/2 - 3, -roofW/2 + 1, 3, roofW - 2);
-        } else if (v.model === 'bus') {
-            ctx.fillRect(length/2 - 6 - maxFrontDef, -width/2 + 2, 4, width - 4);
-        } else {
-            ctx.fillRect(roofL/2 - 4, -roofW/2 + 1, 4, roofW - 2);
-        }
+        if (v.model === 'truck' || v.model === 'pickup' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') ctx.fillRect(roofOffset + roofL/2 - 3, -roofW/2 + 1, 3, roofW - 2);
+        else if (v.model === 'bus') ctx.fillRect(length/2 - 6 - maxFrontDef, -width/2 + 2, 4, width - 4);
+        else ctx.fillRect(roofL/2 - 4, -roofW/2 + 1, 4, roofW - 2);
 
         if (v.model !== 'truck' && v.model !== 'pickup' && v.model !== 'van' && v.model !== 'ambulance' && v.model !== 'swat' && v.model !== 'firetruck' && v.model !== 'bus') {
-            ctx.fillStyle = rearWindowColor;
-            ctx.fillRect(-roofL/2, -roofW/2 + 1, 3, roofW - 2);
+            ctx.fillStyle = rearWindowColor; ctx.fillRect(-roofL/2, -roofW/2 + 1, 3, roofW - 2);
         }
 
         ctx.fillStyle = v.color;
-        let rtL = roofL - 6; 
-        let rtW = roofW - 2;
-        let rtX = 0;
-        
-        if (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') {
-            rtL = roofL - 6;
-            rtX = roofOffset - 1; 
-        } else if (v.model === 'supercar') {
-            rtL = roofL - 8;
-        } else if (v.model === 'bus') {
-            rtL = length - 16;
-        } else {
-            rtL = roofL - 8;
-        }
+        let rtL = roofL - 6; let rtW = roofW - 2; let rtX = 0;
+        if (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance' || v.model === 'swat' || v.model === 'firetruck') { rtL = roofL - 6; rtX = roofOffset - 1; } 
+        else if (v.model === 'supercar') { rtL = roofL - 8; } else if (v.model === 'bus') { rtL = length - 16; } else { rtL = roofL - 8; }
         ctx.fillRect(rtX - rtL/2, -rtW/2, rtL, rtW);
 
-        // ... existing damage and details rendering for cars ...
         if (hpPct < 0.5) {
-            ctx.fillStyle = 'rgba(0,0,0,0.2)';
-            ctx.beginPath();
-            ctx.moveTo(length/2 - 10, -width/2 + 4);
-            ctx.lineTo(length/2 - 5, -width/2 + 8);
-            ctx.lineTo(length/2 - 12, -width/2 + 10);
-            ctx.fill();
-            
-            ctx.beginPath();
-            ctx.moveTo(0, 0); ctx.lineTo(5, 5); ctx.lineTo(2, 6); ctx.fill();
+            ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.moveTo(length/2 - 10, -width/2 + 4);
+            ctx.lineTo(length/2 - 5, -width/2 + 8); ctx.lineTo(length/2 - 12, -width/2 + 10); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(5, 5); ctx.lineTo(2, 6); ctx.fill();
         }
-        
-        if (hpPct < 0.2) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(-length/2 + 2, -5, 8, 10);
-            ctx.fillRect(length/2 - 12, -4, 10, 8);
-        }
+        if (hpPct < 0.2) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-length/2 + 2, -5, 8, 10); ctx.fillRect(length/2 - 12, -4, 10, 8); }
         
         ctx.fillStyle = v.color;
         if (v.model !== 'bus' && v.model !== 'firetruck') {
-            const mirrorX = (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance') 
-                ? roofOffset + roofL/2 - 2 
-                : roofL/2 - 2;
-            ctx.beginPath();
-            ctx.moveTo(mirrorX, -width/2 + (def.fl > 0 ? def.fl*0.5 : 0));
-            ctx.lineTo(mirrorX + 2, -width/2 - 3 + (def.fl > 0 ? def.fl*0.5 : 0));
-            ctx.lineTo(mirrorX - 2, -width/2 - 3 + (def.fl > 0 ? def.fl*0.5 : 0));
-            ctx.fill();
-            
-            ctx.beginPath();
-            ctx.moveTo(mirrorX, width/2 - (def.fr > 0 ? def.fr*0.5 : 0));
-            ctx.lineTo(mirrorX + 2, width/2 + 3 - (def.fr > 0 ? def.fr*0.5 : 0));
-            ctx.lineTo(mirrorX - 2, width/2 + 3 - (def.fr > 0 ? def.fr*0.5 : 0));
-            ctx.fill();
+            const mirrorX = (v.model === 'pickup' || v.model === 'truck' || v.model === 'van' || v.model === 'ambulance') ? roofOffset + roofL/2 - 2 : roofL/2 - 2;
+            ctx.beginPath(); ctx.moveTo(mirrorX, -width/2 + (def.fl > 0 ? def.fl*0.5 : 0));
+            ctx.lineTo(mirrorX + 2, -width/2 - 3 + (def.fl > 0 ? def.fl*0.5 : 0)); ctx.lineTo(mirrorX - 2, -width/2 - 3 + (def.fl > 0 ? def.fl*0.5 : 0)); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(mirrorX, width/2 - (def.fr > 0 ? def.fr*0.5 : 0));
+            ctx.lineTo(mirrorX + 2, width/2 + 3 - (def.fr > 0 ? def.fr*0.5 : 0)); ctx.lineTo(mirrorX - 2, width/2 + 3 - (def.fr > 0 ? def.fr*0.5 : 0)); ctx.fill();
         }
         
-        ctx.fillStyle = '#fef08a'; 
-        if (hpPct < 0.2 && v.damage.windows[0]) ctx.fillStyle = '#713f12'; 
-        ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
-        // Headlights (move with deformation)
-        ctx.fillRect(length/2 - 1 - def.fl, -width/2 + 2 + (def.fl*0.2), 1, 5);
-        ctx.fillRect(length/2 - 1 - def.fr, width/2 - 7 - (def.fr*0.2), 1, 5);
-        ctx.shadowBlur = 0;
-
+        ctx.fillStyle = '#fef08a'; if (hpPct < 0.2 && v.damage.windows[0]) ctx.fillStyle = '#713f12'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
+        ctx.fillRect(length/2 - 1 - def.fl, -width/2 + 2 + (def.fl*0.2), 1, 5); ctx.fillRect(length/2 - 1 - def.fr, width/2 - 7 - (def.fr*0.2), 1, 5); ctx.shadowBlur = 0;
         ctx.fillStyle = '#ef4444';
-        // Taillights
-        ctx.fillRect(-length/2 + def.bl, -width/2 + 2 + (def.bl*0.2), 1, 5);
-        ctx.fillRect(-length/2 + def.br, width/2 - 7 - (def.br*0.2), 1, 5);
+        ctx.fillRect(-length/2 + def.bl, -width/2 + 2 + (def.bl*0.2), 1, 5); ctx.fillRect(-length/2 + def.br, width/2 - 7 - (def.br*0.2), 1, 5);
         
         if (v.model === 'supercar') {
-            ctx.fillStyle = v.color;
-            ctx.fillRect(-length/2 + 2 + maxRearDef, -width/2, 4, width);
-            ctx.fillStyle = '#171717';
-            for(let i=0; i<3; i++) {
-                ctx.fillRect(-length/2 + 8 + i*3, -width/4, 2, width/2);
-            }
+            ctx.fillStyle = v.color; ctx.fillRect(-length/2 + 2 + maxRearDef, -width/2, 4, width);
+            ctx.fillStyle = '#171717'; for(let i=0; i<3; i++) ctx.fillRect(-length/2 + 8 + i*3, -width/4, 2, width/2);
         } else if (v.model === 'police' || v.model === 'swat' || v.model === 'ambulance' || v.model === 'firetruck') {
-            const time = Date.now() / 150;
-            const blink = Math.floor(time) % 2;
-            const color1 = blink ? '#2563eb' : '#dc2626';
-            const color2 = blink ? '#dc2626' : '#2563eb';
-            
-            ctx.shadowColor = color1; ctx.shadowBlur = 10;
-            ctx.fillStyle = color1;
-            
-            if (v.model === 'ambulance' || v.model === 'swat') {
-                ctx.fillRect(roofOffset, -width/2 + 2, 4, 4);
-                ctx.shadowColor = color2; ctx.fillStyle = color2;
-                ctx.fillRect(roofOffset, width/2 - 6, 4, 4);
-            } else if (v.model === 'firetruck') {
-                ctx.fillRect(roofOffset + 10, -width/2 + 2, 4, 4);
-                ctx.shadowColor = color2; ctx.fillStyle = color2;
-                ctx.fillRect(roofOffset + 10, width/2 - 6, 4, 4);
-                ctx.fillStyle = '#cbd5e1';
-                ctx.fillRect(-length/2 + 5, -5, length - 20, 10);
-                ctx.fillStyle = '#64748b';
-                for(let i=0; i<length-20; i+=4) ctx.fillRect(-length/2 + 5 + i, -4, 1, 8);
-            } else {
-                ctx.fillRect(-2, -width/2 + 6, 4, width - 12);
-            }
-            ctx.shadowBlur = 0;
+            const time = Date.now() / 150; const blink = Math.floor(time) % 2;
+            const color1 = blink ? '#2563eb' : '#dc2626'; const color2 = blink ? '#dc2626' : '#2563eb';
+            ctx.shadowColor = color1; ctx.shadowBlur = 10; ctx.fillStyle = color1;
+            if (v.model === 'ambulance' || v.model === 'swat') { ctx.fillRect(roofOffset, -width/2 + 2, 4, 4); ctx.shadowColor = color2; ctx.fillStyle = color2; ctx.fillRect(roofOffset, width/2 - 6, 4, 4); } 
+            else if (v.model === 'firetruck') { ctx.fillRect(roofOffset + 10, -width/2 + 2, 4, 4); ctx.shadowColor = color2; ctx.fillStyle = color2; ctx.fillRect(roofOffset + 10, width/2 - 6, 4, 4); ctx.fillStyle = '#cbd5e1'; ctx.fillRect(-length/2 + 5, -5, length - 20, 10); ctx.fillStyle = '#64748b'; for(let i=0; i<length-20; i+=4) ctx.fillRect(-length/2 + 5 + i, -4, 1, 8); } 
+            else { ctx.fillRect(-2, -width/2 + 6, 4, width - 12); } ctx.shadowBlur = 0;
         } else if (v.model === 'taxi') {
-            ctx.fillStyle = '#facc15';
-            ctx.shadowColor = '#facc15'; ctx.shadowBlur = 5;
-            ctx.fillRect(-3, -6, 6, 12);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(-3, -6, 2, 2); ctx.fillRect(-1, -6, 2, 2); ctx.fillRect(1, -6, 2, 2);
-            ctx.fillRect(-2, -4, 2, 2); ctx.fillRect(0, -4, 2, 2); ctx.fillRect(2, -4, 2, 2);
-            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#facc15'; ctx.shadowColor = '#facc15'; ctx.shadowBlur = 5; ctx.fillRect(-3, -6, 6, 12);
+            ctx.fillStyle = '#000'; ctx.fillRect(-3, -6, 2, 2); ctx.fillRect(-1, -6, 2, 2); ctx.fillRect(1, -6, 2, 2); ctx.fillRect(-2, -4, 2, 2); ctx.fillRect(0, -4, 2, 2); ctx.fillRect(2, -4, 2, 2); ctx.shadowBlur = 0;
         } else if (v.model === 'bus') {
-            ctx.fillStyle = '#9ca3af'; 
-            const wins = 6;
-            const spacing = (length - 20) / wins;
-            for(let i=0; i<wins; i++) {
-                ctx.fillRect(-length/2 + 10 + i * spacing, -width/2 + 1, spacing - 2, 2);
-                ctx.fillRect(-length/2 + 10 + i * spacing, width/2 - 3, spacing - 2, 2);
-            }
+            ctx.fillStyle = '#9ca3af'; const wins = 6; const spacing = (length - 20) / wins;
+            for(let i=0; i<wins; i++) { ctx.fillRect(-length/2 + 10 + i * spacing, -width/2 + 1, spacing - 2, 2); ctx.fillRect(-length/2 + 10 + i * spacing, width/2 - 3, spacing - 2, 2); }
         }
     }
-    
     ctx.restore();
 };
 
 const drawCharacter = (ctx: CanvasRenderingContext2D, p: Pedestrian) => {
     ctx.save();
-    
-    // 1. Draw Shadow
     ctx.save();
     ctx.translate(p.pos.x + 8 * SHADOW_OFFSET_X, p.pos.y + 8 * SHADOW_OFFSET_Y);
     ctx.fillStyle = SHADOW_COLOR;
-    // Removed blur for performance
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 7, 7, 0, 0, Math.PI*2);
-    ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, 7, 7, 0, 0, Math.PI*2); ctx.fill();
     ctx.restore();
-
-    ctx.translate(p.pos.x, p.pos.y);
-    ctx.rotate(p.angle);
-    
+    ctx.translate(p.pos.x, p.pos.y); ctx.rotate(p.angle);
     const isMoving = p.velocity.x !== 0 || p.velocity.y !== 0;
     const walkCycle = isMoving ? Math.sin(Date.now() / 100) * 5 : 0;
-    
-    // Feet
-    ctx.fillStyle = '#1c1917'; 
-    ctx.beginPath(); ctx.ellipse(3 + walkCycle, -5, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(3 - walkCycle, 5, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
-
-    // Shoulders / Torso
+    ctx.fillStyle = '#1c1917'; ctx.beginPath(); ctx.ellipse(3 + walkCycle, -5, 4, 2.5, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(3 - walkCycle, 5, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = p.color; ctx.beginPath(); ctx.roundRect(-4, -8, 10, 16, 4); ctx.fill();
+    ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+    if (p.role === 'police') { ctx.fillStyle = '#1e3a8a'; ctx.beginPath(); ctx.ellipse(-1, 0, 5.5, 5.5, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(3, 0, 3, 5, 0, -Math.PI/2, Math.PI/2); ctx.fill(); } 
+    else { const hairColor = p.id.length % 2 === 0 ? '#451a03' : '#000000'; ctx.fillStyle = hairColor; ctx.beginPath(); ctx.arc(-1, 0, 5, 0, Math.PI * 2); ctx.fill(); }
     ctx.fillStyle = p.color; 
-    ctx.beginPath();
-    ctx.roundRect(-4, -8, 10, 16, 4);
-    ctx.fill();
-
-    // Head
-    ctx.fillStyle = '#fca5a5'; 
-    ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
-    
-    // Hair
-    if (p.role === 'police') {
-        ctx.fillStyle = '#1e3a8a'; 
-        ctx.beginPath(); ctx.ellipse(-1, 0, 5.5, 5.5, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.ellipse(3, 0, 3, 5, 0, -Math.PI/2, Math.PI/2); ctx.fill();
-    } else {
-        const hairColor = p.id.length % 2 === 0 ? '#451a03' : '#000000';
-        ctx.fillStyle = hairColor;
-        ctx.beginPath(); ctx.arc(-1, 0, 5, 0, Math.PI * 2); ctx.fill();
-    }
-
-    // Arms
-    ctx.fillStyle = p.color; 
-    
     if (p.weapon === 'fist') {
         const armSwing = isMoving ? Math.cos(Date.now() / 100) * 3 : 0;
-        ctx.beginPath(); ctx.ellipse(0 + armSwing, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fca5a5';
-        ctx.beginPath(); ctx.arc(3 + armSwing, -9, 2.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.ellipse(0 - armSwing, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fca5a5';
-        ctx.beginPath(); ctx.arc(3 - armSwing, 9, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0 + armSwing, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 + armSwing, -9, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = p.color; ctx.beginPath(); ctx.ellipse(0 - armSwing, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 - armSwing, 9, 2.5, 0, Math.PI*2); ctx.fill();
     } else {
-        ctx.beginPath(); ctx.ellipse(2, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(2, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fca5a5';
-        ctx.save();
-        ctx.translate(10, 0); 
-        
-        if (p.weapon === 'pistol') {
-            ctx.fillStyle = '#374151'; 
-            ctx.fillRect(-2, -1.5, 10, 3);
-            ctx.fillStyle = '#fca5a5'; 
-            ctx.beginPath(); ctx.arc(0, 2, 2.5, 0, Math.PI*2); ctx.fill(); 
-        } else if (p.weapon === 'uzi') {
-            ctx.fillStyle = '#111';
-            ctx.fillRect(-2, -2, 12, 4);
-            ctx.fillStyle = '#fca5a5';
-            ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); 
-            ctx.beginPath(); ctx.arc(6, -2, 2.5, 0, Math.PI*2); ctx.fill(); 
-        } else if (p.weapon === 'shotgun' || p.weapon === 'sniper' || p.weapon === 'rocket') {
-             ctx.fillStyle = '#1f2937';
-             const len = p.weapon === 'sniper' ? 24 : 18;
-             const width = p.weapon === 'rocket' ? 6 : 3;
-             ctx.fillRect(-4, -width/2, len, width);
-             ctx.fillStyle = '#fca5a5';
-             ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill();
-             ctx.beginPath(); ctx.arc(10, -1, 2.5, 0, Math.PI*2); ctx.fill();
-        }
-
+        ctx.beginPath(); ctx.ellipse(2, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(2, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fca5a5'; ctx.save(); ctx.translate(10, 0); 
+        if (p.weapon === 'pistol') { ctx.fillStyle = '#374151'; ctx.fillRect(-2, -1.5, 10, 3); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 2, 2.5, 0, Math.PI*2); ctx.fill(); } 
+        else if (p.weapon === 'uzi') { ctx.fillStyle = '#111'; ctx.fillRect(-2, -2, 12, 4); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, -2, 2.5, 0, Math.PI*2); ctx.fill(); } 
+        else if (p.weapon === 'shotgun' || p.weapon === 'sniper' || p.weapon === 'rocket') { ctx.fillStyle = '#1f2937'; const len = p.weapon === 'sniper' ? 24 : 18; const width = p.weapon === 'rocket' ? 6 : 3; ctx.fillRect(-4, -width/2, len, width); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, -1, 2.5, 0, Math.PI*2); ctx.fill(); }
         ctx.restore();
     }
-
     ctx.restore();
 };
 
@@ -1060,359 +847,266 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                              }
                         });
                     }
-                } else if (tile === TileType.CONSTRUCTION) {
-                    // 1. Base Dirt Texture
-                    ctx.fillStyle = '#78350f'; // Base dirt
+                } else if (tile === TileType.RAIL) {
+                    ctx.fillStyle = '#57534e'; // Stone bed
                     ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                     
-                    // Add mud patch variation
-                    const seed = x * 997 + y * 79;
-                    if (seed % 3 === 0) {
-                        ctx.fillStyle = '#5c2d08'; // Darker wet mud
-                        ctx.beginPath();
-                        ctx.ellipse(px + TILE_SIZE/2, py + TILE_SIZE/2, 40, 20, (seed % 4) * Math.PI/4, 0, Math.PI*2);
-                        ctx.fill();
+                    const gridX = Math.round(px / TILE_SIZE);
+                    const gridY = Math.round(py / TILE_SIZE);
+                    
+                    const isR = (t: number) => t === TileType.RAIL || t === TileType.RAIL_CROSSING || t === TileType.TRAIN_STATION;
+                    
+                    const hasL = gridX > 0 && isR(state.map[gridY][gridX-1]);
+                    const hasR = gridX < MAP_WIDTH - 1 && isR(state.map[gridY][gridX+1]);
+                    const hasT = gridY > 0 && isR(state.map[gridY-1][gridX]);
+                    const hasB = gridY < MAP_HEIGHT - 1 && isR(state.map[gridY+1][gridX]);
+                    
+                    const isHorz = (hasL || hasR) && !hasT && !hasB;
+                    const isVert = (hasT || hasB) && !hasL && !hasR;
+                    
+                    ctx.fillStyle = '#44403c'; 
+                    ctx.strokeStyle = '#44403c';
+                    ctx.lineWidth = 4;
+
+                    if (isHorz) {
+                        ctx.fillRect(px, py + 30, TILE_SIZE, 4);
+                        ctx.fillRect(px, py + TILE_SIZE - 34, TILE_SIZE, 4);
+                        for(let i=0; i<TILE_SIZE; i+=16) ctx.fillRect(px + i, py + 20, 4, TILE_SIZE - 40);
+                    } else if (isVert) {
+                        ctx.fillRect(px + 30, py, 4, TILE_SIZE);
+                        ctx.fillRect(px + TILE_SIZE - 34, py, 4, TILE_SIZE);
+                        for(let i=0; i<TILE_SIZE; i+=16) ctx.fillRect(px + 20, py + i, TILE_SIZE - 40, 4);
+                    } else {
+                        // Corner or Intersection
+                        const drawCurve = (cX: number, cY: number, startAng: number, endAng: number) => {
+                            ctx.save();
+                            ctx.translate(cX, cY);
+                            // Sleepers
+                            for(let i=0; i<=6; i++) {
+                                 const t = i / 6;
+                                 const a = startAng + (endAng - startAng) * t;
+                                 const sx = Math.cos(a) * 32;
+                                 const sy = Math.sin(a) * 32;
+                                 const ex = Math.cos(a) * 96;
+                                 const ey = Math.sin(a) * 96;
+                                 ctx.beginPath();
+                                 ctx.moveTo(sx, sy);
+                                 ctx.lineTo(ex, ey);
+                                 ctx.stroke();
+                            }
+                            // Rails
+                            ctx.beginPath(); ctx.arc(0, 0, 32, startAng, endAng); ctx.stroke();
+                            ctx.beginPath(); ctx.arc(0, 0, 96, startAng, endAng); ctx.stroke();
+                            ctx.restore();
+                        };
+                        
+                        let drawn = false;
+                        if (hasT && hasR && !hasB && !hasL) { // TR
+                            drawCurve(px + TILE_SIZE, py, Math.PI, Math.PI * 0.5);
+                            drawn = true;
+                        } else if (hasT && hasL && !hasB && !hasR) { // TL
+                            drawCurve(px, py, 0, Math.PI * 0.5);
+                            drawn = true;
+                        } else if (hasB && hasR && !hasT && !hasL) { // BR
+                            drawCurve(px + TILE_SIZE, py + TILE_SIZE, Math.PI, Math.PI * 1.5);
+                            drawn = true;
+                        } else if (hasB && hasL && !hasT && !hasR) { // BL
+                            drawCurve(px, py + TILE_SIZE, -Math.PI * 0.5, 0);
+                            drawn = true;
+                        }
+                        
+                        if (!drawn) { // Cross
+                            ctx.fillRect(px, py + 30, TILE_SIZE, 4);
+                            ctx.fillRect(px, py + TILE_SIZE - 34, TILE_SIZE, 4);
+                            ctx.fillRect(px + 30, py, 4, TILE_SIZE);
+                            ctx.fillRect(px + TILE_SIZE - 34, py, 4, TILE_SIZE);
+                        }
                     }
-
-                    // 2. Construction Site Context (x: 78-88, y: 6-13)
-                    const cX = 78; const cY = 6; const cW = 11; const cH = 8;
-                    const relX = x - cX;
-                    const relY = y - cY;
-
-                    // Only draw detailed props if within the known construction bounds
+                } else if (tile === TileType.CONSTRUCTION) {
+                    ctx.fillStyle = '#78350f'; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                    const seed = x * 997 + y * 79;
+                    if (seed % 3 === 0) { ctx.fillStyle = '#5c2d08'; ctx.beginPath(); ctx.ellipse(px + TILE_SIZE/2, py + TILE_SIZE/2, 40, 20, (seed % 4) * Math.PI/4, 0, Math.PI*2); ctx.fill(); }
+                    const cX = 60; const cY = 16; const cW = 11; const cH = 7;
+                    const relX = x - cX; const relY = y - cY;
                     if (relX >= 0 && relX < cW && relY >= 0 && relY < cH) {
-                        
-                        // FENCE (Perimeter)
-                        const isTop = relY === 0;
-                        const isBottom = relY === cH - 1;
-                        const isLeft = relX === 0;
-                        const isRight = relX === cW - 1;
-                        
-                        // Fence Posts
+                        const isTop = relY === 0; const isBottom = relY === cH - 1; const isLeft = relX === 0; const isRight = relX === cW - 1;
                         if (isTop || isBottom || isLeft || isRight) {
-                            ctx.fillStyle = 'rgba(0,0,0,0.3)'; // Shadow
-                            if (isTop) ctx.fillRect(px, py + 2, TILE_SIZE, 4);
-                            
-                            // Chainlink Color
+                            ctx.fillStyle = 'rgba(0,0,0,0.3)'; if (isTop) ctx.fillRect(px, py + 2, TILE_SIZE, 4);
                             ctx.fillStyle = '#a8a29e'; 
-                            
-                            // Draw fence line
-                            if (isTop) ctx.fillRect(px, py, TILE_SIZE, 2);
-                            if (isBottom) ctx.fillRect(px, py + TILE_SIZE - 4, TILE_SIZE, 2);
-                            if (isLeft) ctx.fillRect(px, py, 2, TILE_SIZE);
-                            if (isRight) ctx.fillRect(px + TILE_SIZE - 2, py, 2, TILE_SIZE);
-                            
-                            // Posts every half tile
-                            ctx.fillStyle = '#57534e';
-                            if (isTop || isBottom) {
-                                ctx.fillRect(px + TILE_SIZE/2, py - 4, 4, 12);
-                            }
-                            if (isLeft || isRight) {
-                                ctx.fillRect(px - 2, py + TILE_SIZE/2, 8, 4);
-                            }
+                            if (isTop) ctx.fillRect(px, py, TILE_SIZE, 2); if (isBottom) ctx.fillRect(px, py + TILE_SIZE - 4, TILE_SIZE, 2); if (isLeft) ctx.fillRect(px, py, 2, TILE_SIZE); if (isRight) ctx.fillRect(px + TILE_SIZE - 2, py, 2, TILE_SIZE);
+                            ctx.fillStyle = '#57534e'; if (isTop || isBottom) { ctx.fillRect(px + TILE_SIZE/2, py - 4, 4, 12); } if (isLeft || isRight) { ctx.fillRect(px - 2, py + TILE_SIZE/2, 8, 4); }
                         }
-
-                        // INTERIOR ELEMENTS
-                        // Foundation Pit (Middle area)
                         if (relX > 2 && relX < cW - 2 && relY > 2 && relY < cH - 2) {
-                            // Dug out earth
-                            ctx.fillStyle = '#451a03';
-                            ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                            
-                            // Concrete Footing
+                            ctx.fillStyle = '#451a03'; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                             if ((relX + relY) % 2 === 0) {
-                                // Concrete Slab
-                                ctx.fillStyle = '#d6d3d1';
-                                ctx.fillRect(px + 10, py + 10, TILE_SIZE - 20, TILE_SIZE - 20);
-                                // Rebar sticking out
-                                ctx.strokeStyle = '#44403c';
-                                ctx.lineWidth = 2;
-                                ctx.beginPath();
-                                ctx.moveTo(px + TILE_SIZE/2, py + 10);
-                                ctx.lineTo(px + TILE_SIZE/2, py + TILE_SIZE - 10);
-                                ctx.moveTo(px + 10, py + TILE_SIZE/2);
-                                ctx.lineTo(px + TILE_SIZE - 10, py + TILE_SIZE/2);
-                                ctx.stroke();
+                                ctx.fillStyle = '#d6d3d1'; ctx.fillRect(px + 10, py + 10, TILE_SIZE - 20, TILE_SIZE - 20);
+                                ctx.strokeStyle = '#44403c'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px + TILE_SIZE/2, py + 10); ctx.lineTo(px + TILE_SIZE/2, py + TILE_SIZE - 10); ctx.moveTo(px + 10, py + TILE_SIZE/2); ctx.lineTo(px + TILE_SIZE - 10, py + TILE_SIZE/2); ctx.stroke();
                             }
-                        } 
-                        // Storage & Equipment (Perimeter interior)
-                        else if (!isTop && !isBottom && !isLeft && !isRight) {
-                            if (seed % 5 === 0) {
-                                // Lumber
-                                ctx.fillStyle = '#b45309';
-                                ctx.fillRect(px + 20, py + 30, 60, 20);
-                                ctx.fillStyle = '#d97706'; // Light wood top
-                                ctx.fillRect(px + 20, py + 30, 55, 15);
-                            } else if (seed % 7 === 0) {
-                                // Blue Pipe
-                                ctx.fillStyle = '#0ea5e9';
-                                ctx.fillRect(px + 30, py + 10, 20, 80);
-                                ctx.fillStyle = '#0284c7'; // Shading
-                                ctx.fillRect(px + 45, py + 10, 5, 80);
-                            } else if (seed % 11 === 0) {
-                                // Port-a-potty
-                                ctx.fillStyle = '#1e3a8a';
-                                ctx.fillRect(px + 40, py + 40, 25, 25);
-                                ctx.fillStyle = '#fff';
-                                ctx.fillRect(px + 45, py + 45, 15, 15);
-                            } else if (seed % 3 === 0) {
-                                // Tire Tracks
-                                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-                                ctx.lineWidth = 12;
-                                ctx.beginPath();
-                                ctx.moveTo(px, py + 20);
-                                ctx.quadraticCurveTo(px + 60, py + 60, px + TILE_SIZE, py + 40);
-                                ctx.stroke();
-                            }
+                        } else if (!isTop && !isBottom && !isLeft && !isRight) {
+                            if (seed % 5 === 0) { ctx.fillStyle = '#b45309'; ctx.fillRect(px + 20, py + 30, 60, 20); ctx.fillStyle = '#d97706'; ctx.fillRect(px + 20, py + 30, 55, 15); } 
+                            else if (seed % 7 === 0) { ctx.fillStyle = '#0ea5e9'; ctx.fillRect(px + 30, py + 10, 20, 80); ctx.fillStyle = '#0284c7'; ctx.fillRect(px + 45, py + 10, 5, 80); } 
+                            else if (seed % 11 === 0) { ctx.fillStyle = '#1e3a8a'; ctx.fillRect(px + 40, py + 40, 25, 25); ctx.fillStyle = '#fff'; ctx.fillRect(px + 45, py + 45, 15, 15); } 
+                            else if (seed % 3 === 0) { ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(px, py + 20); ctx.quadraticCurveTo(px + 60, py + 60, px + TILE_SIZE, py + 40); ctx.stroke(); }
                         }
-
-                        // CRANE BASE (Top Left corner of site)
                         if (relX === 1 && relY === 1) {
-                            ctx.fillStyle = '#facc15'; // Yellow
-                            ctx.fillRect(px + 20, py + 20, TILE_SIZE - 40, TILE_SIZE - 40);
-                            // X brace
-                            ctx.strokeStyle = '#a16207';
-                            ctx.lineWidth = 4;
-                            ctx.beginPath();
-                            ctx.moveTo(px+20, py+20); ctx.lineTo(px+TILE_SIZE-20, py+TILE_SIZE-20);
-                            ctx.moveTo(px+TILE_SIZE-20, py+20); ctx.lineTo(px+20, py+TILE_SIZE-20);
-                            ctx.stroke();
-                            
-                            // Cast giant shadow for the arm (Visual flair only)
+                            ctx.fillStyle = '#facc15'; ctx.fillRect(px + 20, py + 20, TILE_SIZE - 40, TILE_SIZE - 40); ctx.strokeStyle = '#a16207'; ctx.lineWidth = 4;
+                            ctx.beginPath(); ctx.moveTo(px+20, py+20); ctx.lineTo(px+TILE_SIZE-20, py+TILE_SIZE-20); ctx.moveTo(px+TILE_SIZE-20, py+20); ctx.lineTo(px+20, py+TILE_SIZE-20); ctx.stroke();
+                            renderList.push({ y: py, draw: () => { ctx.save(); ctx.translate(px + TILE_SIZE/2, py + TILE_SIZE/2); ctx.rotate(Date.now() / 5000); ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(0, -10, 400, 20); ctx.restore(); }});
+                        }
+                    }
+                } else if (tile === TileType.FOOTBALL_FIELD) {
+                    const fieldX = 73; const fieldY = 96; const fieldW = 14; const fieldH = 8;
+                    const relX = x - fieldX; const relY = y - fieldY;
+                    
+                    if (relX >= 0 && relX < fieldW && relY >= 0 && relY < fieldH) {
+                        // 1. Draw Grass Stripe
+                        const stripe = Math.floor(relX / 1) % 2 === 0;
+                        ctx.fillStyle = stripe ? '#15803d' : '#16a34a'; // Green-700 / Green-600
+                        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+
+                        // 2. Draw Field Lines using Clipping
+                        const lineW = 4;
+                        const fieldWorldX = fieldX * TILE_SIZE;
+                        const fieldWorldY = fieldY * TILE_SIZE;
+                        const fieldWorldW = fieldW * TILE_SIZE;
+                        const fieldWorldH = fieldH * TILE_SIZE;
+                        const centerX = fieldWorldX + fieldWorldW / 2;
+                        const centerY = fieldWorldY + fieldWorldH / 2;
+
+                        ctx.save();
+                        // Clip drawing to CURRENT TILE only
+                        ctx.beginPath();
+                        ctx.rect(px, py, TILE_SIZE, TILE_SIZE);
+                        ctx.clip();
+
+                        // Common Line Settings
+                        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+                        ctx.lineWidth = lineW;
+                        ctx.lineCap = 'butt'; // Crisp corners
+
+                        // A. Outer Border
+                        ctx.strokeRect(fieldWorldX + lineW/2, fieldWorldY + lineW/2, fieldWorldW - lineW, fieldWorldH - lineW);
+
+                        // B. Center Line
+                        ctx.beginPath();
+                        ctx.moveTo(centerX, fieldWorldY);
+                        ctx.lineTo(centerX, fieldWorldY + fieldWorldH);
+                        ctx.stroke();
+
+                        // C. Center Circle
+                        const circleRadius = TILE_SIZE * 1.5;
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, circleRadius, 0, Math.PI * 2);
+                        ctx.stroke();
+                        // Center Spot
+                        ctx.fillStyle = 'white';
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, 6, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // D. Penalty Areas
+                        const penaltyW = TILE_SIZE * 2.5;
+                        const penaltyH = TILE_SIZE * 4;
+                        const penaltyY = centerY - penaltyH / 2;
+                        
+                        // Left Penalty Box
+                        ctx.strokeRect(fieldWorldX + lineW/2, penaltyY, penaltyW, penaltyH);
+                        // Right Penalty Box
+                        ctx.strokeRect(fieldWorldX + fieldWorldW - penaltyW - lineW/2, penaltyY, penaltyW, penaltyH);
+
+                        ctx.restore();
+
+                        // 3. Goal Posts (3D Objects in RenderList)
+                        // Left Goal
+                        if (relX === 0 && relY === 4) {
                             renderList.push({
-                                y: py, // Low priority
+                                y: py + TILE_SIZE,
                                 draw: () => {
-                                    ctx.save();
-                                    ctx.translate(px + TILE_SIZE/2, py + TILE_SIZE/2);
-                                    ctx.rotate(Date.now() / 5000); // Slow rotation
-                                    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-                                    ctx.fillRect(0, -10, 400, 20); // Long arm shadow
-                                    ctx.restore();
+                                    const postH = 20; const postW = 6;
+                                    ctx.fillStyle = '#fbbf24'; // Yellow posts
+                                    // Top Post
+                                    ctx.fillRect(px + lineW, py - 10, postW, postH);
+                                    // Bottom Post
+                                    ctx.fillRect(px + lineW, py + TILE_SIZE - 10, postW, postH);
+                                    // Crossbar (approx)
+                                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                                    ctx.fillRect(px + lineW, py, 2, TILE_SIZE); 
+                                }
+                            });
+                        }
+                        // Right Goal
+                        if (relX === fieldW - 1 && relY === 4) {
+                            renderList.push({
+                                y: py + TILE_SIZE,
+                                draw: () => {
+                                    const postH = 20; const postW = 6;
+                                    ctx.fillStyle = '#fbbf24'; 
+                                    // Top Post
+                                    ctx.fillRect(px + TILE_SIZE - lineW - postW, py - 10, postW, postH);
+                                    // Bottom Post
+                                    ctx.fillRect(px + TILE_SIZE - lineW - postW, py + TILE_SIZE - 10, postW, postH);
+                                    // Crossbar
+                                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                                    ctx.fillRect(px + TILE_SIZE - lineW - 2, py, 2, TILE_SIZE);
                                 }
                             });
                         }
                     }
-                } else if (tile === TileType.FOOTBALL_FIELD) {
-                    // FIELD DIMENSIONS (Horizontal: 18x10)
-                    const fieldX = 70;
-                    const fieldY = 38; // Adjusted to Y=38 to avoid overlapping road at Y=35
-                    const fieldW = 18;
-                    const fieldH = 10;
-                    
-                    // Relative coordinates in tiles
-                    const relX = x - fieldX;
-                    const relY = y - fieldY;
-                    
-                    // Check bounds just in case
-                    if (relX >= 0 && relX < fieldW && relY >= 0 && relY < fieldH) {
-                        
-                        // Base Grass Pattern (Vertical Mowing Stripes for Horizontal Field)
-                        // Alternating every 2 columns creates visual interest
-                        const stripe = Math.floor(relX / 2) % 2 === 0;
-                        ctx.fillStyle = stripe ? '#15803d' : '#16a34a'; // Green-700 vs Green-600
-                        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                        
-                        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-                        const LINE_W = 6; // Thicker lines for visibility
-
-                        // --- BORDERS ---
-                        // Top Touchline
-                        if (relY === 0) ctx.fillRect(px, py + TILE_SIZE - LINE_W, TILE_SIZE, LINE_W);
-                        // Bottom Touchline
-                        if (relY === fieldH - 1) ctx.fillRect(px, py, TILE_SIZE, LINE_W);
-                        // Left Goal Line
-                        if (relX === 0 && relY > 0 && relY < fieldH - 1) ctx.fillRect(px + TILE_SIZE - LINE_W, py, LINE_W, TILE_SIZE);
-                        // Right Goal Line
-                        if (relX === fieldW - 1 && relY > 0 && relY < fieldH - 1) ctx.fillRect(px, py, LINE_W, TILE_SIZE);
-
-                        // --- CORNER ARCS ---
-                        // Top Left
-                        if (relX === 0 && relY === 0) {
-                             ctx.beginPath(); ctx.arc(px + TILE_SIZE - LINE_W/2, py + TILE_SIZE - LINE_W/2, 25, 0.5 * Math.PI, Math.PI); 
-                             ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = LINE_W; ctx.stroke();
-                             // Flag
-                             renderList.push({ y: py + TILE_SIZE, draw: () => { ctx.fillStyle = '#facc15'; ctx.fillRect(px + TILE_SIZE - 4, py + TILE_SIZE - 20, 2, 20); ctx.fillRect(px+TILE_SIZE-2, py+TILE_SIZE-20, 10, 6); }});
-                        }
-                        // Top Right
-                        if (relX === fieldW - 1 && relY === 0) {
-                             ctx.beginPath(); ctx.arc(px + LINE_W/2, py + TILE_SIZE - LINE_W/2, 25, 0, 0.5 * Math.PI); 
-                             ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = LINE_W; ctx.stroke();
-                             renderList.push({ y: py + TILE_SIZE, draw: () => { ctx.fillStyle = '#facc15'; ctx.fillRect(px+2, py + TILE_SIZE - 20, 2, 20); ctx.fillRect(px+4, py+TILE_SIZE-20, 10, 6); }});
-                        }
-                        // Bottom Left
-                        if (relX === 0 && relY === fieldH - 1) {
-                             ctx.beginPath(); ctx.arc(px + TILE_SIZE - LINE_W/2, py + LINE_W/2, 25, Math.PI, 1.5 * Math.PI); 
-                             ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = LINE_W; ctx.stroke();
-                             renderList.push({ y: py, draw: () => { ctx.fillStyle = '#facc15'; ctx.fillRect(px + TILE_SIZE - 4, py, 2, 20); ctx.fillRect(px+TILE_SIZE-2, py, 10, 6); }});
-                        }
-                        // Bottom Right
-                        if (relX === fieldW - 1 && relY === fieldH - 1) {
-                             ctx.beginPath(); ctx.arc(px + LINE_W/2, py + LINE_W/2, 25, 1.5 * Math.PI, 2 * Math.PI); 
-                             ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = LINE_W; ctx.stroke();
-                             renderList.push({ y: py, draw: () => { ctx.fillStyle = '#facc15'; ctx.fillRect(px+2, py, 2, 20); ctx.fillRect(px+4, py, 10, 6); }});
-                        }
-
-                        // --- CENTER ---
-                        const midX = Math.floor(fieldW / 2);
-                        // Center Line (Vertical)
-                        if (relX === midX) {
-                            if (relY > 0 && relY < fieldH - 1) ctx.fillRect(px, py, LINE_W, TILE_SIZE);
-                        }
-                        
-                        // Center Circle
-                        // Spans roughly 3x3 tiles centered at midX
-                        if (relX === midX && (relY === 4 || relY === 5)) {
-                             // Only draw from one anchor point (top-left of center cluster)
-                             // Center coordinate in pixels
-                             const cx = (fieldX + fieldW/2) * TILE_SIZE;
-                             const cy = (fieldY + fieldH/2) * TILE_SIZE;
-                             
-                             if (relY === 4) {
-                                 ctx.save();
-                                 // Circle
-                                 ctx.beginPath();
-                                 ctx.arc(cx, cy, TILE_SIZE * 1.2, 0, Math.PI * 2);
-                                 ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-                                 ctx.lineWidth = LINE_W;
-                                 ctx.stroke();
-                                 // Center Spot
-                                 ctx.fillStyle = 'rgba(255,255,255,0.85)';
-                                 ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI*2); ctx.fill();
-                                 ctx.restore();
-                             }
-                        }
-
-                        // --- PENALTY AREAS ---
-                        const boxW = 3; // 3 tiles wide
-                        const boxH = 6; // 6 tiles high (centered vertically)
-                        const boxYStart = 2; // Starts at y index 2 (leaves 2 above, 2 below in a 10-high field)
-                        const boxYEnd = 7;
-
-                        // Left Goal Box
-                        // Vertical line at relX = 3
-                        if (relX === 3 && relY >= boxYStart && relY <= boxYEnd) {
-                            ctx.fillRect(px, py, LINE_W, TILE_SIZE);
-                        }
-                        // Horizontal lines
-                        if (relX < 3) {
-                            if (relY === boxYStart) ctx.fillRect(px + TILE_SIZE, py, TILE_SIZE, LINE_W); // Top edge of box
-                            if (relY === boxYEnd) ctx.fillRect(px + TILE_SIZE, py + TILE_SIZE - LINE_W, TILE_SIZE, LINE_W); // Bottom edge
-                        }
-                        // Left Penalty Spot
-                        if (relX === 2 && relY === 4) {
-                             ctx.fillStyle = 'rgba(255,255,255,0.85)';
-                             ctx.beginPath(); ctx.arc(px + TILE_SIZE/2, py + TILE_SIZE, 6, 0, Math.PI*2); ctx.fill();
-                        }
-                        // Left Goal Post (Visual)
-                        if (relX === 0 && (relY === 4 || relY === 5)) {
-                             // Netting texture?
-                             ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                             ctx.fillRect(px, py, 20, TILE_SIZE);
-                             // Post
-                             renderList.push({ y: py + TILE_SIZE, draw: () => {
-                                 ctx.fillStyle = '#fff'; 
-                                 if (relY === 4) ctx.fillRect(px + TILE_SIZE - 10, py, 10, 10); // Top post
-                                 if (relY === 5) ctx.fillRect(px + TILE_SIZE - 10, py + TILE_SIZE - 10, 10, 10); // Bottom post
-                             }});
-                        }
-
-                        // Right Goal Box
-                        const rightBoxX = fieldW - 3; // 15
-                        // Vertical line
-                        if (relX === rightBoxX - 1 && relY >= boxYStart && relY <= boxYEnd) {
-                             ctx.fillRect(px + TILE_SIZE - LINE_W, py, LINE_W, TILE_SIZE);
-                        }
-                        // Horizontal lines
-                        if (relX >= rightBoxX) {
-                            if (relY === boxYStart) ctx.fillRect(px, py, TILE_SIZE, LINE_W);
-                            if (relY === boxYEnd) ctx.fillRect(px, py + TILE_SIZE - LINE_W, TILE_SIZE, LINE_W);
-                        }
-                        // Right Penalty Spot
-                        if (relX === fieldW - 3 && relY === 4) {
-                             ctx.fillStyle = 'rgba(255,255,255,0.85)';
-                             ctx.beginPath(); ctx.arc(px + TILE_SIZE/2, py + TILE_SIZE, 6, 0, Math.PI*2); ctx.fill();
-                        }
-                        // Right Goal Post
-                        if (relX === fieldW - 1 && (relY === 4 || relY === 5)) {
-                             ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                             ctx.fillRect(px + TILE_SIZE - 20, py, 20, TILE_SIZE);
-                             renderList.push({ y: py + TILE_SIZE, draw: () => {
-                                 ctx.fillStyle = '#fff'; 
-                                 if (relY === 4) ctx.fillRect(px, py, 10, 10);
-                                 if (relY === 5) ctx.fillRect(px, py + TILE_SIZE - 10, 10, 10);
-                             }});
-                        }
-                    }
                 } else if (tile === TileType.SIDEWALK || tile === TileType.FOOTPATH) {
-                    ctx.fillStyle = textures['sidewalk'] || COLORS.sidewalk;
-                    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                    ctx.strokeStyle = '#57534e'; ctx.lineWidth = 1; ctx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
-                    if (tile === TileType.FOOTPATH) {
-                        // slightly lighter for visibility
-                        ctx.fillStyle = 'rgba(255,255,255,0.05)';
-                        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                    }
-                    if (x % 5 === 0 && y % 5 === 0) {
-                         ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(px+TILE_SIZE, py+TILE_SIZE, 3, 0, Math.PI*2); ctx.fill();
-                    }
-                    
+                    ctx.fillStyle = textures['sidewalk'] || COLORS.sidewalk; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE); ctx.strokeStyle = '#57534e'; ctx.lineWidth = 1; ctx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+                    if (tile === TileType.FOOTPATH) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE); }
+                    if (x % 5 === 0 && y % 5 === 0) { ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(px+TILE_SIZE, py+TILE_SIZE, 3, 0, Math.PI*2); ctx.fill(); }
                     if ((x * 7 + y * 13) % 4 === 0) {
                         let rot = -1;
                         if (getTileAt(state.map, px + TILE_SIZE, py) === TileType.ROAD_V) rot = 0;
                         else if (getTileAt(state.map, px - TILE_SIZE, py) === TileType.ROAD_V) rot = Math.PI;
                         else if (getTileAt(state.map, px, py + TILE_SIZE) === TileType.ROAD_H) rot = Math.PI/2;
                         else if (getTileAt(state.map, px, py - TILE_SIZE) === TileType.ROAD_H) rot = 3*Math.PI/2;
-                        
-                        if (rot !== -1) {
-                             renderList.push({
-                                 y: py + 99999, 
-                                 draw: () => drawStreetLight(ctx, px + TILE_SIZE/2, py + TILE_SIZE/2, rot)
-                             });
-                        }
+                        if (rot !== -1) { renderList.push({ y: py + 99999, draw: () => drawStreetLight(ctx, px + TILE_SIZE/2, py + TILE_SIZE/2, rot) }); }
                     }
+                } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP || tile === TileType.MALL || tile === TileType.CONTAINER || tile === TileType.PAINT_SHOP || tile === TileType.AIRPORT_TERMINAL || tile === TileType.HANGAR || tile === TileType.TRAIN_STATION) {
+                     let drawWidth = TILE_SIZE;
+                     let skip = false;
 
-                } else if (tile === TileType.BUILDING || tile === TileType.HOSPITAL || tile === TileType.POLICE_STATION || tile === TileType.SKYSCRAPER || tile === TileType.SHOP || tile === TileType.MALL || tile === TileType.CONTAINER || tile === TileType.PAINT_SHOP || tile === TileType.AIRPORT_TERMINAL || tile === TileType.HANGAR) {
-                     // Ground Occlusion Patch
-                     ctx.fillStyle = '#171717'; 
-                     ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-
-                     let opacity = 1;
-                     const height = getBuildingHeight(tile, px, py);
-                     const p = state.player;
-                     
-                     if (p.pos.x >= px && p.pos.x <= px + TILE_SIZE &&
-                         p.pos.y >= py - height && p.pos.y <= py + TILE_SIZE) {
-                            if ((py + TILE_SIZE) > p.pos.y) {
-                                opacity = 0.4;
-                            }
+                     // --- CONTAINER MERGING LOGIC ---
+                     if (tile === TileType.CONTAINER) {
+                         const hasLeft = x > 0 && state.map[y][x-1] === TileType.CONTAINER;
+                         const hasRight = x < MAP_WIDTH - 1 && state.map[y][x+1] === TileType.CONTAINER;
+                         
+                         if (hasLeft) {
+                             skip = true;
+                         } else if (hasRight) {
+                             drawWidth = TILE_SIZE * 2;
+                         }
                      }
 
-                     renderList.push({
-                        y: py + TILE_SIZE, 
-                        draw: () => drawBuilding(ctx, px, py, tile, textures, opacity)
-                     });
+                     if (!skip) {
+                         ctx.fillStyle = '#171717'; 
+                         ctx.fillRect(px, py, drawWidth, TILE_SIZE);
+
+                         let opacity = 1;
+                         const height = getBuildingHeight(tile, px, py);
+                         const p = state.player;
+                         
+                         if (p.pos.x >= px && p.pos.x <= px + drawWidth &&
+                             p.pos.y >= py - height && p.pos.y <= py + TILE_SIZE) {
+                                if ((py + TILE_SIZE) > p.pos.y) {
+                                    opacity = 0.4;
+                                }
+                         }
+
+                         renderList.push({
+                            y: py + TILE_SIZE, 
+                            draw: () => drawBuilding(ctx, px, py, tile, textures, opacity, drawWidth)
+                         });
+                     }
                 } else if (tile === TileType.SHIP_DECK) {
-                    ctx.fillStyle = '#78350f'; 
-                    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                    ctx.fillStyle = 'rgba(0,0,0,0.1)';
-                    for(let i=0; i<TILE_SIZE; i+=8) ctx.fillRect(px+i, py, 1, TILE_SIZE);
-                    
-                    const below = getTileAt(state.map, px, py + TILE_SIZE);
-                    if (below === TileType.WATER) {
-                        ctx.fillStyle = '#451a03'; 
-                        ctx.fillRect(px, py + TILE_SIZE - 4, TILE_SIZE, 4);
-                    }
+                    ctx.fillStyle = '#78350f'; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE); ctx.fillStyle = 'rgba(0,0,0,0.1)'; for(let i=0; i<TILE_SIZE; i+=8) ctx.fillRect(px+i, py, 1, TILE_SIZE);
+                    const below = getTileAt(state.map, px, py + TILE_SIZE); if (below === TileType.WATER) { ctx.fillStyle = '#451a03'; ctx.fillRect(px, py + TILE_SIZE - 4, TILE_SIZE, 4); }
                 } else if (tile === TileType.WATER) {
-                    ctx.fillStyle = COLORS.water; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-                    const offset = (Date.now() / 50) % 20;
-                    ctx.beginPath(); ctx.arc(px + 20 + offset, py + 20, 5, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = COLORS.water; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE); ctx.fillStyle = 'rgba(255,255,255,0.1)'; const offset = (Date.now() / 50) % 20; ctx.beginPath(); ctx.arc(px + 20 + offset, py + 20, 5, 0, Math.PI*2); ctx.fill();
                 } else if (tile === TileType.ROAD_CROSS) {
-                    drawRoad(ctx, px, py, tile, textures, state.map, x, y);
-                    renderList.push({
-                         y: py + 99999,
-                         draw: () => drawTrafficLight(ctx, px, py)
-                    });
+                    drawRoad(ctx, px, py, tile, textures, state.map, x, y); renderList.push({ y: py + 99999, draw: () => drawTrafficLight(ctx, px, py) });
                 } else {
                     drawRoad(ctx, px, py, tile, textures, state.map, x, y);
                 }
@@ -1420,69 +1114,36 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
         }
     }
     
-    // LAYER 2: DROPS
-    state.drops.forEach(d => {
-        if (d.pos.x < camX || d.pos.x > camX + camW || d.pos.y < camY || d.pos.y > camY + camH) return;
-        renderList.push({
-            y: d.pos.y,
-            draw: () => drawDrop(ctx, d)
-        });
-    });
-
-    // LAYER 3: ENTITIES
-    state.pedestrians.forEach(p => {
-         if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return;
-
-         if (p.state === 'dead') {
-             ctx.save(); ctx.translate(p.pos.x, p.pos.y);
-             ctx.fillStyle = '#7f1d1d'; ctx.globalAlpha = 0.8;
-             ctx.beginPath(); ctx.ellipse(0, 0, 15, 12, Math.random(), 0, Math.PI*2); ctx.fill();
-             ctx.globalAlpha = 1;
-             ctx.rotate(p.angle);
-             ctx.fillStyle = p.color; ctx.fillRect(-8,-4,16,8);
-             ctx.restore();
-         }
-    });
-
-    state.vehicles.forEach(v => {
-         if (v.pos.x < camX - 100 || v.pos.x > camX + camW + 100 || v.pos.y < camY - 100 || v.pos.y > camY + camH + 100) return;
-         renderList.push({ y: v.pos.y, draw: () => drawVehicle(ctx, v) });
-    });
-
-    state.pedestrians.forEach(p => {
-        if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return;
-        if (p.state !== 'dead') renderList.push({ y: p.pos.y, draw: () => drawCharacter(ctx, p) });
-    });
-
-    if (!state.player.vehicleId) {
-        renderList.push({ y: state.player.pos.y, draw: () => drawCharacter(ctx, state.player) });
-    }
+    state.drops.forEach(d => { if (d.pos.x < camX || d.pos.x > camX + camW || d.pos.y < camY || d.pos.y > camY + camH) return; renderList.push({ y: d.pos.y, draw: () => drawDrop(ctx, d) }); });
+    state.pedestrians.forEach(p => { if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return; if (p.state === 'dead') { ctx.save(); ctx.translate(p.pos.x, p.pos.y); ctx.fillStyle = '#7f1d1d'; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.ellipse(0, 0, 15, 12, Math.random(), 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; ctx.rotate(p.angle); ctx.fillStyle = p.color; ctx.fillRect(-8,-4,16,8); ctx.restore(); } });
+    state.vehicles.forEach(v => { if (v.pos.x < camX - 100 || v.pos.x > camX + camW + 100 || v.pos.y < camY - 100 || v.pos.y > camY + camH + 100) return; renderList.push({ y: v.pos.y, draw: () => drawVehicle(ctx, v) }); });
+    state.pedestrians.forEach(p => { if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return; if (p.state !== 'dead') renderList.push({ y: p.pos.y, draw: () => drawCharacter(ctx, p) }); });
+    if (!state.player.vehicleId) { renderList.push({ y: state.player.pos.y, draw: () => drawCharacter(ctx, state.player) }); }
 
     renderList.sort((a, b) => a.y - b.y);
     renderList.forEach(item => item.draw());
 
-    // Projectiles
     state.bullets.forEach(b => {
         if (b.pos.x < camX || b.pos.x > camX + camW || b.pos.y < camY || b.pos.y > camY + camH) return;
-
-        if (b.type === 'rocket') {
-             ctx.fillStyle = '#57534e'; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, 3, 0, Math.PI*2); ctx.fill();
-        } else if (b.type === 'fire') {
-             ctx.fillStyle = 'rgba(255, 100, 0, 0.3)'; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, 4, 0, Math.PI*2); ctx.fill();
-        } else {
-            ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 10; ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, 2, 0, Math.PI*2); ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)'; ctx.beginPath(); ctx.moveTo(b.pos.x, b.pos.y); 
-            ctx.lineTo(b.pos.x - b.velocity.x, b.pos.y - b.velocity.y); ctx.stroke();
-        }
+        if (b.type === 'rocket') { ctx.fillStyle = '#57534e'; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, 3, 0, Math.PI*2); ctx.fill(); } 
+        else if (b.type === 'fire') { ctx.fillStyle = 'rgba(255, 100, 0, 0.3)'; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, 4, 0, Math.PI*2); ctx.fill(); } 
+        else { ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 10; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, 2, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,0,0.5)'; ctx.lineWidth = 1; ctx.stroke(); }
     });
 
     state.particles.forEach(p => {
-         if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return;
-         ctx.globalAlpha = p.life / p.maxLife; ctx.fillStyle = p.color;
-         ctx.beginPath(); ctx.arc(p.pos.x, p.pos.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+        if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return;
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life / p.maxLife;
+        ctx.beginPath(); ctx.arc(p.pos.x, p.pos.y, p.size, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1;
     });
 
     ctx.restore();
+    
+    // Vignette
+    const grad = ctx.createRadialGradient(width/2, height/2, height/2, width/2, height/2, height);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(1, 'rgba(0,0,0,0.4)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,width,height);
 };

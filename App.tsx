@@ -20,6 +20,9 @@ const App: React.FC = () => {
   const [showMap, setShowMap] = useState(false);
   const [hasSaveGame, setHasSaveGame] = useState(false);
   
+  // Detect Touch Capability
+  const isTouchDevice = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches));
+
   // Settings State
   const [settings, setSettings] = useState<GameSettings>({
       sfxVolume: 8,
@@ -30,7 +33,8 @@ const App: React.FC = () => {
       frameLimiter: false,
       mouseSensitivity: 50,
       mobileControlStyle: 'DPAD',
-      isFullScreen: window.innerWidth < 768 // Default to true on mobile (simple width check)
+      isFullScreen: isTouchDevice || window.innerWidth < 768, // Default to true if touch or mobile size
+      showTouchControls: isTouchDevice // Enable touch controls by default on touch devices
   });
 
   // Splash Screen Timer - Increased to 5s to allow particle animation to finish
@@ -75,7 +79,9 @@ const App: React.FC = () => {
     activeShop: 'none',
     paused: false,
     timeOfDay: 12,
-    timeTicker: 0
+    timeTicker: 0,
+    isWasted: false,
+    wastedStartTime: 0
   };
 
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
@@ -170,6 +176,10 @@ const App: React.FC = () => {
           }
           return { ...prev, isFullScreen: newState };
       });
+  };
+
+  const toggleTouchControls = () => {
+      setSettings(prev => ({ ...prev, showTouchControls: !prev.showTouchControls }));
   };
 
   const handleUpdateGameState = (updates: Partial<GameState>) => {
@@ -343,10 +353,14 @@ const App: React.FC = () => {
 
                                 <div className="h-px bg-white/20 my-4"></div>
                                 
-                                {/* Mobile Controls */}
-                                <div className="space-y-2 md:hidden">
+                                {/* Controls */}
+                                <div className="space-y-2">
+                                     <button onClick={toggleTouchControls} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
+                                        <span className="text-gray-400 group-hover:text-white">SHOW TOUCH CONTROLS</span>
+                                        <span className={`${settings.showTouchControls ? 'text-green-400' : 'text-red-500'} font-bold`}>{settings.showTouchControls ? 'ON' : 'OFF'}</span>
+                                    </button>
                                      <button onClick={toggleControlStyle} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
-                                        <span className="text-gray-400 group-hover:text-white">MOBILE STEERING</span>
+                                        <span className="text-gray-400 group-hover:text-white">TOUCH STEERING</span>
                                         <span className="text-yellow-400 font-bold">{settings.mobileControlStyle}</span>
                                     </button>
                                 </div>
@@ -417,17 +431,40 @@ const App: React.FC = () => {
       {settings.retroFilter && <div className="scanlines pointer-events-none"></div>}
 
       {/* UI Layer */}
-      {gameStarted && !isWeaponWheelOpen && !showMap && gameState.activeShop === 'none' && (
+      {gameStarted && !isWeaponWheelOpen && !showMap && gameState.activeShop === 'none' && !gameState.isWasted && (
         <HUD 
             gameState={gameState} 
             onPhoneClick={handlePhoneToggle}
             onRadarClick={() => setShowMap(true)} 
             onWeaponClick={() => setIsWeaponWheelOpen(true)}
+            showTouchControls={settings.showTouchControls}
         />
       )}
       
+      {/* WASTED OVERLAY */}
+      {gameState.isWasted && (
+          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-red-900/40 backdrop-grayscale-[0.8] backdrop-sepia-[0.5] backdrop-blur-[2px] transition-all duration-1000 animate-fade-in pointer-events-none overflow-hidden">
+              {/* Animated Background Strip */}
+              <div className="absolute inset-0 bg-black/20" style={{backgroundImage: 'linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%, #000), linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%, #000)', backgroundSize: '60px 60px', backgroundPosition: '0 0, 30px 30px', opacity: 0.1}}></div>
+              
+              <div className="relative transform scale-110 animate-bounce-short">
+                  <h1 className="font-gta text-6xl md:text-9xl text-white drop-shadow-[4px_4px_0_#000] tracking-widest relative z-10 stroke-black text-stroke-2">
+                      WASTED
+                  </h1>
+                  <h1 className="font-gta text-6xl md:text-9xl text-red-600 absolute top-0 left-0 blur-sm z-0 animate-pulse">
+                      WASTED
+                  </h1>
+              </div>
+              
+              {/* Subtext */}
+              <div className="absolute bottom-10 md:bottom-20 text-white/80 font-mono text-sm md:text-xl bg-black/60 px-6 py-2 rounded">
+                  You flatlined. Cost: $500
+              </div>
+          </div>
+      )}
+      
       {/* Mobile Controls Overlay */}
-      {gameStarted && !isPhoneOpen && !isWeaponWheelOpen && !showMap && gameState.activeShop === 'none' && (
+      {gameStarted && !isPhoneOpen && !isWeaponWheelOpen && !showMap && gameState.activeShop === 'none' && !gameState.isWasted && settings.showTouchControls && (
           <MobileControls 
             isDriving={!!gameState.player.vehicleId} 
             controlStyle={settings.mobileControlStyle}

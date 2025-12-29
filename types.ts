@@ -116,6 +116,8 @@ export interface GameState {
   paused: boolean;
   timeOfDay: number; // 0 - 24
   timeTicker: number;
+  isWasted: boolean;
+  wastedStartTime: number;
 }
 
 export interface Mission {
@@ -152,7 +154,10 @@ export enum TileType {
   FOOTPATH = 20,
   MALL = 21,
   CONSTRUCTION = 22,
-  FOOTBALL_FIELD = 23
+  FOOTBALL_FIELD = 23,
+  TRAIN_STATION = 24,
+  RAIL = 25,
+  RAIL_CROSSING = 26
 }
 
 export interface GameSettings {
@@ -165,4 +170,5 @@ export interface GameSettings {
   mouseSensitivity: number; // 0-100
   mobileControlStyle: 'DPAD' | 'JOYSTICK';
   isFullScreen: boolean;
+  showTouchControls: boolean; // Toggle for touch controls
 }

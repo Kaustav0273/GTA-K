@@ -54,7 +54,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             isWeaponWheelOpen: false,
             lastDamageTaken: (initialGameState as any).lastDamageTaken || 0,
             lastWantedTime: (initialGameState as any).lastWantedTime || 0,
-            activeShop: (initialGameState as any).activeShop || 'none'
+            activeShop: (initialGameState as any).activeShop || 'none',
+            isWasted: false,
+            wastedStartTime: 0
         }
         : {
             player: {
@@ -81,7 +83,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             isWeaponWheelOpen: false,
             lastDamageTaken: 0,
             lastWantedTime: 0,
-            activeShop: 'none'
+            activeShop: 'none',
+            isWasted: false,
+            wastedStartTime: 0
         }
     );
 
@@ -125,25 +129,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             for(let y=0; y<MAP_HEIGHT; y++) {
                 for(let x=0; x<MAP_WIDTH; x++) {
                     if(state.map[y][x] === TileType.HOSPITAL) {
-                        const neighbors = [
-                            {dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}
-                        ];
-                        
-                        for(const n of neighbors) {
-                            const nx = x + n.dx;
-                            const ny = y + n.dy;
-                            
-                            if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-                                const tile = state.map[ny][nx];
-                                if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS) {
-                                    state.hospitalPos = { 
-                                        x: nx * TILE_SIZE + TILE_SIZE/2, 
-                                        y: ny * TILE_SIZE + TILE_SIZE/2 
-                                    };
-                                    foundHospital = true; 
-                                    break;
+                        // Scan a wider area (3 block radius) for a road
+                        for(let dy=-3; dy<=3; dy++) {
+                            for(let dx=-3; dx<=3; dx++) {
+                                const nx = x + dx;
+                                const ny = y + dy;
+                                
+                                if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+                                    const tile = state.map[ny][nx];
+                                    if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS) {
+                                        state.hospitalPos = { 
+                                            x: nx * TILE_SIZE + TILE_SIZE/2, 
+                                            y: ny * TILE_SIZE + TILE_SIZE/2 
+                                        };
+                                        foundHospital = true; 
+                                        break;
+                                    }
                                 }
                             }
+                            if(foundHospital) break;
                         }
                     }
                     if (foundHospital) break;
