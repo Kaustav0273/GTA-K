@@ -572,9 +572,31 @@ const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: Til
         if (!hasRoadRight) ctx.fillRect(x + TILE_SIZE - 4, y, 4, TILE_SIZE);
     } else if (type === TileType.ROAD_CROSS || type === TileType.RAIL_CROSSING) {
          if (type === TileType.RAIL_CROSSING) {
-             ctx.fillStyle = '#d6d3d1'; ctx.fillRect(x, y + 30, TILE_SIZE, 6); ctx.fillRect(x, y + TILE_SIZE - 36, TILE_SIZE, 6);
-             ctx.fillStyle = '#1c1917'; ctx.fillRect(x, y + 36, TILE_SIZE, 2); ctx.fillRect(x, y + TILE_SIZE - 30, TILE_SIZE, 2);
-             ctx.fillStyle = '#fbbf24'; ctx.fillRect(x + 10, y + 20, TILE_SIZE - 20, 2); ctx.fillRect(x + 10, y + TILE_SIZE - 22, TILE_SIZE - 20, 2);
+             // DETECT RAIL DIRECTION
+             const isRailV = (gridY > 0 && (map[gridY-1][gridX] === TileType.RAIL || map[gridY-1][gridX] === TileType.RAIL_CROSSING)) ||
+                             (gridY < MAP_HEIGHT-1 && (map[gridY+1][gridX] === TileType.RAIL || map[gridY+1][gridX] === TileType.RAIL_CROSSING));
+             
+             // Draw Rails (Metallic)
+             const drawCrossingRail = (bx: number, by: number, ex: number, ey: number) => {
+                 // Base
+                 ctx.strokeStyle = '#27272a'; ctx.lineWidth = 6; ctx.lineCap = 'butt';
+                 ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, ey); ctx.stroke();
+                 // Top
+                 ctx.strokeStyle = '#d4d4d8'; ctx.lineWidth = 2;
+                 ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, ey); ctx.stroke();
+             };
+
+             if (isRailV) {
+                 drawCrossingRail(x + 36, y, x + 36, y + TILE_SIZE);
+                 drawCrossingRail(x + 92, y, x + 92, y + TILE_SIZE);
+                 // Boom Gate Safety Lines
+                 ctx.fillStyle = '#fbbf24'; ctx.fillRect(x + 20, y + 10, 2, TILE_SIZE - 20); ctx.fillRect(x + TILE_SIZE - 22, y + 10, 2, TILE_SIZE - 20);
+             } else {
+                 drawCrossingRail(x, y + 36, x + TILE_SIZE, y + 36);
+                 drawCrossingRail(x, y + 92, x + TILE_SIZE, y + 92);
+                 // Boom Gate Safety Lines
+                 ctx.fillStyle = '#fbbf24'; ctx.fillRect(x + 10, y + 20, TILE_SIZE - 20, 2); ctx.fillRect(x + 10, y + TILE_SIZE - 22, TILE_SIZE - 20, 2);
+             }
          } else {
              ctx.fillStyle = '#fff';
              const cwW = 12; const cwL = TILE_SIZE - 10;
@@ -848,9 +870,21 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                         });
                     }
                 } else if (tile === TileType.RAIL) {
-                    ctx.fillStyle = '#57534e'; // Stone bed
+                    // Ballast (Gravel Base) - Fixed Texture
+                    ctx.fillStyle = '#292524'; // Stone-800 (Darker ballast base)
                     ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                     
+                    // Gravel Noise (Fine grit instead of blocks)
+                    ctx.fillStyle = '#44403c'; // Stone-700 (Lighter stones)
+                    // Deterministic noise based on coordinates to prevent flickering
+                    for (let i = 0; i < 32; i++) {
+                        const hash = (x * 73856093) ^ (y * 19349663) ^ (i * 83492791);
+                        const nx = (hash % TILE_SIZE + TILE_SIZE) % TILE_SIZE;
+                        const ny = ((hash >> 8) % TILE_SIZE + TILE_SIZE) % TILE_SIZE;
+                        const s = (hash % 3) + 2; // Size 2-4px
+                        ctx.fillRect(px + nx, py + ny, s, s);
+                    }
+
                     const gridX = Math.round(px / TILE_SIZE);
                     const gridY = Math.round(py / TILE_SIZE);
                     
@@ -861,66 +895,140 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                     const hasT = gridY > 0 && isR(state.map[gridY-1][gridX]);
                     const hasB = gridY < MAP_HEIGHT - 1 && isR(state.map[gridY+1][gridX]);
                     
-                    const isHorz = (hasL || hasR) && !hasT && !hasB;
-                    const isVert = (hasT || hasB) && !hasL && !hasR;
-                    
-                    ctx.fillStyle = '#44403c'; 
-                    ctx.strokeStyle = '#44403c';
-                    ctx.lineWidth = 4;
+                    const drawRailLine = (bx: number, by: number, ex: number, ey: number, isCurved: boolean = false, cX?: number, cY?: number, radius?: number, startAng?: number, endAng?: number) => {
+                        // Rail base (Rusty/Dark)
+                        ctx.strokeStyle = '#27272a'; // Zinc-800
+                        ctx.lineWidth = 6;
+                        ctx.lineCap = 'butt';
+                        ctx.beginPath();
+                        if(isCurved) { ctx.arc(cX!, cY!, radius!, startAng!, endAng!); }
+                        else { ctx.moveTo(bx, by); ctx.lineTo(ex, ey); }
+                        ctx.stroke();
 
-                    if (isHorz) {
-                        ctx.fillRect(px, py + 30, TILE_SIZE, 4);
-                        ctx.fillRect(px, py + TILE_SIZE - 34, TILE_SIZE, 4);
-                        for(let i=0; i<TILE_SIZE; i+=16) ctx.fillRect(px + i, py + 20, 4, TILE_SIZE - 40);
-                    } else if (isVert) {
-                        ctx.fillRect(px + 30, py, 4, TILE_SIZE);
-                        ctx.fillRect(px + TILE_SIZE - 34, py, 4, TILE_SIZE);
-                        for(let i=0; i<TILE_SIZE; i+=16) ctx.fillRect(px + 20, py + i, TILE_SIZE - 40, 4);
-                    } else {
-                        // Corner or Intersection
-                        const drawCurve = (cX: number, cY: number, startAng: number, endAng: number) => {
-                            ctx.save();
-                            ctx.translate(cX, cY);
-                            // Sleepers
-                            for(let i=0; i<=6; i++) {
-                                 const t = i / 6;
-                                 const a = startAng + (endAng - startAng) * t;
-                                 const sx = Math.cos(a) * 32;
-                                 const sy = Math.sin(a) * 32;
-                                 const ex = Math.cos(a) * 96;
-                                 const ey = Math.sin(a) * 96;
-                                 ctx.beginPath();
-                                 ctx.moveTo(sx, sy);
-                                 ctx.lineTo(ex, ey);
-                                 ctx.stroke();
+                        // Rail top (Shiny Steel)
+                        ctx.strokeStyle = '#d4d4d8'; // Zinc-300
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        if(isCurved) { ctx.arc(cX!, cY!, radius!, startAng!, endAng!); }
+                        else { ctx.moveTo(bx, by); ctx.lineTo(ex, ey); }
+                        ctx.stroke();
+                    };
+
+                    const sleeperColor = '#3f2e26'; // Dark Wood
+
+                    // Helpers for drawing straight segments
+                    const drawHorz = () => {
+                        // Sleepers (Vertical bars)
+                        ctx.fillStyle = sleeperColor;
+                        for(let i=4; i<TILE_SIZE; i+=16) {
+                            ctx.fillRect(px + i, py + 16, 8, TILE_SIZE - 32);
+                            // Bolt detail
+                            ctx.fillStyle = '#18181b';
+                            ctx.fillRect(px + i + 2, py + 38, 4, 4);
+                            ctx.fillRect(px + i + 2, py + TILE_SIZE - 42, 4, 4);
+                            ctx.fillStyle = sleeperColor;
+                        }
+                        // Rails
+                        drawRailLine(px, py + 36, px + TILE_SIZE, py + 36);
+                        drawRailLine(px, py + 92, px + TILE_SIZE, py + 92);
+                    };
+
+                    const drawVert = () => {
+                        // Sleepers (Horizontal bars)
+                        ctx.fillStyle = sleeperColor;
+                        for(let i=4; i<TILE_SIZE; i+=16) {
+                            ctx.fillRect(px + 16, py + i, TILE_SIZE - 32, 8);
+                            // Bolt detail
+                            ctx.fillStyle = '#18181b';
+                            ctx.fillRect(px + 38, py + i + 2, 4, 4);
+                            ctx.fillRect(px + 94, py + i + 2, 4, 4);
+                            ctx.fillStyle = sleeperColor;
+                        }
+                        // Rails
+                        drawRailLine(px + 36, py, px + 36, py + TILE_SIZE);
+                        drawRailLine(px + 92, py, px + 92, py + TILE_SIZE);
+                    };
+
+                    const drawCurve = (cX: number, cY: number, startAng: number, endAng: number) => {
+                        ctx.save();
+                        ctx.translate(cX, cY);
+                        
+                        // Sleepers (Radially)
+                        const steps = 10;
+                        const rInner = 36; 
+                        const rOuter = 92; 
+                        
+                        ctx.fillStyle = sleeperColor;
+                        for(let i=0; i<=steps; i++) {
+                                const t = i / steps;
+                                let angle = startAng + (endAng - startAng) * t;
+                                
+                                ctx.save();
+                                ctx.rotate(angle);
+                                ctx.translate((rInner + rOuter)/2, 0); 
+                                ctx.fillRect(-(rOuter-rInner)/2 - 10, -4, (rOuter-rInner) + 20, 8); 
+                                
+                                ctx.fillStyle = '#18181b';
+                                ctx.fillRect(-(rOuter-rInner)/2 + 2, -2, 4, 4); 
+                                ctx.fillRect((rOuter-rInner)/2 - 6, -2, 4, 4); 
+                                ctx.fillStyle = sleeperColor;
+                                
+                                ctx.restore();
+                        }
+                        ctx.restore();
+
+                        drawRailLine(0,0,0,0, true, cX, cY, 36, startAng, endAng);
+                        drawRailLine(0,0,0,0, true, cX, cY, 92, startAng, endAng);
+                    };
+
+                    const drawIntersection = () => {
+                            // Draw Grid Sleepers
+                            ctx.fillStyle = sleeperColor;
+                            for(let i=4; i<TILE_SIZE; i+=16) {
+                                ctx.fillRect(px + i, py + 16, 8, TILE_SIZE - 32);
                             }
-                            // Rails
-                            ctx.beginPath(); ctx.arc(0, 0, 32, startAng, endAng); ctx.stroke();
-                            ctx.beginPath(); ctx.arc(0, 0, 96, startAng, endAng); ctx.stroke();
-                            ctx.restore();
-                        };
-                        
-                        let drawn = false;
-                        if (hasT && hasR && !hasB && !hasL) { // TR
-                            drawCurve(px + TILE_SIZE, py, Math.PI, Math.PI * 0.5);
-                            drawn = true;
-                        } else if (hasT && hasL && !hasB && !hasR) { // TL
-                            drawCurve(px, py, 0, Math.PI * 0.5);
-                            drawn = true;
-                        } else if (hasB && hasR && !hasT && !hasL) { // BR
-                            drawCurve(px + TILE_SIZE, py + TILE_SIZE, Math.PI, Math.PI * 1.5);
-                            drawn = true;
-                        } else if (hasB && hasL && !hasT && !hasR) { // BL
-                            drawCurve(px, py + TILE_SIZE, -Math.PI * 0.5, 0);
-                            drawn = true;
-                        }
-                        
-                        if (!drawn) { // Cross
-                            ctx.fillRect(px, py + 30, TILE_SIZE, 4);
-                            ctx.fillRect(px, py + TILE_SIZE - 34, TILE_SIZE, 4);
-                            ctx.fillRect(px + 30, py, 4, TILE_SIZE);
-                            ctx.fillRect(px + TILE_SIZE - 34, py, 4, TILE_SIZE);
-                        }
+                            // Rails (Cross)
+                            drawRailLine(px, py + 36, px + TILE_SIZE, py + 36);
+                            drawRailLine(px, py + 92, px + TILE_SIZE, py + 92);
+                            drawRailLine(px + 36, py, px + 36, py + TILE_SIZE);
+                            drawRailLine(px + 92, py, px + 92, py + TILE_SIZE);
+                    };
+
+                    // --- ORIENTATION LOGIC FIX ---
+                    // Prioritize Straight connections (Left+Right OR Top+Bottom) over complex intersection logic
+                    // This handles Parallel Tracks correctly by ignoring the perpendicular neighbor
+                    
+                    const isStraightHorz = hasL && hasR;
+                    const isStraightVert = hasT && hasB;
+                    
+                    let drawn = false;
+
+                    // 1. Full Crossing (Grid) - Only if truly connected 4 ways
+                    if (isStraightHorz && isStraightVert) {
+                        drawIntersection();
+                        drawn = true;
+                    } 
+                    // 2. Straight Horizontal (Prioritize L-R continuity)
+                    else if (isStraightHorz) {
+                        drawHorz();
+                        drawn = true;
+                    }
+                    // 3. Straight Vertical (Prioritize T-B continuity)
+                    else if (isStraightVert) {
+                        drawVert();
+                        drawn = true;
+                    }
+                    // 4. Corners
+                    else if (hasL && hasB) { drawCurve(px, py + TILE_SIZE, -Math.PI * 0.5, 0); drawn = true; } // Bottom-Left
+                    else if (hasL && hasT) { drawCurve(px, py, 0, Math.PI * 0.5); drawn = true; } // Top-Left
+                    else if (hasR && hasB) { drawCurve(px + TILE_SIZE, py + TILE_SIZE, Math.PI, Math.PI * 1.5); drawn = true; } // Bottom-Right
+                    else if (hasR && hasT) { drawCurve(px + TILE_SIZE, py, Math.PI, Math.PI * 0.5); drawn = true; } // Top-Right
+                    
+                    // 5. Dead Ends / Single Connections
+                    if (!drawn) {
+                        if (hasL || hasR) drawHorz();
+                        else if (hasT || hasB) drawVert();
+                        else drawHorz(); // Isolated default
                     }
                 } else if (tile === TileType.CONSTRUCTION) {
                     ctx.fillStyle = '#78350f'; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);

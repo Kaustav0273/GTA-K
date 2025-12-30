@@ -20,21 +20,32 @@ const App: React.FC = () => {
   const [showMap, setShowMap] = useState(false);
   const [hasSaveGame, setHasSaveGame] = useState(false);
   
-  // Detect Touch Capability
-  const isTouchDevice = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches));
+  // Settings State initialized lazily
+  const [settings, setSettings] = useState<GameSettings>(() => {
+      const isClient = typeof window !== 'undefined' && typeof navigator !== 'undefined';
+      
+      // Robust Touch Detection
+      const hasTouch = isClient && (
+          navigator.maxTouchPoints > 0 || 
+          (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ||
+          'ontouchstart' in window
+      );
 
-  // Settings State
-  const [settings, setSettings] = useState<GameSettings>({
-      sfxVolume: 8,
-      musicVolume: 6,
-      drawDistance: 'ULTRA',
-      trafficDensity: 'MED',
-      retroFilter: true,
-      frameLimiter: false,
-      mouseSensitivity: 50,
-      mobileControlStyle: 'DPAD',
-      isFullScreen: isTouchDevice || window.innerWidth < 768, // Default to true if touch or mobile size
-      showTouchControls: isTouchDevice // Enable touch controls by default on touch devices
+      // Only default to Fullscreen for small mobile devices, not touch laptops
+      const isSmallScreen = isClient && window.innerWidth < 768;
+
+      return {
+          sfxVolume: 8,
+          musicVolume: 6,
+          drawDistance: 'ULTRA',
+          trafficDensity: 'MED',
+          retroFilter: true,
+          frameLimiter: false,
+          mouseSensitivity: 50,
+          mobileControlStyle: 'DPAD',
+          isFullScreen: isSmallScreen, // Only force FS on mobile
+          showTouchControls: hasTouch // Default ON for any touch device (Phone, Tablet, Laptop)
+      };
   });
 
   // Splash Screen Timer - Increased to 5s to allow particle animation to finish
@@ -57,7 +68,7 @@ const App: React.FC = () => {
         health: 100, 
         maxHealth: 100, 
         armor: 0, 
-        stamina: STAMINA_MAX,
+        stamina: STAMINA_MAX, 
         maxStamina: STAMINA_MAX,
         staminaRechargeDelay: 0,
         state: 'idle', 
@@ -463,7 +474,7 @@ const App: React.FC = () => {
           </div>
       )}
       
-      {/* Mobile Controls Overlay */}
+      {/* Mobile Controls Overlay - Now visible based on explicit setting, not screen size */}
       {gameStarted && !isPhoneOpen && !isWeaponWheelOpen && !showMap && gameState.activeShop === 'none' && !gameState.isWasted && settings.showTouchControls && (
           <MobileControls 
             isDriving={!!gameState.player.vehicleId} 

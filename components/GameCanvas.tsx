@@ -322,13 +322,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             if (e.code === 'Tab') { e.preventDefault(); onWeaponWheelToggle(false); }
         };
 
+        // Mouse Support
+        const handleMouseDown = (e: MouseEvent) => {
+            if (e.button === 0) { // Left Click acts as Space (Shoot/Action)
+                keysPressed.current.add('Space');
+            }
+        };
+        const handleMouseUp = (e: MouseEvent) => {
+            if (e.button === 0) {
+                keysPressed.current.delete('Space');
+            }
+        };
+
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mouseup', handleMouseUp);
+        
         requestRef.current = requestAnimationFrame(gameLoop);
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('mousedown', handleMouseDown);
+            window.removeEventListener('mouseup', handleMouseUp);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
