@@ -42,12 +42,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }, [isPhoneOpen, activeMission, settings, paused]);
     
     // Mutable Game State Container
-    // Initialize with props if available (Load Game), otherwise defaults
     const gameStateRef = useRef<MutableGameState>(
         (initialGameState && initialGameState.map && initialGameState.map.length > 0) 
         ? {
             ...initialGameState,
-            // Ensure runtime properties that might be missing from JSON save are present
             lastShotTime: 0,
             timeTicker: initialGameState.timeTicker || 0,
             hospitalPos: (initialGameState as any).hospitalPos || { x: 0, y: 0 },
@@ -56,7 +54,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             lastWantedTime: (initialGameState as any).lastWantedTime || 0,
             activeShop: (initialGameState as any).activeShop || 'none',
             isWasted: false,
-            wastedStartTime: 0
+            wastedStartTime: 0,
+            // Guard against undefined cheats in legacy saves
+            cheats: initialGameState.cheats || {
+                godMode: false,
+                infiniteStamina: false,
+                infiniteAmmo: false,
+                noReload: false,
+                oneHitKill: false,
+                vehicleGodMode: false
+            }
         }
         : {
             player: {
@@ -85,7 +92,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             lastWantedTime: 0,
             activeShop: 'none',
             isWasted: false,
-            wastedStartTime: 0
+            wastedStartTime: 0,
+            cheats: {
+                godMode: false,
+                infiniteStamina: false,
+                infiniteAmmo: false,
+                noReload: false,
+                oneHitKill: false,
+                vehicleGodMode: false
+            }
         }
     );
 
@@ -95,23 +110,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         gameStateRef.current.isWeaponWheelOpen = isWeaponWheelOpen;
     }, [activeWeapon, isWeaponWheelOpen]);
 
-    // Sync State Logic (Fix for Garage Re-entry Loop)
-    // When GameCanvas resumes (unpaused), we sync the updated state from App (which has exit velocity/cooldowns)
+    // Sync State Logic
     useEffect(() => {
         if (!paused && syncGameState) {
             const internal = gameStateRef.current;
-            
-            // Sync critical parts modified by UI (like CarShop)
             internal.money = syncGameState.money;
-            internal.activeShop = 'none'; // Force clear shop state internally
-            
-            // Sync Vehicles (car upgrades, colors, and critically: push velocity & cooldown)
-            // We match by ID to preserve object identity if needed, or just replace array if totally managed externally
-            // Replacing is safer for sync
+            internal.activeShop = 'none'; 
             internal.vehicles = syncGameState.vehicles.map(v => ({...v}));
-            
-            // Sync Player Weapon just in case
             internal.player.weapon = syncGameState.player.weapon;
+            if (syncGameState.cheats) {
+                internal.cheats = syncGameState.cheats;
+            }
         }
     }, [paused, syncGameState]);
 
@@ -129,12 +138,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             for(let y=0; y<MAP_HEIGHT; y++) {
                 for(let x=0; x<MAP_WIDTH; x++) {
                     if(state.map[y][x] === TileType.HOSPITAL) {
-                        // Scan a wider area (3 block radius) for a road
                         for(let dy=-3; dy<=3; dy++) {
                             for(let dx=-3; dx<=3; dx++) {
                                 const nx = x + dx;
                                 const ny = y + dy;
-                                
                                 if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
                                     const tile = state.map[ny][nx];
                                     if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS) {
@@ -156,24 +163,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             }
             
             if (!foundHospital) {
-                console.warn("Could not find road spawn for hospital. Defaulting.");
                 state.hospitalPos = { x: TILE_SIZE * 5, y: TILE_SIZE * 5 };
             }
-
-            // Set Player to Hospital Spawn immediately
             state.player.pos = { ...state.hospitalPos };
 
-            // Spawn Vehicles
+            // Spawn Traffic
             const modelKeys = Object.keys(CAR_MODELS) as Array<keyof typeof CAR_MODELS>;
-            const regularModels = modelKeys.filter(k => k !== 'plane' && k !== 'jet');
+            const regularModels = modelKeys.filter(k => k !== 'plane' && k !== 'jet' && k !== 'tank' && k !== 'barracks');
 
-            // Determine initial traffic count based on settings provided in props (or default if not available yet in this scope)
-            // Using settings passed to component which should be initial value on mount.
             let maxTraffic = 50;
             if (settings.trafficDensity === 'LOW') maxTraffic = 25;
             else if (settings.trafficDensity === 'HIGH') maxTraffic = 75;
 
-            // Use calculated maxTraffic for initial pool
             let trafficCount = maxTraffic;
             let attempts = 0;
             
@@ -193,7 +194,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                         angle = dir ? 0 : Math.PI;
                         posY = y * TILE_SIZE + (dir ? TILE_SIZE * 0.75 : TILE_SIZE * 0.25);
                     } else if (tile === TileType.ROAD_V) {
-                        const dir = Math.random() > 0.5; // True = South, False = North
+                        const dir = Math.random() > 0.5;
                         angle = dir ? Math.PI/2 : 3*Math.PI/2;
                         posX = x * TILE_SIZE + (dir ? TILE_SIZE * 0.25 : TILE_SIZE * 0.75);
                     } else {
@@ -208,7 +209,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
                     const modelKey = regularModels[Math.floor(Math.random() * regularModels.length)];
                     const model = CAR_MODELS[modelKey];
-                    
                     let vehicleColor = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
                     if (['police', 'ambulance', 'swat', 'firetruck', 'taxi'].includes(modelKey)) {
                         vehicleColor = model.color;
@@ -229,8 +229,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 }
             }
             
-            // SPAWN PLANES AT AIRPORT (Right side Tarmac area)
-            // Airport shifted to x=94. Tarmac parking area around x=98.
+            // SPAWN PLANES AT AIRPORT
             const planeSpawns = [
                 {x: 98, y: 45, model: 'plane'}, 
                 {x: 98, y: 52, model: 'jet'},   
@@ -244,10 +243,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                     id: `plane-${idx}`, type: EntityType.VEHICLE, 
                     pos: { x: spawn.x * TILE_SIZE + TILE_SIZE/2, y: spawn.y * TILE_SIZE + TILE_SIZE/2 },
                     size: (model as any).size, 
-                    angle: Math.PI / 2, // Facing Down (South)
+                    angle: Math.PI / 2,
                     velocity: { x: 0, y: 0 },
                     color: model.color, 
-                    driverId: null, // Parked
+                    driverId: null, 
                     model: modelKey, 
                     speed: 0, 
                     maxSpeed: model.maxSpeed,
@@ -260,9 +259,42 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                  });
             });
 
+            // SPAWN MILITARY VEHICLES (Deep South East)
+            // Base is around x: 105-140, y: 115-150
+            const milSpawns = [
+                {x: 115, y: 125, model: 'tank'},
+                {x: 118, y: 125, model: 'tank'},
+                {x: 125, y: 130, model: 'barracks'},
+                {x: 125, y: 135, model: 'barracks'},
+                {x: 120, y: 120, model: 'jet'} // On helipad area roughly
+            ];
+            
+            milSpawns.forEach((spawn, idx) => {
+                 const modelKey = spawn.model as keyof typeof CAR_MODELS;
+                 const model = CAR_MODELS[modelKey];
+                 state.vehicles.push({
+                    id: `mil-${idx}`, type: EntityType.VEHICLE, 
+                    pos: { x: spawn.x * TILE_SIZE + TILE_SIZE/2, y: spawn.y * TILE_SIZE + TILE_SIZE/2 },
+                    size: (model as any).size, 
+                    angle: Math.PI / 2, 
+                    velocity: { x: 0, y: 0 },
+                    color: model.color, 
+                    driverId: null, 
+                    model: modelKey, 
+                    speed: 0, 
+                    maxSpeed: model.maxSpeed,
+                    acceleration: model.acceleration, 
+                    handling: model.handling, 
+                    health: model.health,
+                    damage: { tires: [false, false, false, false], windows: [false, false] },
+                    deformation: { fl: 0, fr: 0, bl: 0, br: 0 },
+                    targetAngle: Math.PI / 2
+                 });
+            });
+
+
             // Spawn Pedestrians
             for(let i=0; i<5; i++) {
-                // Police Spawns
                 let x, y;
                 do {
                     x = Math.floor(Math.random() * MAP_WIDTH) * TILE_SIZE + TILE_SIZE / 2;
@@ -274,6 +306,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                     angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 }, color: '#1e3a8a', health: 150, maxHealth: 150,
                     armor: 50, stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
                     vehicleId: null, weapon: 'pistol', actionTimer: Math.random() * 200, state: 'walking'
+                });
+            }
+            
+            // Spawn Soldiers in Base
+            for(let i=0; i<10; i++) {
+                const x = (110 + Math.random() * 25) * TILE_SIZE;
+                const y = (120 + Math.random() * 20) * TILE_SIZE;
+                
+                state.pedestrians.push({
+                    id: `army-${i}`, type: EntityType.PEDESTRIAN, role: 'army', pos: { x, y }, size: PLAYER_SIZE,
+                    angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 }, color: '#3f6212', health: 200, maxHealth: 200,
+                    armor: 100, stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
+                    vehicleId: null, weapon: 'uzi', actionTimer: Math.random() * 200, state: 'walking'
                 });
             }
             
@@ -322,9 +367,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             if (e.code === 'Tab') { e.preventDefault(); onWeaponWheelToggle(false); }
         };
 
-        // Mouse Support
         const handleMouseDown = (e: MouseEvent) => {
-            if (e.button === 0) { // Left Click acts as Space (Shoot/Action)
+            if (e.button === 0) {
                 keysPressed.current.add('Space');
             }
         };
@@ -357,12 +401,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const { paused, settings } = propsRef.current;
         if (paused) return;
 
-        // Frame Limiter Logic
         if (settings.frameLimiter) {
             const targetFPS = 30;
             const frameInterval = 1000 / targetFPS;
             const elapsed = time - lastFrameTimeRef.current;
-
             if (elapsed < frameInterval) return;
             lastFrameTimeRef.current = time - (elapsed % frameInterval);
         } else {
@@ -373,7 +415,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const ctx = canvasRef.current.getContext('2d');
         if (!ctx) return;
         
-        // Dynamic Traffic Limit
         let maxTraffic = 50;
         if (settings.trafficDensity === 'LOW') maxTraffic = 25;
         else if (settings.trafficDensity === 'HIGH') maxTraffic = 75;
@@ -381,7 +422,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         updatePhysics(gameStateRef.current, keysPressed.current, maxTraffic);
         renderGame(ctx, gameStateRef.current, groundTexturesRef.current, settings);
 
-        // Sync to React State for HUD (throttled)
         if (gameStateRef.current.timeTicker % 10 === 0) {
             onGameStateUpdate({ 
                 ...gameStateRef.current,

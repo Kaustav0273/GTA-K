@@ -27,7 +27,7 @@ export interface Entity {
 export interface Vehicle extends Entity {
   type: EntityType.VEHICLE;
   driverId: string | null; // ID of the entity driving, or null
-  model: 'sedan' | 'sport' | 'truck' | 'taxi' | 'police' | 'muscle' | 'van' | 'limo' | 'ambulance' | 'supercar' | 'compact' | 'suv' | 'pickup' | 'swat' | 'firetruck' | 'bus' | 'plane' | 'jet';
+  model: 'sedan' | 'sport' | 'truck' | 'taxi' | 'police' | 'muscle' | 'van' | 'limo' | 'ambulance' | 'supercar' | 'compact' | 'suv' | 'pickup' | 'swat' | 'firetruck' | 'bus' | 'plane' | 'jet' | 'tank' | 'barracks';
   speed: number;
   maxSpeed: number;
   acceleration: number;
@@ -52,7 +52,7 @@ export type WeaponType = 'fist' | 'pistol' | 'uzi' | 'shotgun' | 'sniper' | 'roc
 
 export interface Pedestrian extends Entity {
   type: EntityType.PEDESTRIAN | EntityType.PLAYER;
-  role: 'civilian' | 'police'; // New field
+  role: 'civilian' | 'police' | 'army'; // New field
   vehicleId: string | null; // ID of vehicle they are in, or null
   health: number;
   maxHealth: number;
@@ -99,6 +99,15 @@ export interface Drop {
   life: number;
 }
 
+export interface Cheats {
+  godMode: boolean;
+  infiniteStamina: boolean;
+  infiniteAmmo: boolean;
+  noReload: boolean;
+  oneHitKill: boolean;
+  vehicleGodMode: boolean;
+}
+
 export interface GameState {
   player: Pedestrian;
   vehicles: Vehicle[];
@@ -118,6 +127,7 @@ export interface GameState {
   timeTicker: number;
   isWasted: boolean;
   wastedStartTime: number;
+  cheats: Cheats;
 }
 
 export interface Mission {
@@ -157,7 +167,19 @@ export enum TileType {
   FOOTBALL_FIELD = 23,
   TRAIN_STATION = 24,
   RAIL = 25,
-  RAIL_CROSSING = 26
+  RAIL_CROSSING = 26,
+  // MILITARY ADDITIONS
+  MILITARY_GROUND = 27,
+  FENCE_H = 28,
+  FENCE_V = 29,
+  BUNKER = 30,
+  WATCHTOWER = 31,
+  HELIPAD = 32,
+  // NEW BUILDING TYPES
+  WAREHOUSE = 33,
+  FACTORY = 34,
+  TENEMENT = 35,
+  PROJECTS = 36
 }
 
 export interface GameSettings {

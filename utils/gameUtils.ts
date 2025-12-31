@@ -1,4 +1,5 @@
 
+
 import { MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, COLORS } from "../constants";
 import { TileType } from "../types";
 
@@ -45,7 +46,11 @@ export const generateMap = (): number[][] => {
           t === TileType.TARMAC || 
           t === TileType.FOOTBALL_FIELD || t === TileType.WALL ||
           t === TileType.PAINT_SHOP || t === TileType.RAIL || t === TileType.RAIL_CROSSING ||
-          t === TileType.CONSTRUCTION // Added protection
+          t === TileType.CONSTRUCTION || 
+          t === TileType.MILITARY_GROUND || t === TileType.FENCE_H || t === TileType.FENCE_V || 
+          t === TileType.BUNKER || t === TileType.WATCHTOWER || t === TileType.HELIPAD ||
+          t === TileType.WAREHOUSE || t === TileType.FACTORY || 
+          t === TileType.TENEMENT || t === TileType.PROJECTS
       ) {
           return false;
       }
@@ -165,16 +170,16 @@ export const generateMap = (): number[][] => {
   // Grass Islands between runways
   fillRect(airportX + 20, airportY + 4, 6, airportHeight - 8, TileType.GRASS);
   
-  // Runway 1 (Left Inner)
-  fillRect(airportX + 12, airportY + 4, 4, airportHeight - 8, TileType.RUNWAY);
-  
-  // Runway 2 (Right Outer)
-  fillRect(airportX + 30, airportY + 4, 4, airportHeight - 8, TileType.RUNWAY);
-  
-  // Connecting Taxiways
+  // Connecting Taxiways (DRAWN BEFORE RUNWAYS TO PREVENT SPLIT)
   fillRect(airportX + 8, airportY + 10, 26, 2, TileType.TARMAC); // Top Cross
   fillRect(airportX + 8, airportY + 30, 26, 2, TileType.TARMAC); // Mid Cross
   fillRect(airportX + 8, airportY + 50, 26, 2, TileType.TARMAC); // Bot Cross
+
+  // Runway 1 (Left Inner) - Drawn last to stay continuous
+  fillRect(airportX + 12, airportY + 4, 4, airportHeight - 8, TileType.RUNWAY);
+  
+  // Runway 2 (Right Outer) - Drawn last to stay continuous
+  fillRect(airportX + 30, airportY + 4, 4, airportHeight - 8, TileType.RUNWAY);
 
 
   // ==========================================
@@ -281,7 +286,11 @@ export const generateMap = (): number[][] => {
               t !== TileType.RUNWAY && // Protect Airport
               t !== TileType.TARMAC && 
               t !== TileType.AIRPORT_TERMINAL &&
-              t !== TileType.HANGAR
+              t !== TileType.HANGAR &&
+              t !== TileType.MILITARY_GROUND &&
+              t !== TileType.BUNKER &&
+              t !== TileType.WAREHOUSE && t !== TileType.FACTORY && 
+              t !== TileType.TENEMENT && t !== TileType.PROJECTS
           ) {
               map[y][x] = TileType.RAIL;
           }
@@ -527,22 +536,36 @@ export const generateMap = (): number[][] => {
   }
   
   // South Side Industrial / Residential (REMOVED RANDOM CONTAINERS)
+  // Replaced generic BUILDING with FACTORY and WAREHOUSE
   for(let y=78; y<150; y+=3) { // Extended Y range
       for(let x=6; x<150; x+=3) { // Extended X range
-          if (canBuild(x,y) && Math.random() > 0.4) {
+          
+          // EXCLUDE AIRPORT AREA FROM BUILDING SPAWN
+          if (x >= airportX && x < airportX + airportWidth && y >= airportY && y < airportY + airportHeight) continue;
+          
+          // EXCLUDE MILITARY BASE AREA FROM RANDOM SPAWN (Approximation: X>100, Y>110)
+          if (x > 100 && y > 110) continue;
+
+          if (canBuild(x,y) && Math.random() > 0.35) {
               const rand = Math.random();
-              if (rand > 0.6) safeSet(x, y, TileType.SHOP);
-              // Removed Container Option
-              else safeSet(x, y, TileType.BUILDING);
+              if (rand > 0.7) safeSet(x, y, TileType.SHOP);
+              else if (rand > 0.4) safeSet(x, y, TileType.FACTORY);
+              else safeSet(x, y, TileType.WAREHOUSE);
           }
       }
   }
   
   // Far East Expansion Buildings
+  // Replaced generic BUILDING with TENEMENT and PROJECTS
   for(let y=6; y<150; y+=3) {
-      for(let x=146; x<158; x+=3) {
-          if (canBuild(x,y) && Math.random() > 0.5) {
-              safeSet(x, y, TileType.BUILDING);
+      for(let x=146; x<160; x+=3) {
+           // EXCLUDE MILITARY BASE AREA
+           if (x > 100 && y > 110) continue;
+           
+          if (canBuild(x,y) && Math.random() > 0.4) {
+              const rand = Math.random();
+              if (rand > 0.7) safeSet(x, y, TileType.PROJECTS);
+              else safeSet(x, y, TileType.TENEMENT);
           }
       }
   }
@@ -558,9 +581,58 @@ export const generateMap = (): number[][] => {
       fillRect(airportX + airportWidth - 6, y, 5, 8, TileType.HANGAR);
   }
 
+  // ==========================================
+  // PHASE 8: MILITARY BASE (FORT KNOX STYLE)
+  // ==========================================
+  // Location: Bottom Right Corner (Deep South / East)
+  const baseX = 105;
+  const baseY = 115;
+  const baseW = 35;
+  const baseH = 35;
+
+  // 1. Base Ground (Concrete/Dirt Mix)
+  fillRect(baseX, baseY, baseW, baseH, TileType.MILITARY_GROUND);
+
+  // 2. Perimeter Fence
+  // Top
+  for(let x=baseX; x<baseX+baseW; x++) safeSet(x, baseY, TileType.FENCE_H);
+  // Bottom
+  for(let x=baseX; x<baseX+baseW; x++) safeSet(x, baseY+baseH-1, TileType.FENCE_H);
+  // Left
+  for(let y=baseY; y<baseY+baseH; y++) safeSet(baseX, y, TileType.FENCE_V);
+  // Right
+  for(let y=baseY; y<baseY+baseH; y++) safeSet(baseX+baseW-1, y, TileType.FENCE_V);
+
+  // 3. Entrance (Top-Left connection to road at X=105 is tricky, let's make entrance at top left side)
+  // Clear fence at (baseX, baseY + 10)
+  safeSet(baseX, baseY + 10, TileType.MILITARY_GROUND);
+  safeSet(baseX, baseY + 11, TileType.MILITARY_GROUND);
+  // Connect a road out to the main grid (Main road is at x=88 or x=125, y=125)
+  // Let's connect to x=105 road if it exists? No, x=88 is closest vertical main.
+  // Draw access road from base entrance (x=105, y=125) to West (x=88)
+  for(let x=88; x<=105; x++) drawRoad(x, baseY + 10, true);
+
+  // 4. Bunkers & Hangars
+  // Large Bunkers (South side)
+  fillRect(baseX + 5, baseY + baseH - 10, 8, 6, TileType.BUNKER);
+  fillRect(baseX + 20, baseY + baseH - 10, 8, 6, TileType.BUNKER);
+  
+  // Helipads (Center)
+  fillRect(baseX + 15, baseY + 15, 6, 6, TileType.HELIPAD);
+
+  // Watchtowers (Corners)
+  safeSet(baseX + 1, baseY + 1, TileType.WATCHTOWER);
+  safeSet(baseX + baseW - 2, baseY + 1, TileType.WATCHTOWER);
+  safeSet(baseX + 1, baseY + baseH - 2, TileType.WATCHTOWER);
+  safeSet(baseX + baseW - 2, baseY + baseH - 2, TileType.WATCHTOWER);
+
+  // Interior Roads
+  for(let x=baseX + 2; x<baseX + baseW - 2; x++) safeSet(x, baseY + 10, TileType.ROAD_H); // Main Hz
+  for(let y=baseY + 2; y<baseY + baseH - 2; y++) safeSet(baseX + 10, y, TileType.ROAD_V); // Main Vt
+
 
   // ==========================================
-  // PHASE 7: SPECIAL LOCATIONS & CLEANUP
+  // PHASE 9: SPECIAL LOCATIONS & CLEANUP
   // ==========================================
   
   // Hospital
@@ -625,8 +697,15 @@ export const isSolid = (tile: number): boolean => {
            tile === TileType.AIRPORT_TERMINAL ||
            tile === TileType.HANGAR ||
            tile === TileType.TRAIN_STATION ||
-           tile === TileType.WALL;
-           // CONSTRUCTION, FOOTBALL_FIELD, RAIL, RAIL_CROSSING are drivable
+           tile === TileType.WALL ||
+           tile === TileType.FENCE_H ||
+           tile === TileType.FENCE_V ||
+           tile === TileType.BUNKER ||
+           tile === TileType.WATCHTOWER ||
+           tile === TileType.WAREHOUSE || 
+           tile === TileType.FACTORY ||
+           tile === TileType.TENEMENT || 
+           tile === TileType.PROJECTS;
 }
 
 export const createNoiseTexture = (color: string, alpha: number = 0.1, density: number = 0.5) => {

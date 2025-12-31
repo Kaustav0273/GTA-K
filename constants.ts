@@ -1,4 +1,5 @@
 
+
 export const TILE_SIZE = 128;
 export const MAP_WIDTH = 160; // Increased from 120
 export const MAP_HEIGHT = 160; // Increased from 120
@@ -96,5 +97,9 @@ export const CAR_MODELS = {
   
   // Air
   plane: { color: '#ffffff', maxSpeed: 30, acceleration: 0.15, handling: 0.02, health: 500, size: { x: 90, y: 80 } },
-  jet: { color: '#94a3b8', maxSpeed: 45, acceleration: 0.3, handling: 0.015, health: 350, size: { x: 60, y: 70 } }
+  jet: { color: '#94a3b8', maxSpeed: 45, acceleration: 0.3, handling: 0.015, health: 350, size: { x: 60, y: 70 } },
+  
+  // Military
+  tank: { color: '#3f6212', maxSpeed: 6, acceleration: 0.05, handling: 0.02, health: 1500, size: { x: 38, y: 72 } },
+  barracks: { color: '#4d5c42', maxSpeed: 8, acceleration: 0.08, handling: 0.02, health: 800, size: { x: 34, y: 70 } }
 };

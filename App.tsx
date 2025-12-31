@@ -92,7 +92,15 @@ const App: React.FC = () => {
     timeOfDay: 12,
     timeTicker: 0,
     isWasted: false,
-    wastedStartTime: 0
+    wastedStartTime: 0,
+    cheats: {
+        godMode: false,
+        infiniteStamina: false,
+        infiniteAmmo: false,
+        noReload: false,
+        oneHitKill: false,
+        vehicleGodMode: false
+    }
   };
 
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
@@ -135,6 +143,19 @@ const App: React.FC = () => {
           const saved = localStorage.getItem('vice_divide_save');
           if (saved) {
               const parsed = JSON.parse(saved);
+              
+              // Ensure cheats exist for legacy saves
+              if (!parsed.cheats) {
+                  parsed.cheats = {
+                        godMode: false,
+                        infiniteStamina: false,
+                        infiniteAmmo: false,
+                        noReload: false,
+                        oneHitKill: false,
+                        vehicleGodMode: false
+                  };
+              }
+
               setGameState(parsed);
               enterGame();
           }
@@ -489,6 +510,9 @@ const App: React.FC = () => {
             onClose={() => setIsPhoneOpen(false)} 
             gameState={gameState}
             onAcceptMission={handleAcceptMission}
+            settings={settings}
+            onUpdateSettings={setSettings}
+            onUpdateGameState={handleUpdateGameState}
           />
       )}
       

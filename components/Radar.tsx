@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect } from 'react';
 import { GameState, TileType, EntityType } from '../types';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT } from '../constants';
@@ -18,10 +19,6 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
 
         const { player, map, vehicles, pedestrians, mission } = gameState;
         
-        // Radar Settings
-        // Adjust zoom relative to map size, or keep consistent? 
-        // 0.12 was fine for 50x50, might be okay for 128x128 but will see less.
-        // Let's keep it zoomed in for gameplay utility.
         const zoom = 0.10; 
         const radarWidth = canvas.width;
         const radarHeight = canvas.height;
@@ -32,14 +29,11 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
 
         ctx.save();
         
-        // Center the radar on the canvas
         ctx.translate(radarWidth / 2, radarHeight / 2);
         
-        // Transform: Scale and translate to player position (North Up)
         ctx.scale(zoom, zoom);
         ctx.translate(-player.pos.x, -player.pos.y);
 
-        // Calculate visible tile bounds to optimize rendering
         const viewW = radarWidth / zoom;
         const viewH = radarHeight / zoom;
         
@@ -69,19 +63,25 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
                         case TileType.BUILDING: color = '#000000'; break;
                         case TileType.SKYSCRAPER: color = '#1e293b'; break; // Slate-800
                         case TileType.SHOP: color = '#78350f'; break; // Amber-900
-                        case TileType.MALL: color = '#f472b6'; break; // Pink-400 (Distinct Mall Color)
-                        case TileType.HOSPITAL: color = '#ef4444'; break; // Red
-                        case TileType.POLICE_STATION: color = '#3b82f6'; break; // Blue
+                        case TileType.MALL: color = '#f472b6'; break; 
+                        case TileType.HOSPITAL: color = '#ef4444'; break; 
+                        case TileType.POLICE_STATION: color = '#3b82f6'; break; 
                         case TileType.CONTAINER: color = '#b45309'; break; 
                         case TileType.SHIP_DECK: color = '#713f12'; break;
                         case TileType.SAND: color = '#d6d3d1'; break;
                         case TileType.WALL: color = '#171717'; break;
-                        case TileType.RUNWAY: color = '#171717'; break; // Dark
-                        case TileType.TARMAC: color = '#3f3f46'; break; // Grey
-                        case TileType.AIRPORT_TERMINAL: color = '#0ea5e9'; break; // Blue
-                        case TileType.HANGAR: color = '#94a3b8'; break; // Slate
-                        case TileType.CONSTRUCTION: color = '#78350f'; break; // Brown
-                        case TileType.FOOTBALL_FIELD: color = '#15803d'; break; // Green
+                        case TileType.RUNWAY: color = '#171717'; break; 
+                        case TileType.TARMAC: color = '#3f3f46'; break; 
+                        case TileType.AIRPORT_TERMINAL: color = '#0ea5e9'; break; 
+                        case TileType.HANGAR: color = '#94a3b8'; break; 
+                        case TileType.CONSTRUCTION: color = '#78350f'; break; 
+                        case TileType.FOOTBALL_FIELD: color = '#15803d'; break; 
+                        case TileType.MILITARY_GROUND: color = '#3f4f3a'; break; // Camo Green
+                        case TileType.BUNKER: color = '#1a2e05'; break; // Dark Green
+                        case TileType.WATCHTOWER: color = '#111'; break;
+                        case TileType.FENCE_H:
+                        case TileType.FENCE_V:
+                            color = '#555'; break;
                         case TileType.ROAD_V:
                         case TileType.ROAD_H:
                         case TileType.ROAD_CROSS:
@@ -106,6 +106,8 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
                 if (Date.now() % 400 < 200) ctx.fillStyle = '#ef4444';
             } else if (v.model === 'plane' || v.model === 'jet') {
                 ctx.fillStyle = '#fff';
+            } else if (v.model === 'tank' || v.model === 'barracks') {
+                ctx.fillStyle = '#166534'; // Dark Green blip
             } else if (v.id === player.vehicleId) {
                 ctx.fillStyle = '#ffffff'; 
             } else {
@@ -123,7 +125,9 @@ const Radar: React.FC<RadarProps> = ({ gameState }) => {
              ctx.beginPath();
              ctx.arc(p.pos.x, p.pos.y, 8, 0, Math.PI * 2);
              
-             if (p.weapon === 'pistol') {
+             if (p.role === 'army') {
+                 ctx.fillStyle = '#166534'; // Green for soldiers
+             } else if (p.weapon === 'pistol' || p.role === 'police') {
                  ctx.fillStyle = '#ef4444'; 
              } else if (p.chatPartnerId) {
                  ctx.fillStyle = '#facc15'; 
