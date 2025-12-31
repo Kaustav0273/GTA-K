@@ -60,7 +60,7 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
   const wClass = WEAPON_STATS[player.weapon].class;
   let weaponIcon = 'fa-hand-fist';
   if (wClass === 'pistol') weaponIcon = 'fa-gun';
-  else if (wClass === 'smg') weaponIcon = 'fa-person-rifle';
+  else if (wClass === 'smg') weaponIcon = 'fa-bolt';
   else if (wClass === 'shotgun') weaponIcon = 'fa-skull';
   else if (wClass === 'sniper') weaponIcon = 'fa-crosshairs';
   else if (wClass === 'rocket') weaponIcon = 'fa-rocket';

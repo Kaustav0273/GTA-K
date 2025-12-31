@@ -9,6 +9,7 @@ import {
 import { generateMap, getTileAt, createNoiseTexture, isSolid } from '../utils/gameUtils';
 import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle, isPoliceNearby, playerInteract } from '../game/physics';
 import { renderGame } from '../game/renderer';
+import { audioManager } from '../services/audioService';
 
 interface GameCanvasProps {
     onGameStateUpdate: (state: Partial<GameState>) => void;
@@ -34,6 +35,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const keysPressed = useRef<Set<string>>(new Set());
     const groundTexturesRef = useRef<{ [key: string]: CanvasPattern | null }>({});
     const lastFrameTimeRef = useRef<number>(0);
+    const wasPausedRef = useRef<boolean>(paused);
     
     // Refs to access latest props in gameLoop without closure staleness
     const propsRef = useRef({ isPhoneOpen, activeMission, settings, paused });
@@ -41,6 +43,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         propsRef.current = { isPhoneOpen, activeMission, settings, paused };
     }, [isPhoneOpen, activeMission, settings, paused]);
     
+    // Update Audio Settings
+    useEffect(() => {
+        audioManager.setVolume(settings);
+    }, [settings]);
+
     // Mutable Game State Container
     const gameStateRef = useRef<MutableGameState>(
         (initialGameState && initialGameState.map && initialGameState.map.length > 0) 
@@ -132,11 +139,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                  }
             }
 
+            // CRITICAL FIX: If we just unpaused (e.g. exited shop), force sync the player's vehicle
+            // This ensures velocity kicks and property updates (color, lastPaintTime) from the shop are applied to physics
+            if (wasPausedRef.current) {
+                const playerCarId = syncGameState.player.vehicleId;
+                if (playerCarId) {
+                    const extCar = syncGameState.vehicles.find(v => v.id === playerCarId);
+                    const intCarIndex = internal.vehicles.findIndex(v => v.id === playerCarId);
+                    if (extCar && intCarIndex !== -1) {
+                        // Deep copy / full replacement to ensure nested props like damage/deformation are synced
+                        internal.vehicles[intCarIndex] = JSON.parse(JSON.stringify(extCar));
+                    }
+                }
+            }
+
             internal.player.weapon = syncGameState.player.weapon;
             if (syncGameState.cheats) {
                 internal.cheats = syncGameState.cheats;
             }
         }
+        
+        wasPausedRef.current = paused;
     }, [paused, syncGameState]);
 
     // Initialization
@@ -372,6 +395,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         }
 
         const handleKeyDown = (e: KeyboardEvent) => {
+            audioManager.init(); // Resume audio context on user interaction
             keysPressed.current.add(e.code);
             if (e.code === 'KeyM') state.money += 100;
             if (e.code === 'KeyF') playerInteract(state);
@@ -383,6 +407,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         };
 
         const handleMouseDown = (e: MouseEvent) => {
+            audioManager.init();
             if (e.button === 0) {
                 keysPressed.current.add('Space');
             }
@@ -406,6 +431,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             window.removeEventListener('mousedown', handleMouseDown);
             window.removeEventListener('mouseup', handleMouseUp);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
+            audioManager.stopEngine();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -414,7 +440,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         requestRef.current = requestAnimationFrame(gameLoop);
         
         const { paused, settings } = propsRef.current;
-        if (paused) return;
+        if (paused) {
+            audioManager.stopEngine();
+            return;
+        }
 
         if (settings.frameLimiter) {
             const targetFPS = 30;
@@ -433,6 +462,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         let maxTraffic = 50;
         if (settings.trafficDensity === 'LOW') maxTraffic = 25;
         else if (settings.trafficDensity === 'HIGH') maxTraffic = 75;
+
+        // Audio Update - Engine Sound
+        const player = gameStateRef.current.player;
+        if (player.vehicleId && player.state === 'driving') {
+            const vehicle = gameStateRef.current.vehicles.find(v => v.id === player.vehicleId);
+            if (vehicle) {
+                audioManager.updateEngine(vehicle.speed, vehicle.maxSpeed, vehicle.model, vehicle.id);
+            } else {
+                audioManager.stopEngine();
+            }
+        } else {
+            audioManager.stopEngine();
+        }
 
         updatePhysics(gameStateRef.current, keysPressed.current, maxTraffic);
         renderGame(ctx, gameStateRef.current, groundTexturesRef.current, settings);

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { GameState, Vehicle } from '../types';
 import { CAR_MODELS, CAR_COLORS } from '../constants';
+import { audioManager } from '../services/audioService';
 
 interface CarShopProps {
     gameState: GameState;
@@ -25,7 +26,10 @@ const CarShop: React.FC<CarShopProps> = ({ gameState, onUpdate, onClose }) => {
     const tuneCost = 500;
 
     const handleRepair = () => {
-        if (money < repairCost) return;
+        if (money < repairCost) {
+            audioManager.playUI('error');
+            return;
+        }
         
         onUpdate({
             money: money - repairCost,
@@ -36,10 +40,14 @@ const CarShop: React.FC<CarShopProps> = ({ gameState, onUpdate, onClose }) => {
                 deformation: { fl: 0, fr: 0, bl: 0, br: 0 }
             } : v)
         });
+        audioManager.playUI('success');
     };
 
     const handleRespray = (color: string) => {
-        if (money < resprayCost) return;
+        if (money < resprayCost) {
+            audioManager.playUI('error');
+            return;
+        }
         
         onUpdate({
             money: money - resprayCost,
@@ -47,10 +55,14 @@ const CarShop: React.FC<CarShopProps> = ({ gameState, onUpdate, onClose }) => {
             wantedLevel: 0 // Respray clears wanted level
         });
         setSelectedColor(color);
+        audioManager.playUI('success'); // Maybe a spray sound later?
     };
 
     const handleTune = () => {
-        if (money < tuneCost) return;
+        if (money < tuneCost) {
+            audioManager.playUI('error');
+            return;
+        }
         
         onUpdate({
             money: money - tuneCost,
@@ -60,6 +72,7 @@ const CarShop: React.FC<CarShopProps> = ({ gameState, onUpdate, onClose }) => {
                 acceleration: v.acceleration * 1.2
             } : v)
         });
+        audioManager.playUI('success');
     };
 
     // Eject car backwards and apply cooldown
@@ -78,6 +91,7 @@ const CarShop: React.FC<CarShopProps> = ({ gameState, onUpdate, onClose }) => {
                 } : v),
                 activeShop: 'none'
             });
+            audioManager.playUI('back');
         } else {
             // Fallback
             onClose();

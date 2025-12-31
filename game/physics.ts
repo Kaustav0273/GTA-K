@@ -9,6 +9,7 @@ import {
     STAMINA_REGEN_DELAY, STAMINA_REGEN_RATE, CAR_COLORS
 } from '../constants';
 import { isSolid, getTileAt } from '../utils/gameUtils';
+import { audioManager } from '../services/audioService';
 
 export interface MutableGameState {
     player: Pedestrian;
@@ -169,6 +170,7 @@ const spawnDrops = (state: MutableGameState, p: Pedestrian) => {
 export const createExplosion = (state: MutableGameState, pos: Vector2, radius: number) => {
     spawnParticle(state, pos, 'explosion', 20, { color: '#f59e0b', speed: 4, size: 8 });
     spawnParticle(state, pos, 'smoke', 15, { color: '#4b5563', speed: 2, size: 6 });
+    audioManager.playExplosion();
     
     // Damage Player?
     if (!state.cheats.godMode) {
@@ -224,6 +226,8 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
     const weaponStats = WEAPON_STATS[source.weapon];
     const wClass = weaponStats.class;
     
+    audioManager.playShoot(source.weapon);
+
     // Cheat: One Hit Kill
     const isOneHitKill = (source.id === 'player' && state.cheats.oneHitKill);
 
@@ -245,6 +249,7 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
                      state.player.health -= damage;
                      state.lastDamageTaken = state.timeTicker;
                      spawnParticle(state, state.player.pos, 'blood', 2, { color: '#7f1d1d', speed: 1.5 });
+                     audioManager.playPedHit();
                  }
              }
          }
@@ -259,6 +264,7 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
                  p.velocity.y += Math.sin(source.angle) * 3;
                  
                  spawnParticle(state, p.pos, 'blood', 2, { color: '#7f1d1d', speed: 1.5 });
+                 audioManager.playPedHit();
                  if (p.health <= 0) {
                      p.state = 'dead';
                      spawnDrops(state, p);
@@ -650,6 +656,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 state.player.pos = { ...v.pos };
                 
                 spawnParticle(state, v.pos, 'smoke', 5, { color: '#555', speed: 1, spread: 20 });
+                audioManager.playUI('success'); // Car start sound-ish
                 if (isPoliceNearby(state, v.pos)) {
                     state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
                     state.lastWantedTime = state.timeTicker;
@@ -798,9 +805,11 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
            if (d.type === 'cash' && d.value) {
                state.money += d.value;
                spawnParticle(state, d.pos, 'spark', 5, { color: '#4ade80', speed: 1.5, size: 2 });
+               audioManager.playUI('success');
            } else if (d.type === 'weapon' && d.weapon) {
                state.player.weapon = d.weapon; 
                spawnParticle(state, d.pos, 'spark', 5, { color: '#fbbf24', speed: 1.5, size: 2 });
+               audioManager.playUI('success');
            }
        }
     });
@@ -825,6 +834,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                      v.health -= b.damage;
                      spawnParticle(state, b.pos, 'spark', 3, { color: '#fbbf24', speed: 2 });
                  }
+                 audioManager.playImpact(true);
                  
                  if (b.ownerId === 'player' && (v.model === 'police' || v.model === 'swat' || v.model === 'tank' || v.model === 'barracks')) {
                       state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
@@ -841,6 +851,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                  b.timeLeft = 0;
                  p.health -= b.damage;
                  spawnParticle(state, b.pos, 'blood', 3, { color: '#991b1b', speed: 2 });
+                 audioManager.playPedHit();
                  if (p.health <= 0) {
                      p.state = 'dead';
                      spawnDrops(state, p);
@@ -865,6 +876,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                      state.player.health -= b.damage;
                      state.lastDamageTaken = state.timeTicker;
                      spawnParticle(state, b.pos, 'blood', 4, { color: '#7f1d1d', speed: 2 });
+                     audioManager.playPedHit();
                  }
                  return;
              }
@@ -872,6 +884,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         if (isSolid(getTileAt(state.map, b.pos.x, b.pos.y))) {
              b.timeLeft = 0;
              spawnParticle(state, b.pos, 'smoke', 2, { color: '#9ca3af', speed: 1 });
+             audioManager.playImpact(false);
         }
     });
     state.bullets = state.bullets.filter(b => b.timeLeft > 0);
@@ -1080,6 +1093,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                         explosionRadius: 150
                      });
                      spawnParticle(state, {x: muzzleX, y: muzzleY}, 'explosion', 5, {size: 4, life: 10});
+                     audioManager.playShoot('rocket');
                      
                      // Fast reload if cheat enabled
                      state.lastShotTime = state.cheats.noReload ? 5 : 60; 
@@ -1140,6 +1154,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 car.speed *= -0.3; 
                 
                 if (impactSpeed > 2) {
+                    audioManager.playImpact(impactSpeed > 5);
                     if (car.model !== 'tank') {
                         const damage = impactSpeed * 8;
                         if (!state.cheats.vehicleGodMode) {
@@ -1291,6 +1306,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                          
                          // Damage & Deformation
                          if (totalV > 4) {
+                             audioManager.playImpact(totalV > 8);
                              const damage = Math.min(totalV * 0.5, 10);
                              
                              if (!state.cheats.vehicleGodMode || v1.driverId !== 'player') {
@@ -1338,6 +1354,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 p.pos.x += Math.cos(angleToPed) * 5; p.pos.y += Math.sin(angleToPed) * 5;
                 if (impactSpeed > 2) {
                     const damage = impactSpeed * 15;
+                    audioManager.playPedHit();
                     
                     if (p.id === 'player' && state.cheats.godMode) {
                         // No damage

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WeaponType } from '../types';
 import { WEAPON_STATS } from '../constants';
+import { audioManager } from '../services/audioService';
 
 interface WeaponWheelProps {
     isOpen: boolean;
@@ -14,7 +15,7 @@ interface WeaponWheelProps {
 const WEAPON_GROUPS: { label: string; icon: string; class: string; weapons: WeaponType[] }[] = [
     { label: 'Unarmed', icon: 'fa-hand-fist', class: 'melee', weapons: ['fist'] },
     { label: 'Pistol', icon: 'fa-gun', class: 'pistol', weapons: ['pistol', 'street_hawk', 'silver_fang', 'night_viper', 'pulse_9x', 'iron_whisper', 'neon_ace'] },
-    { label: 'SMG', icon: 'fa-person-rifle', class: 'smg', weapons: ['uzi', 'rapid_wolf', 'urban_ripper', 'vortex_smg', 'shadow_spray', 'bullet_hive', 'turbo_stinger'] },
+    { label: 'SMG', icon: 'fa-bolt', class: 'smg', weapons: ['uzi', 'rapid_wolf', 'urban_ripper', 'vortex_smg', 'shadow_spray', 'bullet_hive', 'turbo_stinger'] },
     { label: 'Shotgun', icon: 'fa-skull', class: 'shotgun', weapons: ['shotgun', 'doom_breaker', 'thunder_judge', 'skull_shatter', 'iron_boom', 'road_cleaner', 'hell_bison'] },
     { label: 'Sniper', icon: 'fa-crosshairs', class: 'sniper', weapons: ['sniper', 'silent_eclipse', 'longshot_zero', 'phantom_eye', 'widow_maker_x', 'frost_piercer', 'dark_horizon'] },
     { label: 'Heavy', icon: 'fa-rocket', class: 'rocket', weapons: ['rocket', 'dragon_roar', 'sky_eraser', 'titan_fall', 'blast_serpent', 'nova_cannon', 'earth_splitter'] },
@@ -63,6 +64,7 @@ const WeaponWheel: React.FC<WeaponWheelProps> = ({ isOpen, currentWeapon, onSele
         const index = calculateSelectionIndex(e.clientX, e.clientY);
         if (index !== null && index !== hoveredIndex) {
             setHoveredIndex(index);
+            audioManager.playUI('hover');
         }
     };
 
@@ -72,6 +74,7 @@ const WeaponWheel: React.FC<WeaponWheelProps> = ({ isOpen, currentWeapon, onSele
             const index = calculateSelectionIndex(touch.clientX, touch.clientY);
             if (index !== null && index !== hoveredIndex) {
                 setHoveredIndex(index);
+                audioManager.playUI('hover');
             }
         }
     };
@@ -91,6 +94,7 @@ const WeaponWheel: React.FC<WeaponWheelProps> = ({ isOpen, currentWeapon, onSele
         }
         
         onSelectWeapon(nextWeapon);
+        audioManager.playUI('click');
     };
 
     const handleClick = (e: React.MouseEvent) => {

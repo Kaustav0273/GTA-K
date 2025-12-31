@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { generateMission } from '../services/geminiService';
 import { GameState, Mission, GameSettings, EntityType } from '../types';
 import { CAR_MODELS, CAR_COLORS, CAR_SIZE } from '../constants';
+import { audioManager } from '../services/audioService';
 
 // Helper Components defined first to avoid ReferenceErrors
 const AppIcon = ({ icon, color, label, onClick }: { icon: string, color: string, label?: string, onClick?: () => void }) => (
@@ -16,7 +17,7 @@ const AppIcon = ({ icon, color, label, onClick }: { icon: string, color: string,
 
 const Toggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: () => void }) => (
     <button 
-        onClick={onToggle}
+        onClick={() => { onToggle(); audioManager.playUI('click'); }}
         className={`w-11 h-6 flex items-center rounded-full p-1 duration-300 ease-in-out ${enabled ? 'bg-green-500' : 'bg-gray-300'}`}
     >
         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-300 ease-in-out ${enabled ? 'translate-x-5' : 'translate-x-0'}`}></div>
@@ -59,11 +60,44 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
   const [dialOutput, setDialOutput] = useState("");
   const [dialStatus, setDialStatus] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // Mobile Scaling State
+  const [scale, setScale] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Clock Update
   useEffect(() => {
       const interval = setInterval(() => setCurrentTime(new Date()), 1000);
       return () => clearInterval(interval);
+  }, []);
+
+  // Responsive Scaling Logic
+  useEffect(() => {
+      const handleResize = () => {
+          const w = window.innerWidth;
+          const h = window.innerHeight;
+          const mobile = w < 768; // Tailwind md breakpoint
+          setIsMobile(mobile);
+
+          if (mobile) {
+              // Reference Size: 320x640
+              // Constraints: 85vh height, 90vw width
+              const maxH = h * 0.85;
+              const maxW = w * 0.90;
+              
+              const scaleH = maxH / 640;
+              const scaleW = maxW / 320;
+              
+              // Use the smaller scale to fit both constraints
+              setScale(Math.min(1, scaleH, scaleW));
+          } else {
+              setScale(1);
+          }
+      };
+
+      window.addEventListener('resize', handleResize);
+      handleResize(); // Init
+      return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
@@ -79,18 +113,27 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
     }
   }, [isOpen]);
 
+  const handleAppOpen = (app: typeof activeApp) => {
+      audioManager.playUI('click');
+      setActiveApp(app);
+  }
+
   const handleGenerateMission = async () => {
+    audioManager.playUI('click');
     setLoading(true);
     const mission = await generateMission(gameState.player.pos, gameState.wantedLevel, gameState.money);
     setGeneratedMission(mission);
     setLoading(false);
+    if(mission) audioManager.playUI('success');
   };
 
   const handleDial = (key: string) => {
+      audioManager.playUI('hover'); // Small blip
       if (dialOutput.length < 18) setDialOutput(prev => prev + key);
   };
 
   const handleDelete = () => {
+      audioManager.playUI('back');
       setDialOutput(prev => prev.slice(0, -1));
       setDialStatus(null);
   };
@@ -119,38 +162,43 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
           deformation: { fl: 0, fr: 0, bl: 0, br: 0 },
           stuckTimer: 0,
           targetAngle: gameState.player.angle
-      } as any; // Cast to avoid TS strictness on union types if any
+      } as any; 
 
       onUpdateGameState({ vehicles: [...gameState.vehicles, newVehicle] });
   };
 
   const handleCall = () => {
+      audioManager.playUI('click');
       let statusMsg = "Busy Line...";
       let clearDial = true;
+      let success = false;
 
       switch (dialOutput) {
           case "911":
               statusMsg = "Police Dispatched";
               onUpdateGameState({ wantedLevel: Math.min(5, gameState.wantedLevel + 2) });
+              success = true;
               break;
           case "112233445566778899": // Money
               statusMsg = "Cheat: $500 Added";
               onUpdateGameState({ money: gameState.money + 500 });
+              success = true;
               break;
           case "9876543210": // Full Health
               statusMsg = "Cheat: Health Restored";
               onUpdateGameState({ 
                   player: { ...gameState.player, health: gameState.player.maxHealth } 
               });
+              success = true;
               break;
           case "8008135700": // God Mode
               const godModeState = !gameState.cheats.godMode;
               statusMsg = godModeState ? "Cheat: God Mode ON" : "Cheat: God Mode OFF";
               onUpdateGameState({ 
                   cheats: { ...gameState.cheats, godMode: godModeState },
-                  // Also heal if enabling
                   player: godModeState ? { ...gameState.player, health: gameState.player.maxHealth } : gameState.player
               });
+              success = true;
               break;
           case "1122334455": // Infinite Stamina
               const stamState = !gameState.cheats.infiniteStamina;
@@ -159,70 +207,82 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                   cheats: { ...gameState.cheats, infiniteStamina: stamState },
                   player: stamState ? { ...gameState.player, stamina: gameState.player.maxStamina } : gameState.player
               });
+              success = true;
               break;
           case "5550001111": // Clear Wanted
               statusMsg = "Cheat: Wanted Cleared";
               onUpdateGameState({ wantedLevel: 0 });
+              success = true;
               break;
           case "6660009999": // Max Wanted
               statusMsg = "Cheat: Wanted Maxed";
               onUpdateGameState({ wantedLevel: 5 });
+              success = true;
               break;
           case "4044040404": // Instant Respawn
               if (gameState.isWasted) {
                   statusMsg = "Cheat: Respawning...";
-                  onUpdateGameState({ wastedStartTime: gameState.timeTicker - 200 }); // Fast forward timer
+                  onUpdateGameState({ wastedStartTime: gameState.timeTicker - 200 }); 
+                  success = true;
               } else {
                   statusMsg = "Cheat: Not Wasted";
+                  success = false;
               }
               break;
           case "7007007007": // Infinite Ammo
               const ammoState = !gameState.cheats.infiniteAmmo;
               statusMsg = ammoState ? "Cheat: Inf Ammo ON" : "Cheat: Inf Ammo OFF";
               onUpdateGameState({ cheats: { ...gameState.cheats, infiniteAmmo: ammoState } });
+              success = true;
               break;
           case "9090909090": // No Reload
               const reloadState = !gameState.cheats.noReload;
               statusMsg = reloadState ? "Cheat: No Reload ON" : "Cheat: No Reload OFF";
               onUpdateGameState({ cheats: { ...gameState.cheats, noReload: reloadState } });
+              success = true;
               break;
           case "1313131313": // One Hit Kill
               const ohkState = !gameState.cheats.oneHitKill;
               statusMsg = ohkState ? "Cheat: 1-Hit Kill ON" : "Cheat: 1-Hit Kill OFF";
               onUpdateGameState({ cheats: { ...gameState.cheats, oneHitKill: ohkState } });
+              success = true;
               break;
           case "4445556666": // Spawn Random Car
               const keys = Object.keys(CAR_MODELS).filter(k => k !== 'plane' && k !== 'jet' && k !== 'tank');
               const randomKey = keys[Math.floor(Math.random() * keys.length)] as keyof typeof CAR_MODELS;
               spawnVehicle(randomKey);
               statusMsg = `Cheat: Spawned ${randomKey}`;
+              success = true;
               break;
           case "9998887777": // Spawn Supercar
               spawnVehicle('supercar');
               statusMsg = "Cheat: Spawned Supercar";
+              success = true;
               break;
           case "8880008880": // Spawn Tank
               spawnVehicle('tank');
               statusMsg = "Cheat: Spawned Tank";
+              success = true;
               break;
           case "1212121212": // Vehicle Invincible
               const vGodState = !gameState.cheats.vehicleGodMode;
               statusMsg = vGodState ? "Cheat: Car God ON" : "Cheat: Car God OFF";
               onUpdateGameState({ cheats: { ...gameState.cheats, vehicleGodMode: vGodState } });
+              success = true;
               break;
           case "2323232323": // Vehicle Boost
               if (gameState.player.vehicleId) {
                   const v = gameState.vehicles.find(v => v.id === gameState.player.vehicleId);
                   if (v) {
-                      const boost = 50; // Big push
+                      const boost = 50; 
                       const bx = Math.cos(v.angle) * boost;
                       const by = Math.sin(v.angle) * boost;
-                      // We need to update the specific vehicle in the array
                       const updatedVehicles = gameState.vehicles.map(veh => 
                           veh.id === v.id ? { ...veh, velocity: { x: veh.velocity.x + bx, y: veh.velocity.y + by } } : veh
                       );
                       onUpdateGameState({ vehicles: updatedVehicles });
                       statusMsg = "Cheat: Boosted!";
+                      success = true;
                   } else {
                       statusMsg = "Cheat: Not in car";
                   }
@@ -234,6 +294,7 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
               setActiveApp('cheats');
               clearDial = true;
               statusMsg = null;
+              success = true;
               break;
           default:
               if (dialOutput.length > 0) {
@@ -246,8 +307,9 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
       }
       
       setDialStatus(statusMsg);
-      
-      // Reset call status after delay
+      if (success) audioManager.playUI('success');
+      else if (statusMsg) audioManager.playUI('error');
+
       setTimeout(() => {
           if (clearDial) setDialOutput("");
           setDialStatus(null);
@@ -264,19 +326,30 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
       return date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   };
 
+  // Mobile transformation style
+  const mobileStyle: React.CSSProperties = isMobile ? {
+      transform: `translate(-50%, -50%) scale(${scale})`,
+      transformOrigin: 'center center'
+  } : {};
+
   return (
     <div 
+        style={mobileStyle}
         className={`
             z-[60] flex flex-col overflow-hidden shadow-2xl transition-all duration-300 
             bg-black border-[6px] border-gray-900 rounded-[36px]
             
-            /* Mobile: Fixed Center */
-            fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-            w-[300px] h-[600px] max-h-[85vh]
+            /* Base Size (Desktop Reference) */
+            w-[320px] h-[640px]
             
-            /* Desktop: Absolute Bottom Right */
+            /* Mobile: Fixed Center (Scale applied via style) */
+            fixed top-1/2 left-1/2 
+            ${!isMobile ? '' : '-translate-x-1/2 -translate-y-1/2'} 
+            
+            /* Desktop: Absolute Position Override */
             md:absolute md:top-auto md:left-auto md:translate-x-0 md:translate-y-0
-            md:bottom-10 md:right-20 md:w-[320px] md:h-[640px] md:max-h-none
+            md:bottom-10 md:right-20 md:transform-none md:max-h-none
+            
             ring-4 ring-black/50
         `}
     >
@@ -307,7 +380,7 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
         {isLocked && (
             <div 
                 className="absolute inset-0 z-20 flex flex-col items-center pt-24 pb-8 backdrop-blur-sm bg-black/10 cursor-pointer"
-                onClick={() => setIsLocked(false)}
+                onClick={() => { setIsLocked(false); audioManager.playUI('open'); }}
             >
                 <div className="flex flex-col items-center drop-shadow-md">
                     <i className="fas fa-lock text-white/70 mb-4 text-xl"></i>
@@ -330,7 +403,7 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                 {activeApp !== 'home' && (
                     <div className="absolute top-10 left-4 z-30">
                         <button 
-                            onClick={() => setActiveApp('home')} 
+                            onClick={() => { setActiveApp('home'); audioManager.playUI('back'); }}
                             className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30 text-white shadow-lg active:scale-95 transition-transform"
                         >
                             <i className="fas fa-chevron-left text-sm"></i>
@@ -343,21 +416,21 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                     <div className="flex-1 flex flex-col p-4 pt-16 animate-fade-in">
                         {/* App Grid */}
                         <div className="grid grid-cols-4 gap-x-4 gap-y-6">
-                            <AppIcon icon="fa-phone" color="bg-green-600" label="Phone" onClick={() => setActiveApp('dialer')} />
-                            <AppIcon icon="fa-crosshairs" color="bg-green-500" label="Jobs" onClick={() => setActiveApp('missions')} />
-                            <AppIcon icon="fa-cog" color="bg-gray-500" label="Settings" onClick={() => setActiveApp('settings')} />
-                            <AppIcon icon="fa-map" color="bg-blue-500" label="Maps" />
-                            <AppIcon icon="fa-camera" color="bg-yellow-500" label="Camera" />
-                            <AppIcon icon="fa-cloud" color="bg-sky-400" label="Weather" />
-                            <AppIcon icon="fa-wallet" color="bg-indigo-500" label="Wallet" />
+                            <AppIcon icon="fa-phone" color="bg-green-600" label="Phone" onClick={() => handleAppOpen('dialer')} />
+                            <AppIcon icon="fa-crosshairs" color="bg-green-500" label="Jobs" onClick={() => handleAppOpen('missions')} />
+                            <AppIcon icon="fa-cog" color="bg-gray-500" label="Settings" onClick={() => handleAppOpen('settings')} />
+                            <AppIcon icon="fa-map" color="bg-blue-500" label="Maps" onClick={() => audioManager.playUI('error')} />
+                            <AppIcon icon="fa-camera" color="bg-yellow-500" label="Camera" onClick={() => audioManager.playUI('error')} />
+                            <AppIcon icon="fa-cloud" color="bg-sky-400" label="Weather" onClick={() => audioManager.playUI('error')} />
+                            <AppIcon icon="fa-wallet" color="bg-indigo-500" label="Wallet" onClick={() => audioManager.playUI('error')} />
                         </div>
 
                         {/* Dock */}
                         <div className="mt-auto mb-2 bg-white/10 backdrop-blur-xl rounded-3xl p-3 flex justify-around items-center mx-1">
-                            <AppIcon icon="fa-phone" color="bg-green-600" onClick={() => setActiveApp('dialer')} />
-                            <AppIcon icon="fa-globe" color="bg-blue-600" />
-                            <AppIcon icon="fa-comment" color="bg-green-500" />
-                            <AppIcon icon="fa-music" color="bg-red-500" />
+                            <AppIcon icon="fa-phone" color="bg-green-600" onClick={() => handleAppOpen('dialer')} />
+                            <AppIcon icon="fa-globe" color="bg-blue-600" onClick={() => audioManager.playUI('error')} />
+                            <AppIcon icon="fa-comment" color="bg-green-500" onClick={() => audioManager.playUI('error')} />
+                            <AppIcon icon="fa-music" color="bg-red-500" onClick={() => audioManager.playUI('error')} />
                         </div>
                     </div>
                 )}
@@ -404,6 +477,7 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                                         <button 
                                             onClick={() => {
                                                 onAcceptMission(generatedMission);
+                                                audioManager.playUI('success');
                                                 onClose();
                                             }}
                                             className="bg-green-600 py-2.5 rounded-xl font-bold text-sm hover:bg-green-500 active:scale-95 transition-transform"
@@ -411,7 +485,7 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                                             Accept
                                         </button>
                                         <button 
-                                            onClick={() => setGeneratedMission(null)}
+                                            onClick={() => { setGeneratedMission(null); audioManager.playUI('back'); }}
                                             className="bg-red-600/80 py-2.5 rounded-xl font-bold text-sm hover:bg-red-500/80 active:scale-95 transition-transform"
                                         >
                                             Decline
@@ -536,7 +610,7 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                                         {['LOW', 'MED', 'HIGH', 'ULTRA'].map((level) => (
                                             <button
                                                 key={level}
-                                                onClick={() => onUpdateSettings(s => ({...s, drawDistance: level as any}))}
+                                                onClick={() => { onUpdateSettings(s => ({...s, drawDistance: level as any})); audioManager.playUI('click'); }}
                                                 className={`flex-1 text-[10px] py-1.5 rounded-md font-bold transition-all ${settings.drawDistance === level ? 'bg-white shadow text-blue-600' : 'text-gray-400'}`}
                                             >
                                                 {level}
@@ -561,7 +635,7 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium">Touch Steering</span>
                                     <button 
-                                        onClick={() => onUpdateSettings(s => ({...s, mobileControlStyle: s.mobileControlStyle === 'DPAD' ? 'JOYSTICK' : 'DPAD'}))}
+                                        onClick={() => { onUpdateSettings(s => ({...s, mobileControlStyle: s.mobileControlStyle === 'DPAD' ? 'JOYSTICK' : 'DPAD'})); audioManager.playUI('click'); }}
                                         className="text-xs font-bold text-blue-500 bg-blue-50 px-3 py-1 rounded-full uppercase"
                                     >
                                         {settings.mobileControlStyle}
@@ -615,6 +689,7 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
       <div 
           className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 w-32 h-1.5 bg-white/40 rounded-full z-50 cursor-pointer hover:bg-white/60 active:scale-95 transition-all"
           onClick={() => {
+              audioManager.playUI('click');
               if (activeApp !== 'home') setActiveApp('home');
               else if (!isLocked) onClose(); // Second tap closes phone
           }}
