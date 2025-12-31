@@ -445,7 +445,7 @@ const App: React.FC = () => {
       {/* Game Layer */}
       {gameStarted && (
           <GameCanvas 
-            onGameStateUpdate={setGameState} 
+            onGameStateUpdate={handleUpdateGameState} 
             onPhoneToggle={setIsPhoneOpen} 
             isPhoneOpen={isPhoneOpen}
             activeMission={gameState.mission}

@@ -33,8 +33,26 @@ interface PhoneProps {
   onUpdateGameState: (updates: Partial<GameState>) => void;
 }
 
+const CHEAT_LIST = [
+    { code: "9876543210", desc: "Full Health" },
+    { code: "8008135700", desc: "God Mode (Toggle)" },
+    { code: "1122334455", desc: "Infinite Stamina" },
+    { code: "5550001111", desc: "Clear Wanted Level" },
+    { code: "6660009999", desc: "Max Wanted Level" },
+    { code: "4044040404", desc: "Instant Respawn" },
+    { code: "7007007007", desc: "Infinite Ammo" },
+    { code: "9090909090", desc: "No Reload" },
+    { code: "1313131313", desc: "One-Hit Kill" },
+    { code: "4445556666", desc: "Spawn Random Car" },
+    { code: "9998887777", desc: "Spawn Supercar" },
+    { code: "8880008880", desc: "Spawn Tank" },
+    { code: "1212121212", desc: "Vehicle Invincible" },
+    { code: "2323232323", desc: "Vehicle Boost" },
+    { code: "112233445566778899", desc: "Add Money $500" }
+];
+
 const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMission, settings, onUpdateSettings, onUpdateGameState }) => {
-  const [activeApp, setActiveApp] = useState<'home' | 'missions' | 'settings' | 'dialer' | 'camera' | 'music'>('home');
+  const [activeApp, setActiveApp] = useState<'home' | 'missions' | 'settings' | 'dialer' | 'camera' | 'music' | 'cheats'>('home');
   const [isLocked, setIsLocked] = useState(true);
   const [loading, setLoading] = useState(false);
   const [generatedMission, setGeneratedMission] = useState<Mission | null>(null);
@@ -213,23 +231,9 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
               }
               break;
           case "123456789987654321": // Cheat List
-              console.log("CHEAT CODES:");
-              console.log("9876543210 - Full Health");
-              console.log("8008135700 - God Mode");
-              console.log("1122334455 - Inf Stamina");
-              console.log("5550001111 - Clear Wanted");
-              console.log("6660009999 - Max Wanted");
-              console.log("4044040404 - Fast Respawn");
-              console.log("7007007007 - Inf Ammo (Flag)");
-              console.log("9090909090 - No Reload");
-              console.log("1313131313 - One Hit Kill");
-              console.log("4445556666 - Spawn Random Car");
-              console.log("9998887777 - Spawn Supercar");
-              console.log("8880008880 - Spawn Tank");
-              console.log("1212121212 - Vehicle Invincible");
-              console.log("2323232323 - Vehicle Boost");
-              console.log("112233445566778899 - Money");
-              statusMsg = "List printed to Console";
+              setActiveApp('cheats');
+              clearDial = true;
+              statusMsg = null;
               break;
           default:
               if (dialOutput.length > 0) {
@@ -565,6 +569,39 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                                 </div>
                             </div>
 
+                        </div>
+                    </div>
+                )}
+
+                {/* --- CHEATS APP --- */}
+                {activeApp === 'cheats' && (
+                    <div className="flex flex-col h-full bg-black text-green-500 font-mono animate-fade-in">
+                        <div className="bg-green-900/20 p-4 pt-12 pb-3 border-b border-green-500/50 flex items-center justify-center relative">
+                            <h2 className="font-bold text-lg tracking-widest text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.5)]">HACK_TOOL_V6</h2>
+                            <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-green-500 to-transparent"></div>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-green-800 scrollbar-track-black">
+                            <div className="text-[10px] text-green-600 mb-2 text-center opacity-70">
+                                -- SECURE CONNECTION ESTABLISHED --
+                            </div>
+                            
+                            {CHEAT_LIST.map((cheat, i) => (
+                                <div key={i} className="group border border-green-900/50 bg-green-900/10 p-2.5 rounded hover:bg-green-900/30 transition-all cursor-default relative overflow-hidden">
+                                    {/* Scanline effect on hover */}
+                                    <div className="absolute inset-0 bg-green-500/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 pointer-events-none"></div>
+                                    
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="font-bold text-xs text-green-300 group-hover:text-white transition-colors uppercase tracking-tight">{cheat.desc}</div>
+                                        <i className="fas fa-terminal text-[10px] text-green-700"></i>
+                                    </div>
+                                    <div className="font-mono text-sm tracking-wider text-green-500/80 group-hover:text-green-400 select-all selection:bg-green-900 selection:text-white">
+                                        {cheat.code}
+                                    </div>
+                                </div>
+                            ))}
+                            
+                            <div className="h-8"></div>
                         </div>
                     </div>
                 )}

@@ -11,7 +11,7 @@ import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle, is
 import { renderGame } from '../game/renderer';
 
 interface GameCanvasProps {
-    onGameStateUpdate: (state: GameState) => void;
+    onGameStateUpdate: (state: Partial<GameState>) => void;
     onPhoneToggle: (isOpen: boolean) => void;
     isPhoneOpen: boolean;
     activeMission: any;
@@ -116,7 +116,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             const internal = gameStateRef.current;
             internal.money = syncGameState.money;
             internal.activeShop = 'none'; 
-            internal.vehicles = syncGameState.vehicles.map(v => ({...v}));
+            
+            // Smart Vehicle Sync to prevent Jitter on Spawn
+            // Only add vehicles that don't exist internally (spawned via cheats)
+            // Or if the count difference is huge (Load Game), replace all
+            const internalIds = new Set(internal.vehicles.map(v => v.id));
+            if (syncGameState.vehicles.length !== internal.vehicles.length) {
+                 // Check if it's a spawn (usually 1 extra)
+                 const newVehicles = syncGameState.vehicles.filter(v => !internalIds.has(v.id));
+                 if (newVehicles.length > 0) {
+                     internal.vehicles = [...internal.vehicles, ...newVehicles.map(v => ({...v}))];
+                 } else if (syncGameState.vehicles.length < internal.vehicles.length - 5) {
+                     // Massive deletion (Load Game?), replace all
+                     internal.vehicles = syncGameState.vehicles.map(v => ({...v}));
+                 }
+            }
+
             internal.player.weapon = syncGameState.player.weapon;
             if (syncGameState.cheats) {
                 internal.cheats = syncGameState.cheats;
@@ -423,8 +438,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         renderGame(ctx, gameStateRef.current, groundTexturesRef.current, settings);
 
         if (gameStateRef.current.timeTicker % 10 === 0) {
+            // EXCLUDE CHEATS from the update sent to App
+            // This prevents the game loop from overwriting the cheat state managed by App/Phone
+            const { cheats, ...stateToSync } = gameStateRef.current;
+            
             onGameStateUpdate({ 
-                ...gameStateRef.current,
+                ...stateToSync,
                 mission: propsRef.current.activeMission,
                 isPhoneOpen: propsRef.current.isPhoneOpen,
                 paused: false
