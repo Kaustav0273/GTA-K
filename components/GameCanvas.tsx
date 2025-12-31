@@ -70,7 +70,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 noReload: false,
                 oneHitKill: false,
                 vehicleGodMode: false
-            }
+            },
+            safehouses: initialGameState.safehouses || []
         }
         : {
             player: {
@@ -107,7 +108,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 noReload: false,
                 oneHitKill: false,
                 vehicleGodMode: false
-            }
+            },
+            safehouses: []
         }
     );
 

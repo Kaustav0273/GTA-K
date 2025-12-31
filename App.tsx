@@ -9,7 +9,8 @@ import MobileControls from './components/MobileControls';
 import CarShop from './components/CarShop';
 import SplashScreen from './components/SplashScreen';
 import { GameState, Mission, EntityType, WeaponType, GameSettings } from './types';
-import { COLORS, STAMINA_MAX, PLAYER_SIZE } from './constants';
+import { COLORS, STAMINA_MAX, PLAYER_SIZE, SAFEHOUSE_DEFS, TILE_SIZE } from './constants';
+import { audioManager } from './services/audioService';
 
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -93,6 +94,10 @@ const App: React.FC = () => {
     timeTicker: 0,
     isWasted: false,
     wastedStartTime: 0,
+    safehouses: SAFEHOUSE_DEFS.map(def => ({
+        ...def,
+        owned: def.price === 0
+    })),
     cheats: {
         godMode: false,
         infiniteStamina: false,
@@ -111,7 +116,10 @@ const App: React.FC = () => {
       if (saved) setHasSaveGame(true);
   }, []);
 
-  const handlePhoneToggle = () => setIsPhoneOpen(!isPhoneOpen);
+  const handlePhoneToggle = () => {
+      audioManager.playUI('click');
+      setIsPhoneOpen(!isPhoneOpen);
+  }
   
   const handleAcceptMission = (mission: Mission) => {
     setGameState(prev => ({ ...prev, mission }));
@@ -131,9 +139,11 @@ const App: React.FC = () => {
           // Note: map array is large but usually fits in localStorage (50x50 ints is small).
           localStorage.setItem('vice_divide_save', JSON.stringify(gameState));
           setHasSaveGame(true);
+          audioManager.playUI('success');
           alert("GAME SAVED");
       } catch (e) {
           console.error("Save failed", e);
+          audioManager.playUI('error');
           alert("Save Failed: Storage Full?");
       }
   };
@@ -156,17 +166,25 @@ const App: React.FC = () => {
                   };
               }
 
+              // Ensure safehouses exist for legacy saves
+              if (!parsed.safehouses) {
+                  parsed.safehouses = [];
+              }
+
               setGameState(parsed);
               enterGame();
           }
       } catch (e) {
           console.error("Load failed", e);
+          audioManager.playUI('error');
           alert("Failed to load save file.");
       }
   };
 
   // Helper to trigger full screen if enabled
   const enterGame = () => {
+      audioManager.init();
+      audioManager.playUI('success');
       if (settings.isFullScreen) {
           if (!document.fullscreenElement) {
               document.documentElement.requestFullscreen().catch(err => {
@@ -179,22 +197,26 @@ const App: React.FC = () => {
 
   // Settings Handlers
   const toggleDrawDistance = () => {
+      audioManager.playUI('click');
       const levels: GameSettings['drawDistance'][] = ['LOW', 'MED', 'HIGH', 'ULTRA'];
       const currentIdx = levels.indexOf(settings.drawDistance);
       setSettings(prev => ({ ...prev, drawDistance: levels[(currentIdx + 1) % levels.length] }));
   };
 
   const toggleTrafficDensity = () => {
+      audioManager.playUI('click');
       const levels: GameSettings['trafficDensity'][] = ['LOW', 'MED', 'HIGH'];
       const currentIdx = levels.indexOf(settings.trafficDensity);
       setSettings(prev => ({ ...prev, trafficDensity: levels[(currentIdx + 1) % levels.length] }));
   };
 
   const toggleControlStyle = () => {
+      audioManager.playUI('click');
       setSettings(prev => ({ ...prev, mobileControlStyle: prev.mobileControlStyle === 'DPAD' ? 'JOYSTICK' : 'DPAD' }));
   };
 
   const toggleFullScreenSetting = () => {
+      audioManager.playUI('click');
       setSettings(prev => {
           const newState = !prev.isFullScreen;
           if (newState) {
@@ -211,6 +233,7 @@ const App: React.FC = () => {
   };
 
   const toggleTouchControls = () => {
+      audioManager.playUI('click');
       setSettings(prev => ({ ...prev, showTouchControls: !prev.showTouchControls }));
   };
 
@@ -231,28 +254,36 @@ const App: React.FC = () => {
       {/* Start Screen */}
       {!gameStarted && (
         <div className={`absolute inset-0 z-50 bg-zinc-900 flex overflow-hidden transition-opacity duration-1000 ${!showSplash ? 'opacity-100' : 'opacity-0'}`}>
-            {/* Background Panels (GTA Loading Style) */}
-            <div className="absolute inset-0 z-0 grid grid-cols-12 grid-rows-2 h-full w-full pointer-events-none opacity-50">
+            
+            {/* Happy New Year Banner */}
+            <div className="absolute top-6 right-8 z-50 flex flex-col items-end animate-fade-in-up">
+                <h2 className="font-gta text-4xl text-yellow-400 drop-shadow-[2px_2px_0_#000] tracking-widest rotate-2">HAPPY</h2>
+                <h2 className="font-gta text-5xl text-white drop-shadow-[2px_2px_0_#000] tracking-widest -rotate-1 -mt-2">NEW YEAR</h2>
+                <div className="w-32 h-1.5 bg-pink-500 shadow-lg mt-1 rotate-2"></div>
+            </div>
+
+            {/* Background Panels (GTA Loading Style) with Slow Zoom */}
+            <div className="absolute inset-0 z-0 grid grid-cols-12 grid-rows-2 h-full w-full pointer-events-none opacity-60 animate-slow-zoom origin-center">
                 {/* Top Left - Purple/City */}
-                <div className="col-span-5 row-span-1 bg-gradient-to-br from-indigo-900 to-purple-800 border-r-4 border-b-4 border-black relative overflow-hidden">
+                <div className="col-span-5 row-span-1 bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-800 border-r-4 border-b-4 border-black relative overflow-hidden">
                     <div className="absolute inset-0 bg-black/10"></div>
                     <i className="fas fa-city text-[12rem] absolute -bottom-10 -left-10 text-black/30 transform rotate-6"></i>
                 </div>
                 
                 {/* Top Right - Orange/Car */}
-                <div className="col-span-7 row-span-1 bg-gradient-to-l from-orange-800 to-red-900 border-b-4 border-black relative overflow-hidden">
+                <div className="col-span-7 row-span-1 bg-gradient-to-l from-orange-800 via-red-900 to-orange-900 border-b-4 border-black relative overflow-hidden">
                     <i className="fas fa-car-side text-[14rem] absolute top-1/2 right-10 transform -translate-y-1/2 text-black/30"></i>
                     <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-l from-black/40 to-transparent"></div>
                 </div>
 
                 {/* Bottom Left - Green/Money */}
-                <div className="col-span-8 row-span-1 bg-gradient-to-tr from-green-900 to-emerald-800 border-r-4 border-black relative overflow-hidden">
+                <div className="col-span-8 row-span-1 bg-gradient-to-tr from-green-900 via-emerald-900 to-green-800 border-r-4 border-black relative overflow-hidden">
                      <i className="fas fa-money-bill-wave text-[10rem] absolute -bottom-4 left-10 text-black/20 transform -rotate-12"></i>
                      <i className="fas fa-hand-holding-dollar text-[8rem] absolute top-4 right-20 text-black/20 transform rotate-12"></i>
                 </div>
                 
                 {/* Bottom Right - Blue/Police */}
-                <div className="col-span-4 row-span-1 bg-gradient-to-br from-slate-900 to-blue-900 border-black relative overflow-hidden">
+                <div className="col-span-4 row-span-1 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 border-black relative overflow-hidden">
                      <i className="fas fa-helicopter text-[9rem] absolute top-10 -right-10 text-black/30 transform -rotate-12"></i>
                      <div className="absolute inset-0 bg-blue-500/10 mix-blend-overlay"></div>
                 </div>
@@ -273,7 +304,7 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-4 mt-6 ml-4">
                             <span className="font-gta text-3xl text-pink-500 tracking-widest drop-shadow-[2px_2px_0_#000]">BETA</span>
                             <div className="h-1.5 w-16 bg-pink-500 shadow-[2px_2px_0_#000]"></div>
-                            <span className="font-gta text-3xl text-white tracking-widest drop-shadow-[2px_2px_0_#000]">V6</span>
+                            <span className="font-gta text-3xl text-white tracking-widest drop-shadow-[2px_2px_0_#000]">V7</span>
                         </div>
                     </div>
                 )}
@@ -284,7 +315,7 @@ const App: React.FC = () => {
                 )}
 
                 {/* Menu Section */}
-                <div className="flex flex-col items-start gap-2 mt-auto mb-8 md:mb-12 pl-4">
+                <div className="flex flex-col items-start gap-4 mt-auto mb-8 md:mb-12 pl-4">
                     {!showSettings ? (
                         <>
                             <button 
@@ -292,8 +323,10 @@ const App: React.FC = () => {
                                     setGameState(defaultGameState); // Reset to default for new game
                                     enterGame();
                                 }}
-                                className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300"
+                                onMouseEnter={() => audioManager.playUI('hover')}
+                                className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300 relative"
                             >
+                                <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-0 h-1 bg-yellow-400 group-hover:w-4 transition-all duration-300"></div>
                                 <span className="font-gta text-6xl md:text-8xl text-white group-hover:text-yellow-400 transition-colors drop-shadow-[4px_4px_0_rgba(0,0,0,1)] tracking-wide">
                                     START GAME
                                 </span>
@@ -302,8 +335,10 @@ const App: React.FC = () => {
                             {hasSaveGame && (
                                 <button 
                                     onClick={handleLoadGame}
-                                    className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300"
+                                    onMouseEnter={() => audioManager.playUI('hover')}
+                                    className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300 relative"
                                 >
+                                    <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-0 h-1 bg-green-400 group-hover:w-4 transition-all duration-300"></div>
                                     <span className="font-gta text-5xl md:text-7xl text-gray-300 group-hover:text-green-400 transition-colors drop-shadow-[3px_3px_0_rgba(0,0,0,1)] tracking-wide">
                                         LOAD GAME
                                     </span>
@@ -311,15 +346,21 @@ const App: React.FC = () => {
                             )}
                             
                             <button 
-                                onClick={() => setShowSettings(true)}
-                                className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300"
+                                onClick={() => { setShowSettings(true); audioManager.playUI('click'); }}
+                                onMouseEnter={() => audioManager.playUI('hover')}
+                                className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300 relative"
                             >
+                                <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-0 h-1 bg-pink-400 group-hover:w-4 transition-all duration-300"></div>
                                 <span className="font-gta text-4xl md:text-6xl text-gray-300 group-hover:text-pink-400 transition-colors drop-shadow-[3px_3px_0_rgba(0,0,0,1)] tracking-wide">
                                     OPTIONS
                                 </span>
                             </button>
                             
-                            <button className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300 opacity-70 hover:opacity-100">
+                            <button 
+                                className="group flex items-center gap-6 focus:outline-none transition-transform hover:translate-x-4 duration-300 opacity-70 hover:opacity-100 relative"
+                                onMouseEnter={() => audioManager.playUI('hover')}
+                            >
+                                <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-0 h-1 bg-blue-400 group-hover:w-4 transition-all duration-300"></div>
                                 <span className="font-gta text-4xl md:text-6xl text-gray-300 group-hover:text-blue-400 transition-colors drop-shadow-[3px_3px_0_rgba(0,0,0,1)] tracking-wide">
                                     QUIT
                                 </span>
@@ -368,11 +409,11 @@ const App: React.FC = () => {
                                         <span className="text-gray-400 group-hover:text-white">TRAFFIC DENSITY</span>
                                         <span className="text-yellow-400 font-bold">{settings.trafficDensity}</span>
                                     </button>
-                                     <button onClick={() => setSettings(s => ({...s, retroFilter: !s.retroFilter}))} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
+                                     <button onClick={() => { setSettings(s => ({...s, retroFilter: !s.retroFilter})); audioManager.playUI('click'); }} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
                                         <span className="text-gray-400 group-hover:text-white">RETRO FILTER</span>
                                         <span className={`${settings.retroFilter ? 'text-green-400' : 'text-red-500'} font-bold`}>{settings.retroFilter ? 'ON' : 'OFF'}</span>
                                     </button>
-                                     <button onClick={() => setSettings(s => ({...s, frameLimiter: !s.frameLimiter}))} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
+                                     <button onClick={() => { setSettings(s => ({...s, frameLimiter: !s.frameLimiter})); audioManager.playUI('click'); }} className="w-full flex justify-between items-center group cursor-pointer hover:bg-white/5 p-1 rounded">
                                         <span className="text-gray-400 group-hover:text-white">FRAME LIMITER (30 FPS)</span>
                                         <span className={`${settings.frameLimiter ? 'text-green-400' : 'text-red-500'} font-bold`}>{settings.frameLimiter ? 'ON' : 'OFF'}</span>
                                     </button>
@@ -416,7 +457,7 @@ const App: React.FC = () => {
                             </div>
 
                             <button 
-                                onClick={() => setShowSettings(false)}
+                                onClick={() => { setShowSettings(false); audioManager.playUI('back'); }}
                                 className="mt-10 font-gta text-4xl text-white hover:text-yellow-400 transition-colors flex items-center gap-4"
                             >
                                 <i className="fas fa-arrow-left text-2xl"></i> BACK
@@ -446,7 +487,7 @@ const App: React.FC = () => {
       {gameStarted && (
           <GameCanvas 
             onGameStateUpdate={handleUpdateGameState} 
-            onPhoneToggle={setIsPhoneOpen} 
+            onPhoneToggle={handlePhoneToggle} 
             isPhoneOpen={isPhoneOpen}
             activeMission={gameState.mission}
             onWeaponWheelToggle={setIsWeaponWheelOpen}
@@ -467,8 +508,8 @@ const App: React.FC = () => {
         <HUD 
             gameState={gameState} 
             onPhoneClick={handlePhoneToggle}
-            onRadarClick={() => setShowMap(true)} 
-            onWeaponClick={() => setIsWeaponWheelOpen(true)}
+            onRadarClick={() => { setShowMap(true); audioManager.playUI('open'); }}
+            onWeaponClick={() => { setIsWeaponWheelOpen(true); audioManager.playUI('open'); }}
             showTouchControls={settings.showTouchControls}
         />
       )}
@@ -507,7 +548,7 @@ const App: React.FC = () => {
       {gameStarted && (
           <Phone 
             isOpen={isPhoneOpen} 
-            onClose={() => setIsPhoneOpen(false)} 
+            onClose={() => { setIsPhoneOpen(false); audioManager.playUI('back'); }}
             gameState={gameState}
             onAcceptMission={handleAcceptMission}
             settings={settings}
@@ -530,9 +571,9 @@ const App: React.FC = () => {
       {showMap && (
           <MapMenu 
             gameState={gameState}
-            onResume={() => setShowMap(false)}
-            onQuit={() => { setShowMap(false); setGameStarted(false); }}
-            onOptions={() => { setShowMap(false); setGameStarted(false); setShowSettings(true); }}
+            onResume={() => { setShowMap(false); audioManager.playUI('back'); }}
+            onQuit={() => { setShowMap(false); setGameStarted(false); audioManager.playUI('back'); }}
+            onOptions={() => { setShowMap(false); setGameStarted(false); setShowSettings(true); audioManager.playUI('click'); }}
             onSave={handleSaveGame}
           />
       )}

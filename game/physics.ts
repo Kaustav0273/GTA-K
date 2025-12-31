@@ -1,6 +1,6 @@
 
 import { 
-    Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType, Drop, Cheats 
+    Vehicle, Pedestrian, Bullet, Particle, Vector2, TileType, EntityType, Drop, Cheats, Safehouse 
 } from '../types';
 import { 
     TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, 
@@ -33,6 +33,7 @@ export interface MutableGameState {
     isWasted: boolean;
     wastedStartTime: number;
     cheats: Cheats;
+    safehouses: Safehouse[];
 }
 
 // Get Corners of the vehicle OBB

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -33,6 +34,68 @@
         top: 0; right: 0; bottom: 0; left: 0;
         pointer-events: none;
         z-index: 10;
+      }
+
+      /* Custom Animations */
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+      
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in-up {
+        animation: fadeInUp 0.5s ease-out forwards;
+      }
+
+      @keyframes slideInRight {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
+      }
+      .animate-slide-in-right {
+        animation: slideInRight 0.3s ease-out forwards;
+      }
+
+      @keyframes slideInUp {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+      }
+      .animate-slide-in-up {
+        animation: slideInUp 0.3s ease-out forwards;
+      }
+
+      @keyframes bounceShort {
+        0%, 100% { transform: scale(1.1); }
+        50% { transform: scale(1.15); }
+      }
+      .animate-bounce-short {
+        animation: bounceShort 0.5s ease-in-out infinite;
+      }
+      
+      @keyframes bounceSlow {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+      }
+      .animate-bounce-slow {
+        animation: bounceSlow 2s ease-in-out infinite;
+      }
+      
+      @keyframes slowZoom {
+        0% { transform: scale(1); }
+        100% { transform: scale(1.05); }
+      }
+      .animate-slow-zoom {
+        animation: slowZoom 20s ease-in-out infinite alternate;
+      }
+
+      /* Text Stroke Utility */
+      .text-stroke-2 {
+        -webkit-text-stroke: 2px black;
       }
     </style>
   <script type="importmap">

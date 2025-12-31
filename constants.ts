@@ -150,3 +150,10 @@ export const CAR_MODELS = {
   tank: { color: '#3f6212', maxSpeed: 6, acceleration: 0.05, handling: 0.02, health: 1500, size: { x: 38, y: 72 } },
   barracks: { color: '#4d5c42', maxSpeed: 8, acceleration: 0.08, handling: 0.02, health: 800, size: { x: 34, y: 70 } }
 };
+
+export const SAFEHOUSE_DEFS = [
+    { id: 'starter_home', tile: { x: 8, y: 8 }, price: 0 },
+    { id: 'downtown_apt', tile: { x: 25, y: 15 }, price: 5000 },
+    { id: 'luxury_condo', tile: { x: 45, y: 25 }, price: 15000 },
+    { id: 'beach_house', tile: { x: 12, y: 40 }, price: 25000 },
+];

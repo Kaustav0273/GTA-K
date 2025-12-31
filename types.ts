@@ -121,6 +121,13 @@ export interface Cheats {
   vehicleGodMode: boolean;
 }
 
+export interface Safehouse {
+  id: string;
+  tile: Vector2; // Grid coordinates
+  owned: boolean;
+  price: number;
+}
+
 export interface GameState {
   player: Pedestrian;
   vehicles: Vehicle[];
@@ -141,6 +148,7 @@ export interface GameState {
   isWasted: boolean;
   wastedStartTime: number;
   cheats: Cheats;
+  safehouses: Safehouse[];
 }
 
 export interface Mission {
@@ -192,7 +200,8 @@ export enum TileType {
   WAREHOUSE = 33,
   FACTORY = 34,
   TENEMENT = 35,
-  PROJECTS = 36
+  PROJECTS = 36,
+  SAFEHOUSE = 37
 }
 
 export interface GameSettings {
