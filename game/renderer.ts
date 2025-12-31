@@ -1,7 +1,7 @@
 
 import { Vehicle, Pedestrian, TileType, Drop, GameSettings } from '../types';
 import { MutableGameState } from './physics';
-import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS, CAR_MODELS } from '../constants';
+import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS, CAR_MODELS, WEAPON_STATS } from '../constants';
 import { getTileAt, isSolid } from '../utils/gameUtils';
 
 // --- SHADOW CONSTANTS ---
@@ -103,12 +103,13 @@ const drawDrop = (ctx: CanvasRenderingContext2D, drop: Drop) => {
     } else if (drop.type === 'weapon') {
         ctx.shadowColor = '#fff';
         ctx.shadowBlur = 5;
-        if (drop.weapon === 'pistol') {
+        const wClass = drop.weapon ? WEAPON_STATS[drop.weapon].class : 'pistol';
+        if (wClass === 'pistol') {
             ctx.fillStyle = '#9ca3af';
             ctx.beginPath(); 
             ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.lineTo(5, -2); ctx.lineTo(-2, -2); ctx.lineTo(-2, -4); ctx.lineTo(-5, -4); 
             ctx.fill();
-        } else if (drop.weapon === 'uzi') {
+        } else if (wClass === 'smg' || wClass === 'shotgun') {
             ctx.fillStyle = '#4b5563';
             ctx.beginPath();
             ctx.rect(-6, -2, 12, 4); ctx.fill(); 
@@ -889,16 +890,32 @@ const drawCharacter = (ctx: CanvasRenderingContext2D, p: Pedestrian) => {
     else if (p.role === 'army') { ctx.fillStyle = '#3f6212'; ctx.beginPath(); ctx.ellipse(-1, 0, 5.5, 5.5, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#2f3e26'; ctx.beginPath(); ctx.ellipse(3, 0, 3, 5, 0, -Math.PI/2, Math.PI/2); ctx.fill(); }
     else { const hairColor = p.id.length % 2 === 0 ? '#451a03' : '#000000'; ctx.fillStyle = hairColor; ctx.beginPath(); ctx.arc(-1, 0, 5, 0, Math.PI * 2); ctx.fill(); }
     ctx.fillStyle = p.color; 
-    if (p.weapon === 'fist') {
+    
+    const wClass = WEAPON_STATS[p.weapon].class;
+
+    if (wClass === 'melee') {
         const armSwing = isMoving ? Math.cos(Date.now() / 100) * 3 : 0;
         ctx.beginPath(); ctx.ellipse(0 + armSwing, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 + armSwing, -9, 2.5, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = p.color; ctx.beginPath(); ctx.ellipse(0 - armSwing, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 - armSwing, 9, 2.5, 0, Math.PI*2); ctx.fill();
     } else {
         ctx.beginPath(); ctx.ellipse(2, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(2, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#fca5a5'; ctx.save(); ctx.translate(10, 0); 
-        if (p.weapon === 'pistol') { ctx.fillStyle = '#374151'; ctx.fillRect(-2, -1.5, 10, 3); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 2, 2.5, 0, Math.PI*2); ctx.fill(); } 
-        else if (p.weapon === 'uzi') { ctx.fillStyle = '#111'; ctx.fillRect(-2, -2, 12, 4); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, -2, 2.5, 0, Math.PI*2); ctx.fill(); } 
-        else if (p.weapon === 'shotgun' || p.weapon === 'sniper' || p.weapon === 'rocket') { ctx.fillStyle = '#1f2937'; const len = p.weapon === 'sniper' ? 24 : 18; const width = p.weapon === 'rocket' ? 6 : 3; ctx.fillRect(-4, -width/2, len, width); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, -1, 2.5, 0, Math.PI*2); ctx.fill(); }
+        
+        if (wClass === 'pistol') { 
+            ctx.fillStyle = '#374151'; ctx.fillRect(-2, -1.5, 10, 3); 
+            ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 2, 2.5, 0, Math.PI*2); ctx.fill(); 
+        } 
+        else if (wClass === 'smg') { 
+            ctx.fillStyle = '#111'; ctx.fillRect(-2, -2, 12, 4); 
+            ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, -2, 2.5, 0, Math.PI*2); ctx.fill(); 
+        } 
+        else if (wClass === 'shotgun' || wClass === 'sniper' || wClass === 'rocket' || wClass === 'flame') { 
+            ctx.fillStyle = '#1f2937'; 
+            const len = wClass === 'sniper' ? 24 : 18; 
+            const width = wClass === 'rocket' ? 6 : 3; 
+            ctx.fillRect(-4, -width/2, len, width); 
+            ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, -1, 2.5, 0, Math.PI*2); ctx.fill(); 
+        }
         ctx.restore();
     }
     ctx.restore();

@@ -1,8 +1,7 @@
 
-
 export const TILE_SIZE = 128;
-export const MAP_WIDTH = 160; // Increased from 120
-export const MAP_HEIGHT = 160; // Increased from 120
+export const MAP_WIDTH = 160; 
+export const MAP_HEIGHT = 160; 
 
 export const MAX_TRAFFIC = 75; 
 
@@ -65,14 +64,62 @@ export const PEDESTRIAN_TEXTING_SPEED = 0.8;
 export const PEDESTRIAN_RUN_SPEED = 3.5;
 export const PANIC_DISTANCE = 400; // Pixel radius for hearing gunshots
 
-export const WEAPON_STATS = {
-    fist: { damage: 10, range: 20, fireRate: 30, automatic: false, color: 'transparent' },
-    pistol: { damage: 35, range: 400, fireRate: 20, automatic: false, spread: 0.05, bulletSpeed: 25, count: 1 },
-    uzi: { damage: 15, range: 300, fireRate: 5, automatic: true, spread: 0.15, bulletSpeed: 28, count: 1 },
-    shotgun: { damage: 20, range: 250, fireRate: 45, automatic: false, spread: 0.25, bulletSpeed: 22, count: 6 },
-    sniper: { damage: 150, range: 800, fireRate: 70, automatic: false, spread: 0.01, bulletSpeed: 45, count: 1 },
-    rocket: { damage: 200, range: 600, fireRate: 90, automatic: false, spread: 0.05, bulletSpeed: 12, count: 1, explosionRadius: 100 },
-    flame: { damage: 3, range: 120, fireRate: 3, automatic: true, spread: 0.35, bulletSpeed: 7, count: 3 }
+export const WEAPON_STATS: Record<string, any> = {
+    fist: { class: 'melee', damage: 10, range: 20, fireRate: 30, automatic: false, color: 'transparent' },
+    
+    // --- PISTOLS ---
+    pistol:        { class: 'pistol', damage: 35, range: 400, fireRate: 20, automatic: false, spread: 0.05, bulletSpeed: 25, count: 1, label: "Pistol" },
+    street_hawk:   { class: 'pistol', damage: 40, range: 450, fireRate: 18, automatic: false, spread: 0.04, bulletSpeed: 28, count: 1, label: "Street Hawk" },
+    silver_fang:   { class: 'pistol', damage: 55, range: 350, fireRate: 25, automatic: false, spread: 0.06, bulletSpeed: 26, count: 1, label: "Silver Fang" },
+    night_viper:   { class: 'pistol', damage: 30, range: 400, fireRate: 15, automatic: true,  spread: 0.08, bulletSpeed: 25, count: 1, label: "Night Viper" },
+    pulse_9x:      { class: 'pistol', damage: 25, range: 380, fireRate: 10, automatic: true,  spread: 0.10, bulletSpeed: 24, count: 1, label: "Pulse 9X" },
+    iron_whisper:  { class: 'pistol', damage: 45, range: 500, fireRate: 30, automatic: false, spread: 0.02, bulletSpeed: 30, count: 1, label: "Iron Whisper" },
+    neon_ace:      { class: 'pistol', damage: 38, range: 420, fireRate: 12, automatic: false, spread: 0.05, bulletSpeed: 28, count: 1, label: "Neon Ace" },
+
+    // --- SMGS ---
+    uzi:           { class: 'smg', damage: 15, range: 300, fireRate: 5, automatic: true, spread: 0.15, bulletSpeed: 28, count: 1, label: "Micro SMG" },
+    rapid_wolf:    { class: 'smg', damage: 18, range: 320, fireRate: 4, automatic: true, spread: 0.18, bulletSpeed: 30, count: 1, label: "Rapid Wolf" },
+    urban_ripper:  { class: 'smg', damage: 20, range: 280, fireRate: 6, automatic: true, spread: 0.20, bulletSpeed: 26, count: 1, label: "Urban Ripper" },
+    vortex_smg:    { class: 'smg', damage: 14, range: 350, fireRate: 3, automatic: true, spread: 0.12, bulletSpeed: 32, count: 1, label: "Vortex SMG" },
+    shadow_spray:  { class: 'smg', damage: 12, range: 250, fireRate: 2, automatic: true, spread: 0.25, bulletSpeed: 25, count: 1, label: "Shadow Spray" },
+    bullet_hive:   { class: 'smg', damage: 16, range: 300, fireRate: 3, automatic: true, spread: 0.15, bulletSpeed: 28, count: 1, label: "Bullet Hive" },
+    turbo_stinger: { class: 'smg', damage: 13, range: 310, fireRate: 2, automatic: true, spread: 0.14, bulletSpeed: 35, count: 1, label: "Turbo Stinger" },
+
+    // --- SHOTGUNS ---
+    shotgun:       { class: 'shotgun', damage: 20, range: 250, fireRate: 45, automatic: false, spread: 0.25, bulletSpeed: 22, count: 6, label: "Shotgun" },
+    doom_breaker:  { class: 'shotgun', damage: 30, range: 200, fireRate: 60, automatic: false, spread: 0.30, bulletSpeed: 20, count: 8, label: "Doom Breaker" },
+    thunder_judge: { class: 'shotgun', damage: 18, range: 280, fireRate: 25, automatic: true,  spread: 0.20, bulletSpeed: 24, count: 5, label: "Thunder Judge" },
+    skull_shatter: { class: 'shotgun', damage: 25, range: 220, fireRate: 50, automatic: false, spread: 0.28, bulletSpeed: 22, count: 7, label: "Skull Shatter" },
+    iron_boom:     { class: 'shotgun', damage: 40, range: 180, fireRate: 70, automatic: false, spread: 0.35, bulletSpeed: 18, count: 10, label: "Iron Boom" },
+    road_cleaner:  { class: 'shotgun', damage: 15, range: 300, fireRate: 20, automatic: true,  spread: 0.15, bulletSpeed: 25, count: 4, label: "Road Cleaner" },
+    hell_bison:    { class: 'shotgun', damage: 22, range: 240, fireRate: 40, automatic: false, spread: 0.22, bulletSpeed: 23, count: 6, label: "Hell Bison" },
+
+    // --- SNIPERS ---
+    sniper:        { class: 'sniper', damage: 150, range: 800, fireRate: 70, automatic: false, spread: 0.01, bulletSpeed: 45, count: 1, label: "Sniper Rifle" },
+    silent_eclipse:{ class: 'sniper', damage: 130, range: 750, fireRate: 60, automatic: false, spread: 0.00, bulletSpeed: 48, count: 1, label: "Silent Eclipse" },
+    longshot_zero: { class: 'sniper', damage: 180, range: 1000, fireRate: 90, automatic: false, spread: 0.00, bulletSpeed: 55, count: 1, label: "Longshot Zero" },
+    phantom_eye:   { class: 'sniper', damage: 140, range: 850, fireRate: 65, automatic: false, spread: 0.01, bulletSpeed: 46, count: 1, label: "Phantom Eye" },
+    widow_maker_x: { class: 'sniper', damage: 200, range: 900, fireRate: 100, automatic: false, spread: 0.00, bulletSpeed: 50, count: 1, label: "Widow Maker X" },
+    frost_piercer: { class: 'sniper', damage: 120, range: 700, fireRate: 40, automatic: true,  spread: 0.03, bulletSpeed: 42, count: 1, label: "Frost Piercer" },
+    dark_horizon:  { class: 'sniper', damage: 160, range: 950, fireRate: 80, automatic: false, spread: 0.00, bulletSpeed: 52, count: 1, label: "Dark Horizon" },
+
+    // --- RPGS ---
+    rocket:        { class: 'rocket', damage: 200, range: 600, fireRate: 90, automatic: false, spread: 0.05, bulletSpeed: 12, count: 1, explosionRadius: 100, label: "RPG" },
+    dragon_roar:   { class: 'rocket', damage: 250, range: 650, fireRate: 100, automatic: false, spread: 0.04, bulletSpeed: 14, count: 1, explosionRadius: 120, label: "Dragon Roar" },
+    sky_eraser:    { class: 'rocket', damage: 180, range: 800, fireRate: 80, automatic: false, spread: 0.02, bulletSpeed: 18, count: 1, explosionRadius: 90,  label: "Sky Eraser" },
+    titan_fall:    { class: 'rocket', damage: 300, range: 500, fireRate: 120, automatic: false, spread: 0.08, bulletSpeed: 10, count: 1, explosionRadius: 150, label: "Titan Fall" },
+    blast_serpent: { class: 'rocket', damage: 150, range: 550, fireRate: 40, automatic: true,  spread: 0.10, bulletSpeed: 15, count: 1, explosionRadius: 60,  label: "Blast Serpent" },
+    nova_cannon:   { class: 'rocket', damage: 400, range: 400, fireRate: 150, automatic: false, spread: 0.05, bulletSpeed: 8,  count: 1, explosionRadius: 200, label: "Nova Cannon" },
+    earth_splitter:{ class: 'rocket', damage: 220, range: 600, fireRate: 90, automatic: false, spread: 0.05, bulletSpeed: 12, count: 2, explosionRadius: 100, label: "Earth Splitter" },
+
+    // --- FLAMETHROWERS ---
+    flame:         { class: 'flame', damage: 3, range: 120, fireRate: 3, automatic: true, spread: 0.35, bulletSpeed: 7, count: 3, label: "Flamethrower" },
+    inferno_kiss:  { class: 'flame', damage: 4, range: 100, fireRate: 2, automatic: true, spread: 0.40, bulletSpeed: 6, count: 4, label: "Inferno Kiss" },
+    fire_leviathan:{ class: 'flame', damage: 5, range: 150, fireRate: 4, automatic: true, spread: 0.30, bulletSpeed: 8, count: 3, label: "Fire Leviathan" },
+    ember_storm:   { class: 'flame', damage: 2, range: 130, fireRate: 1, automatic: true, spread: 0.50, bulletSpeed: 7, count: 5, label: "Ember Storm" },
+    heat_reaper:   { class: 'flame', damage: 6, range: 110, fireRate: 3, automatic: true, spread: 0.25, bulletSpeed: 7, count: 2, label: "Heat Reaper" },
+    blaze_hydra:   { class: 'flame', damage: 3, range: 140, fireRate: 3, automatic: true, spread: 0.60, bulletSpeed: 6, count: 6, label: "Blaze Hydra" },
+    pyro_lord:     { class: 'flame', damage: 8, range: 160, fireRate: 5, automatic: true, spread: 0.20, bulletSpeed: 9, count: 3, label: "Pyro Lord" },
 };
 
 export const CAR_MODELS = {

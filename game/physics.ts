@@ -222,11 +222,12 @@ export const createExplosion = (state: MutableGameState, pos: Vector2, radius: n
 
 export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
     const weaponStats = WEAPON_STATS[source.weapon];
+    const wClass = weaponStats.class;
     
     // Cheat: One Hit Kill
     const isOneHitKill = (source.id === 'player' && state.cheats.oneHitKill);
 
-    if (source.weapon === 'fist') {
+    if (wClass === 'melee') {
          source.state = 'punching';
          source.actionTimer = 15;
 
@@ -282,10 +283,10 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
     let type: Bullet['type'] = 'standard';
     let explosionRadius = 0;
     
-    if (source.weapon === 'rocket') {
+    if (wClass === 'rocket') {
         type = 'rocket';
         explosionRadius = (weaponStats as any).explosionRadius || 80;
-    } else if (source.weapon === 'flame') {
+    } else if (wClass === 'flame') {
         type = 'fire';
     }
 
@@ -314,11 +315,11 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
         });
     }
     
-    if (source.weapon !== 'flame') {
+    if (wClass !== 'flame') {
         spawnParticle(state, source.pos, 'muzzle', 3, { color: '#fff', speed: 0.5, spread: 2 });
     }
     
-    if (source.id === 'player' && source.weapon !== 'flame') {
+    if (source.id === 'player' && wClass !== 'flame') {
          if (isPoliceNearby(state, source.pos)) {
             state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
             state.lastWantedTime = state.timeTicker;

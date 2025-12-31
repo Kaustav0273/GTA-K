@@ -48,7 +48,20 @@ export interface Vehicle extends Entity {
   lastPaintTime?: number; // Debounce for paint shop
 }
 
-export type WeaponType = 'fist' | 'pistol' | 'uzi' | 'shotgun' | 'sniper' | 'rocket' | 'flame';
+export type WeaponType = 
+  | 'fist'
+  // Pistols
+  | 'pistol' | 'street_hawk' | 'silver_fang' | 'night_viper' | 'pulse_9x' | 'iron_whisper' | 'neon_ace'
+  // SMGs
+  | 'uzi' | 'rapid_wolf' | 'urban_ripper' | 'vortex_smg' | 'shadow_spray' | 'bullet_hive' | 'turbo_stinger'
+  // Shotguns
+  | 'shotgun' | 'doom_breaker' | 'thunder_judge' | 'skull_shatter' | 'iron_boom' | 'road_cleaner' | 'hell_bison'
+  // Snipers
+  | 'sniper' | 'silent_eclipse' | 'longshot_zero' | 'phantom_eye' | 'widow_maker_x' | 'frost_piercer' | 'dark_horizon'
+  // RPGs
+  | 'rocket' | 'dragon_roar' | 'sky_eraser' | 'titan_fall' | 'blast_serpent' | 'nova_cannon' | 'earth_splitter'
+  // Flamethrowers
+  | 'flame' | 'inferno_kiss' | 'fire_leviathan' | 'ember_storm' | 'heat_reaper' | 'blaze_hydra' | 'pyro_lord';
 
 export interface Pedestrian extends Entity {
   type: EntityType.PEDESTRIAN | EntityType.PLAYER;

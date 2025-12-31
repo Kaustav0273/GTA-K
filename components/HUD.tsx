@@ -2,7 +2,7 @@
 import React from 'react';
 import { GameState } from '../types';
 import Radar from './Radar';
-import { CAR_MODELS } from '../constants';
+import { CAR_MODELS, WEAPON_STATS } from '../constants';
 
 interface HUDProps {
   gameState: GameState;
@@ -56,6 +56,15 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
   const missionInfoPositionClass = showTouchControls
       ? 'top-4 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-40' // Shift right to avoid top-left radar on mobile layout if needed, or center
       : 'top-4 left-1/2 -translate-x-1/2 md:top-4 md:left-4 md:translate-x-0';
+
+  const wClass = WEAPON_STATS[player.weapon].class;
+  let weaponIcon = 'fa-hand-fist';
+  if (wClass === 'pistol') weaponIcon = 'fa-gun';
+  else if (wClass === 'smg') weaponIcon = 'fa-person-rifle';
+  else if (wClass === 'shotgun') weaponIcon = 'fa-skull';
+  else if (wClass === 'sniper') weaponIcon = 'fa-crosshairs';
+  else if (wClass === 'rocket') weaponIcon = 'fa-rocket';
+  else if (wClass === 'flame') weaponIcon = 'fa-fire';
 
   return (
     <div className="absolute inset-0 pointer-events-none font-gta text-white select-none overflow-hidden">
@@ -150,17 +159,9 @@ const HUD: React.FC<HUDProps> = ({ gameState, onPhoneClick, onRadarClick, onWeap
                     className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 rounded-full border-2 md:border-4 border-gray-700 flex items-center justify-center mb-1 shadow-lg relative cursor-pointer active:scale-95 transition-transform"
                     onClick={onWeaponClick}
                  >
-                    <i className={`fas ${
-                        player.weapon === 'pistol' ? 'fa-gun' : 
-                        player.weapon === 'uzi' ? 'fa-person-rifle' : 
-                        player.weapon === 'shotgun' ? 'fa-skull' : 
-                        player.weapon === 'sniper' ? 'fa-crosshairs' :
-                        player.weapon === 'rocket' ? 'fa-rocket' :
-                        player.weapon === 'flame' ? 'fa-fire' :
-                        'fa-hand-fist'
-                    } text-xl md:text-3xl text-gray-400`}></i>
+                    <i className={`fas ${weaponIcon} text-xl md:text-3xl text-gray-400`}></i>
                     <div className="absolute -bottom-1 -right-1 bg-gray-800 text-[10px] md:text-xs px-1 rounded border border-gray-600">
-                        {player.weapon === 'fist' ? 'INF' : '999'}
+                        {wClass === 'melee' ? 'INF' : '999'}
                     </div>
                  </div>
                  {/* Only show label if no touch controls or if screen is small */}
