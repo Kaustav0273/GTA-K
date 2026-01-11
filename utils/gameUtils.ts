@@ -1,5 +1,4 @@
 
-
 import { MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, COLORS } from "../constants";
 import { TileType } from "../types";
 
@@ -31,7 +30,6 @@ export const generateMap = (): number[][] => {
   }
 
   // Helper to check if we can pave over (Build Roads)
-  // UPDATED: Now allows paving over WATER to create bridges!
   const canPave = (x: number, y: number) => {
       if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
       const t = map[y][x];
@@ -117,9 +115,6 @@ export const generateMap = (): number[][] => {
   // Large Southern Dock
   fillRect(4, portY + 22, 20, 6, TileType.SHIP_DECK);
   
-  // Container Yard Zones (Markers for later)
-  // Logic handled in Phase 6 building placement
-
   // Neon Coast / Industrial (Original Zone)
   const neonX = 35;
   const neonW = 23; 
@@ -152,7 +147,6 @@ export const generateMap = (): number[][] => {
   fillRect(stationX, stationY, stationW, stationH, TileType.TRAIN_STATION);
   
   // SOCCER FIELD (Moved to x=73, y=96 to fit gap between roads y95/105 and x72/88)
-  // Adjusted width to 14 to ensure it clears x=88 road (73+14=87)
   fillRect(73, 96, 14, 8, TileType.FOOTBALL_FIELD);
 
   // === AIRPORT (EXPANDED) ===
@@ -271,6 +265,10 @@ export const generateMap = (): number[][] => {
   const drawRail = (x: number, y: number) => {
       if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return;
       const t = map[y][x];
+      
+      // CRITICAL FIX: If already a rail or crossing, do not overwrite!
+      if (t === TileType.RAIL || t === TileType.RAIL_CROSSING) return;
+
       // If road, make crossing. If water/grass/sidewalk, make rail.
       if (t === TileType.ROAD_V || t === TileType.ROAD_H || t === TileType.ROAD_CROSS) {
           map[y][x] = TileType.RAIL_CROSSING;
@@ -282,15 +280,17 @@ export const generateMap = (): number[][] => {
               t !== TileType.POLICE_STATION && 
               t !== TileType.MALL && 
               t !== TileType.TRAIN_STATION &&
-              t !== TileType.CONSTRUCTION && // Protect Construction
-              t !== TileType.RUNWAY && // Protect Airport
+              t !== TileType.CONSTRUCTION && 
+              t !== TileType.RUNWAY && 
               t !== TileType.TARMAC && 
               t !== TileType.AIRPORT_TERMINAL &&
               t !== TileType.HANGAR &&
               t !== TileType.MILITARY_GROUND &&
               t !== TileType.BUNKER &&
               t !== TileType.WAREHOUSE && t !== TileType.FACTORY && 
-              t !== TileType.TENEMENT && t !== TileType.PROJECTS
+              t !== TileType.TENEMENT && t !== TileType.PROJECTS &&
+              t !== TileType.SHIP_DECK &&
+              t !== TileType.FOOTBALL_FIELD
           ) {
               map[y][x] = TileType.RAIL;
           }
@@ -300,16 +300,7 @@ export const generateMap = (): number[][] => {
   // Rail Loop Coordinates
   // Start at Station (73, 66) -> Go Right to Outer East (145) -> Go Up to Top (2) -> Go Left to Outer West (2) -> Go Down to Bottom (148) -> Go Right to connect
   
-  const railLoop = [
-      { x: 2, y: 2, w: 148, h: 2 }, // Top Horiz
-      { x: 148, y: 2, w: 2, h: 148 }, // Right Vert
-      { x: 2, y: 148, w: 148, h: 2 }, // Bottom Horiz
-      { x: 2, y: 2, w: 2, h: 148 }, // Left Vert
-  ];
-  
   // Inner City Loop connection (Station is at 73, 66)
-  // Connect Station West to Main Line
-  // Connect Station East to Main Line
   const railY = stationY + stationH; // 74
   
   // Draw Grand Outer Loop
@@ -323,24 +314,23 @@ export const generateMap = (): number[][] => {
   for(let y=2; y<150; y++) { drawRail(2, y); drawRail(3, y); }
   
   // --- CROSS-CITY CONNECTOR (REROUTED AROUND AIRPORT) ---
-  // Starts Left Outer (x=3) goes East to Station (x=73), then to Airport area
+  // Shifted bypass leg to x=85/86 to avoid turning on the road at x=88.
   
-  // 1. West to Station to Airport Approach (x=4 to x=88)
-  for(let x=4; x<=88; x++) {
+  // 1. West to Station to Airport Approach (x=4 to x=85)
+  for(let x=4; x<=85; x++) {
       drawRail(x, railY);
       drawRail(x, railY+1);
   }
 
-  // 2. Airport Bypass (Jog DOWN)
-  // At x=88, track is at y=74. Airport extends to y=88.
-  // We divert down to y=90 to pass under it.
+  // 2. Airport Bypass (Jog DOWN at x=85)
+  // Moves rail off the road (x=88) onto grass (x=85)
   for(let y=railY; y<=90; y++) {
-      drawRail(88, y);
-      drawRail(89, y);
+      drawRail(85, y);
+      drawRail(86, y);
   }
 
-  // 3. Airport Underpass (Horizontal East)
-  for(let x=88; x<149; x++) {
+  // 3. Airport Underpass (Horizontal East from x=85)
+  for(let x=85; x<149; x++) {
       drawRail(x, 90);
       drawRail(x, 91);
   }
@@ -434,8 +424,6 @@ export const generateMap = (): number[][] => {
       if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
       const t = map[y][x];
       // Can only build on land - EXCLUDING FOOTPATHS and RAILS
-      // This is the key fix: We do NOT include TileType.RAIL here.
-      // So buildings will never spawn on rails.
       return t === TileType.GRASS || t === TileType.SIDEWALK;
   };
 
@@ -491,35 +479,26 @@ export const generateMap = (): number[][] => {
   }
 
   // PORT AUTHORITY BUILDINGS
-  // Containers in the yard - FORCED 2-TILE PLACEMENT WITH GAPS
-  // We use cx+=3 or check neighbor to ensure no contiguous containers causing render glitches.
+  // Containers in the yard
   for(let cy = portY + 2; cy < portY + 26; cy+=2) { 
       for(let cx = 4; cx < 30; cx++) {
-          // Check for space for 2 tiles side-by-side
           if (cx + 1 < 30 && map[cy][cx] === TileType.SIDEWALK && map[cy][cx+1] === TileType.SIDEWALK) {
-              
-              // CRITICAL FIX: Ensure previous tile is NOT a container to prevent contiguous runs
-              // This fixes "invisible containers" caused by renderer merging logic failure
               if (cx > 0 && map[cy][cx-1] === TileType.CONTAINER) continue;
-
-              // 40% chance to place a container pair
               if (Math.random() > 0.4) {
                   safeSet(cx, cy, TileType.CONTAINER);
                   safeSet(cx+1, cy, TileType.CONTAINER);
-                  // We effectively filled next tile, next loop iter handles logic, but since we check cx-1, it will skip properly.
               }
           }
       }
   }
   
-  // Neon Coast (REMOVED RANDOM CONTAINERS)
+  // Neon Coast
   for(let y=2 + SHIFT_Y; y<48 + SHIFT_Y; y++) {
       for(let x=neonX; x<neonX+neonW; x++) {
            if (canBuild(x,y)) {
                if (Math.random() > 0.1) {
                     const rand = Math.random();
                     if (rand > 0.6) safeSet(x, y, TileType.SHOP);
-                    // Removed Container Option
                     else safeSet(x, y, TileType.BUILDING);
                }
            }
@@ -535,15 +514,10 @@ export const generateMap = (): number[][] => {
       }
   }
   
-  // South Side Industrial / Residential (REMOVED RANDOM CONTAINERS)
-  // Replaced generic BUILDING with FACTORY and WAREHOUSE
-  for(let y=78; y<150; y+=3) { // Extended Y range
-      for(let x=6; x<150; x+=3) { // Extended X range
-          
-          // EXCLUDE AIRPORT AREA FROM BUILDING SPAWN
+  // South Side Industrial / Residential
+  for(let y=78; y<150; y+=3) { 
+      for(let x=6; x<150; x+=3) { 
           if (x >= airportX && x < airportX + airportWidth && y >= airportY && y < airportY + airportHeight) continue;
-          
-          // EXCLUDE MILITARY BASE AREA FROM RANDOM SPAWN (Approximation: X>100, Y>110)
           if (x > 100 && y > 110) continue;
 
           if (canBuild(x,y) && Math.random() > 0.35) {
@@ -556,10 +530,8 @@ export const generateMap = (): number[][] => {
   }
   
   // Far East Expansion Buildings
-  // Replaced generic BUILDING with TENEMENT and PROJECTS
   for(let y=6; y<150; y+=3) {
       for(let x=146; x<160; x+=3) {
-           // EXCLUDE MILITARY BASE AREA
            if (x > 100 && y > 110) continue;
            
           if (canBuild(x,y) && Math.random() > 0.4) {
@@ -570,78 +542,57 @@ export const generateMap = (): number[][] => {
       }
   }
 
-  // Airport Terminals/Hangars (Expanded)
-  // Main Terminals (Vertical row on left)
+  // Airport Terminals/Hangars
   for(let y=airportY + 6; y < airportY + 50; y+=12) {
       fillRect(airportX + 2, y, 5, 10, TileType.AIRPORT_TERMINAL);
   }
-  
-  // Hangars (Right side)
   for(let y=airportY + 6; y < airportY + 50; y+=14) {
       fillRect(airportX + airportWidth - 6, y, 5, 8, TileType.HANGAR);
   }
 
   // ==========================================
-  // PHASE 8: MILITARY BASE (FORT KNOX STYLE)
+  // PHASE 8: MILITARY BASE
   // ==========================================
-  // Location: Bottom Right Corner (Deep South / East)
   const baseX = 105;
   const baseY = 115;
   const baseW = 35;
   const baseH = 35;
 
-  // 1. Base Ground (Concrete/Dirt Mix)
   fillRect(baseX, baseY, baseW, baseH, TileType.MILITARY_GROUND);
 
-  // 2. Perimeter Fence
-  // Top
+  // Perimeter Fence
   for(let x=baseX; x<baseX+baseW; x++) safeSet(x, baseY, TileType.FENCE_H);
-  // Bottom
   for(let x=baseX; x<baseX+baseW; x++) safeSet(x, baseY+baseH-1, TileType.FENCE_H);
-  // Left
   for(let y=baseY; y<baseY+baseH; y++) safeSet(baseX, y, TileType.FENCE_V);
-  // Right
   for(let y=baseY; y<baseY+baseH; y++) safeSet(baseX+baseW-1, y, TileType.FENCE_V);
 
-  // 3. Entrance (Top-Left connection to road at X=105 is tricky, let's make entrance at top left side)
-  // Clear fence at (baseX, baseY + 10)
+  // Entrance
   safeSet(baseX, baseY + 10, TileType.MILITARY_GROUND);
   safeSet(baseX, baseY + 11, TileType.MILITARY_GROUND);
-  // Connect a road out to the main grid (Main road is at x=88 or x=125, y=125)
-  // Let's connect to x=105 road if it exists? No, x=88 is closest vertical main.
-  // Draw access road from base entrance (x=105, y=125) to West (x=88)
   for(let x=88; x<=105; x++) drawRoad(x, baseY + 10, true);
 
-  // 4. Bunkers & Hangars
-  // Large Bunkers (South side)
+  // Bunkers & Hangars
   fillRect(baseX + 5, baseY + baseH - 10, 8, 6, TileType.BUNKER);
   fillRect(baseX + 20, baseY + baseH - 10, 8, 6, TileType.BUNKER);
-  
-  // Helipads (Center)
   fillRect(baseX + 15, baseY + 15, 6, 6, TileType.HELIPAD);
 
-  // Watchtowers (Corners)
+  // Watchtowers
   safeSet(baseX + 1, baseY + 1, TileType.WATCHTOWER);
   safeSet(baseX + baseW - 2, baseY + 1, TileType.WATCHTOWER);
   safeSet(baseX + 1, baseY + baseH - 2, TileType.WATCHTOWER);
   safeSet(baseX + baseW - 2, baseY + baseH - 2, TileType.WATCHTOWER);
 
   // Interior Roads
-  for(let x=baseX + 2; x<baseX + baseW - 2; x++) safeSet(x, baseY + 10, TileType.ROAD_H); // Main Hz
-  for(let y=baseY + 2; y<baseY + baseH - 2; y++) safeSet(baseX + 10, y, TileType.ROAD_V); // Main Vt
+  for(let x=baseX + 2; x<baseX + baseW - 2; x++) safeSet(x, baseY + 10, TileType.ROAD_H); 
+  for(let y=baseY + 2; y<baseY + baseH - 2; y++) safeSet(baseX + 10, y, TileType.ROAD_V); 
 
 
   // ==========================================
   // PHASE 9: SPECIAL LOCATIONS & CLEANUP
   // ==========================================
   
-  // Hospital
   fillRect(21, 6 + SHIFT_Y, 3, 3, TileType.HOSPITAL);
-  
-  // Police Station
   fillRect(28, 17 + SHIFT_Y, 3, 3, TileType.POLICE_STATION);
-
-  // Pay 'n' Spray
   safeSet(21, 25 + SHIFT_Y, TileType.PAINT_SHOP); 
   
   // Fix Road Intersections

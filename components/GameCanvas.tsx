@@ -420,10 +420,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             }
         };
 
+        const handleTouchStart = () => {
+            audioManager.init();
+        };
+
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
         window.addEventListener('mousedown', handleMouseDown);
         window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('touchstart', handleTouchStart, { passive: true });
         
         requestRef.current = requestAnimationFrame(gameLoop);
 
@@ -432,6 +437,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             window.removeEventListener('keyup', handleKeyUp);
             window.removeEventListener('mousedown', handleMouseDown);
             window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchstart', handleTouchStart);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
             audioManager.stopEngine();
         };

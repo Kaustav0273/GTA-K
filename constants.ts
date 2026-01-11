@@ -1,4 +1,5 @@
 
+
 export const TILE_SIZE = 128;
 export const MAP_WIDTH = 160; 
 export const MAP_HEIGHT = 160; 
@@ -142,6 +143,12 @@ export const CAR_MODELS = {
   firetruck: { color: '#b91c1c', maxSpeed: 8, acceleration: 0.08, handling: 0.015, health: 800, size: { x: 36, y: 90 } },
   bus: { color: '#0ea5e9', maxSpeed: 6, acceleration: 0.06, handling: 0.01, health: 700, size: { x: 36, y: 100 } },
   
+  // Bikes
+  bike: { color: '#ef4444', maxSpeed: 11, acceleration: 0.25, handling: 0.08, health: 80, size: { x: 12, y: 34 } },
+  scooter: { color: '#cbd5e1', maxSpeed: 8, acceleration: 0.18, handling: 0.1, health: 60, size: { x: 12, y: 30 } },
+  dirtbike: { color: '#16a34a', maxSpeed: 13, acceleration: 0.35, handling: 0.07, health: 90, size: { x: 14, y: 36 } },
+  superbike: { color: '#3b82f6', maxSpeed: 22, acceleration: 0.55, handling: 0.05, health: 100, size: { x: 14, y: 38 } },
+
   // Air
   plane: { color: '#ffffff', maxSpeed: 30, acceleration: 0.15, handling: 0.02, health: 500, size: { x: 90, y: 80 } },
   jet: { color: '#94a3b8', maxSpeed: 45, acceleration: 0.3, handling: 0.015, health: 350, size: { x: 60, y: 70 } },

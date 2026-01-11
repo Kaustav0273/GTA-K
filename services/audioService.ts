@@ -14,6 +14,9 @@ class AudioService {
     engineModGain: GainNode | null = null;
     
     currentVehicleId: string | null = null;
+    
+    // iOS Silent Switch Unlock Flag
+    unlocked: boolean = false;
 
     init() {
         if (!this.ctx) {
@@ -21,6 +24,32 @@ class AudioService {
         }
         if (this.ctx.state === 'suspended') {
             this.ctx.resume();
+        }
+        
+        if (!this.unlocked) {
+            this.unlockAudio();
+        }
+    }
+
+    unlockAudio() {
+        // Fix for iOS Silent Switch: playing an HTML5 audio element forces the audio session to "Playback"
+        // This allows Web Audio API to play even if the physical ringer switch is set to Silent.
+        const audio = new Audio();
+        // Tiny silent wav file (1x1 pixel equivalent for audio)
+        audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAAABmYWN0BAAAAAAAAABkYXRhAAAAAA==';
+        
+        // We need to handle the promise to avoid unhandled rejection errors
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                // Once it starts playing, we can pause it immediately. The session is now "active".
+                audio.pause();
+                audio.currentTime = 0;
+                this.unlocked = true;
+            }).catch(() => {
+                // Auto-play was prevented. This is expected if not called during a user interaction.
+                // We will try again next init() call.
+            });
         }
     }
 
