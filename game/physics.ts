@@ -8,7 +8,7 @@ import {
     PEDESTRIAN_SPEED, PEDESTRIAN_RUN_SPEED, PANIC_DISTANCE, PHYSICS, WEAPON_STATS,
     STAMINA_REGEN_DELAY, STAMINA_REGEN_RATE, CAR_COLORS
 } from '../constants';
-import { isSolid, getTileAt } from '../utils/gameUtils';
+import { isSolid, getTileAt, getTrafficLightState } from '../utils/gameUtils';
 import { audioManager } from '../services/audioService';
 
 export interface MutableGameState {
@@ -939,6 +939,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
             const sensorDist = 140 + car.speed * 15;
             const sensorWidth = 36;
             
+            // 1. Vehicle Collision Avoidance
             for(const other of state.vehicles) {
                 if (other.id === car.id) continue;
                 const dx = other.pos.x - car.pos.x;
@@ -956,6 +957,29 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 const distFwd = dx * fwdX + dy * fwdY;
                 const distSide = Math.abs(dx * -fwdY + dy * fwdX);
                 if (distFwd > 0 && distFwd < sensorDist && distSide < sensorWidth) brake = true;
+            }
+
+            // 2. Traffic Light Logic
+            if (!brake) {
+                // Look ahead for intersection
+                const lookAheadDist = 80;
+                const checkX = car.pos.x + fwdX * lookAheadDist;
+                const checkY = car.pos.y + fwdY * lookAheadDist;
+                const aheadTile = getTileAt(state.map, checkX, checkY);
+                
+                // If approaching an intersection (and not already inside one)
+                if (aheadTile === TileType.ROAD_CROSS && tile !== TileType.ROAD_CROSS) {
+                    const lightState = getTrafficLightState(state.timeTicker, checkX, checkY);
+                    
+                    // Determine orientation: Horizontal or Vertical
+                    // |Cos| > 0.7 means horizontal movement
+                    const isHorizontal = Math.abs(fwdX) > 0.7;
+                    const myLight = isHorizontal ? lightState.ew : lightState.ns;
+                    
+                    if (myLight !== 'GREEN') {
+                        brake = true;
+                    }
+                }
             }
 
             if (brake) {

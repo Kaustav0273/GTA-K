@@ -5,6 +5,45 @@ import { TileType } from "../types";
 // Helper to identify road tiles
 const isRoad = (t: number) => t === TileType.ROAD_H || t === TileType.ROAD_V || t === TileType.ROAD_CROSS || t === TileType.RAIL_CROSSING;
 
+// Traffic Light Configuration
+export const GREEN_DURATION = 400; // ~6.6 seconds
+export const YELLOW_DURATION = 120; // ~2 seconds
+export const CYCLE_DURATION = (GREEN_DURATION + YELLOW_DURATION) * 2; // Total cycle length
+
+export type TrafficLightColor = 'GREEN' | 'YELLOW' | 'RED';
+
+export const getTrafficLightState = (timeTicker: number, x: number, y: number): { ns: TrafficLightColor, ew: TrafficLightColor } => {
+    // Determine cycle offset based on position to desynchronize lights across the city slightly
+    // Using grid coordinates approx
+    const gridX = Math.floor(x / TILE_SIZE);
+    const gridY = Math.floor(y / TILE_SIZE);
+    const offset = (gridX + gridY) * 100; 
+    
+    const t = (timeTicker + offset) % CYCLE_DURATION;
+    
+    let ns: TrafficLightColor = 'RED';
+    let ew: TrafficLightColor = 'RED';
+
+    // NS Cycle: Green -> Yellow -> Red
+    if (t < GREEN_DURATION) {
+        ns = 'GREEN';
+        ew = 'RED';
+    } else if (t < GREEN_DURATION + YELLOW_DURATION) {
+        ns = 'YELLOW';
+        ew = 'RED';
+    } 
+    // EW Cycle: Red (during NS Green/Yellow) -> Green -> Yellow
+    else if (t < GREEN_DURATION + YELLOW_DURATION + GREEN_DURATION) {
+        ns = 'RED';
+        ew = 'GREEN';
+    } else {
+        ns = 'RED';
+        ew = 'YELLOW';
+    }
+
+    return { ns, ew };
+};
+
 export const generateMap = (): number[][] => {
   const map: number[][] = [];
   

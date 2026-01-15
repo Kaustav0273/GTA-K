@@ -2,7 +2,7 @@
 import { Vehicle, Pedestrian, TileType, Drop, GameSettings } from '../types';
 import { MutableGameState } from './physics';
 import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, COLORS, CAR_MODELS, WEAPON_STATS } from '../constants';
-import { getTileAt, isSolid } from '../utils/gameUtils';
+import { getTileAt, isSolid, getTrafficLightState } from '../utils/gameUtils';
 
 // --- SHADOW CONSTANTS ---
 // Sun Direction: Top-Left to Bottom-Right
@@ -157,12 +157,14 @@ export const drawStreetLight = (ctx: CanvasRenderingContext2D, x: number, y: num
     drawLightGlow(ctx, lampX, lampY, 45, 'rgba(253, 224, 71, 0.25)');
 };
 
-export const drawTrafficLight = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+export const drawTrafficLight = (ctx: CanvasRenderingContext2D, x: number, y: number, timeTicker: number) => {
+    // Determine Light State
+    const { ns, ew } = getTrafficLightState(timeTicker, x, y);
+
     // Shadow for wire/poles
     ctx.save();
     ctx.strokeStyle = SHADOW_COLOR;
     ctx.lineWidth = 3;
-    // Removed blur for performance
     ctx.translate(10, 10); // Shadow offset
     ctx.beginPath();
     ctx.moveTo(x + 10, y + TILE_SIZE/2 + 10); ctx.lineTo(x + TILE_SIZE + 10, y + TILE_SIZE/2 + 10);
@@ -185,33 +187,35 @@ export const drawTrafficLight = (ctx: CanvasRenderingContext2D, x: number, y: nu
     ctx.fillStyle = '#171717';
     ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2); ctx.fill();
 
+    const colorMap = {
+        'GREEN': '#22c55e',
+        'YELLOW': '#eab308',
+        'RED': '#ef4444'
+    };
+
     const offsets = [
-        { dx: -10, dy: -10, color: 0 }, 
-        { dx: 10, dy: -10, color: 1 },  
-        { dx: 10, dy: 10, color: 2 },   
-        { dx: -10, dy: 10, color: 0 },  
+        // Top Light (Faces Southbound Traffic coming from Top) -> Controls NS Traffic
+        { dx: 0, dy: -12, color: colorMap[ns] },
+        // Bottom Light (Faces Northbound Traffic coming from Bottom) -> Controls NS Traffic
+        { dx: 0, dy: 12, color: colorMap[ns] },
+        // Left Light (Faces Eastbound Traffic coming from Left) -> Controls EW Traffic
+        { dx: -12, dy: 0, color: colorMap[ew] },
+        // Right Light (Faces Westbound Traffic coming from Right) -> Controls EW Traffic
+        { dx: 12, dy: 0, color: colorMap[ew] }
     ];
 
-    const time = Date.now() / 2000;
-    const cycle = Math.floor(time) % 3; 
-    
-    offsets.forEach((off, i) => {
+    offsets.forEach((off) => {
         const lx = cx + off.dx;
         const ly = cy + off.dy;
         
+        // Box
         ctx.fillStyle = '#000';
         ctx.fillRect(lx - 3, ly - 3, 6, 6);
         
-        let lightColor = '#ef4444'; 
-        if (i % 2 === 0) {
-            lightColor = cycle === 0 ? '#22c55e' : (cycle === 1 ? '#eab308' : '#ef4444');
-        } else {
-            lightColor = cycle === 0 ? '#ef4444' : (cycle === 1 ? '#ef4444' : '#22c55e');
-        }
-        
-        ctx.fillStyle = lightColor;
-        ctx.shadowColor = lightColor;
-        ctx.shadowBlur = 4;
+        // Light
+        ctx.fillStyle = off.color;
+        ctx.shadowColor = off.color;
+        ctx.shadowBlur = 5;
         ctx.beginPath(); ctx.arc(lx, ly, 1.5, 0, Math.PI*2); ctx.fill();
         ctx.shadowBlur = 0;
     });
@@ -525,7 +529,7 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
     ctx.restore();
 };
 
-const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: TileType, textures: any, map: number[][], gridX: number, gridY: number) => {
+const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: TileType, textures: any, map: number[][], gridX: number, gridY: number, timeTicker: number) => {
     let roadColor = textures['road'] || COLORS.road;
     if (type === TileType.RUNWAY) roadColor = '#18181b'; 
     else if (type === TileType.TARMAC) roadColor = '#3f3f46';
@@ -596,7 +600,7 @@ const drawRoad = (ctx: CanvasRenderingContext2D, x: number, y: number, type: Til
     }
 };
 
-const drawFence = (ctx: CanvasRenderingContext2D, x: number, y: number, type: TileType) => {
+const drawFence = (ctx: CanvasRenderingContext2D, x: number, y: number, type: TileType, textures: any, map: number[][], gridX: number, gridY: number, timeTicker: number) => {
     // Chainlink Fence
     ctx.strokeStyle = '#a3a3a3';
     ctx.lineWidth = 2;
@@ -659,6 +663,7 @@ const drawHelipad = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
 const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
     const length = v.size.y;
     const width = v.size.x;
+    const isBike = ['bike', 'scooter', 'dirtbike', 'superbike'].includes(v.model);
     
     let zHeight = 0;
     if ((v.model === 'plane' || v.model === 'jet') && Math.abs(v.speed) > 15) {
@@ -676,6 +681,7 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         ctx.fillRect(-length/6, -width/2, length/3, width); ctx.fillRect(-length/2, -width/4, length/6, width/2); 
     } 
     else if (v.model === 'tank') { ctx.fillRect(-length/2, -width/2, length, width); ctx.beginPath(); ctx.arc(0, 0, width/2, 0, Math.PI*2); ctx.fill(); ctx.fillRect(0, -2, length*0.8, 4); }
+    else if (isBike) { drawRoundRectPath(ctx, -length/2, -width/2, length, width, 4); ctx.fill(); }
     else { drawRoundRectPath(ctx, -length/2, -width/2, length, width, 6); ctx.fill(); }
     ctx.fill(); ctx.restore();
 
@@ -752,7 +758,73 @@ const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         } else {
             if (v.speed > 5) { ctx.fillStyle = 'rgba(239, 68, 68, 0.6)'; ctx.beginPath(); ctx.arc(-length/2 - 5, 0, 8, 0, Math.PI*2); ctx.fill(); }
         }
-    } else {
+    } 
+    else if (isBike) {
+        // Draw Bike
+        const wheelW = 4;
+        const wheelL = 8;
+        
+        // Wheels
+        ctx.fillStyle = '#171717';
+        // Front
+        ctx.fillRect(length/2 - wheelL, -wheelW/2, wheelL, wheelW);
+        // Rear
+        ctx.fillRect(-length/2, -wheelW/2, wheelL, wheelW);
+
+        // Body
+        ctx.fillStyle = v.color;
+        // Seat/Rear Fender
+        ctx.fillRect(-length/2 + 4, -width/2 + 2, length/2, width - 4);
+        // Tank/Front
+        ctx.fillRect(0, -width/2 + 3, length/2 - 4, width - 6);
+        
+        // Handlebars
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(length/3, -width/2 - 2);
+        ctx.lineTo(length/3, width/2 + 2);
+        ctx.stroke();
+        
+        // Headlight
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath(); ctx.arc(length/2 - 1, 0, 2, 0, Math.PI*2); ctx.fill();
+
+        // Driver (Player or NPC)
+        if (v.driverId) {
+             const isPlayer = v.driverId === 'player';
+             
+             // Body (Shoulders)
+             ctx.fillStyle = isPlayer ? '#fff' : '#1f2937';
+             ctx.beginPath();
+             ctx.ellipse(-2, 0, 5, 7, 0, 0, Math.PI*2);
+             ctx.fill();
+             
+             // Helmet/Head
+             if (isPlayer) {
+                 // Player Head (No helmet unless we add one later)
+                 ctx.fillStyle = '#fca5a5'; 
+                 ctx.beginPath(); ctx.arc(-2, 0, 4, 0, Math.PI*2); ctx.fill();
+                 ctx.fillStyle = '#451a03'; // Hair
+                 ctx.beginPath(); ctx.arc(-3, 0, 4, 0, Math.PI*2); ctx.fill();
+             } else {
+                 // NPC Helmet
+                 ctx.fillStyle = '#111';
+                 ctx.beginPath(); ctx.arc(-2, 0, 4.5, 0, Math.PI*2); ctx.fill();
+                 ctx.fillStyle = '#333'; // Visor
+                 ctx.beginPath(); ctx.arc(-1, 0, 2, 0, Math.PI*2); ctx.fill();
+             }
+             
+             // Arms reaching to bars
+             ctx.strokeStyle = isPlayer ? '#fca5a5' : '#1f2937'; 
+             ctx.lineWidth = 2;
+             ctx.beginPath();
+             ctx.moveTo(-2, -4); ctx.lineTo(length/3, -width/2);
+             ctx.moveTo(-2, 4); ctx.lineTo(length/3, width/2);
+             ctx.stroke();
+        }
+    }
+    else {
         const drawWheel = (index: number, cx: number, cy: number) => {
             const isPopped = v.damage.tires[index];
             if (isPopped) { ctx.fillStyle = '#171717'; ctx.fillRect(cx, cy + 1, 6, 1); } 
@@ -989,11 +1061,7 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                         });
                     }
                 } else if (tile === TileType.RAIL) {
-                    // ... existing rail rendering ...
-                    ctx.fillStyle = '#292524'; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                    ctx.fillStyle = '#44403c'; for (let i = 0; i < 32; i++) { const hash = (x * 73856093) ^ (y * 19349663) ^ (i * 83492791); const nx = (hash % TILE_SIZE + TILE_SIZE) % TILE_SIZE; const ny = ((hash >> 8) % TILE_SIZE + TILE_SIZE) % TILE_SIZE; const s = (hash % 3) + 2; ctx.fillRect(px + nx, py + ny, s, s); }
-                    // ... (rest of rail logic omitted for brevity as it was correct in previous file) ...
-                    // RE-INJECTING RAIL RENDER LOGIC for correctness
+                    // RE-INJECTING RAIL RENDER LOGIC
                     const gridX = Math.round(px / TILE_SIZE); const gridY = Math.round(py / TILE_SIZE);
                     const isR = (t: number) => t === TileType.RAIL || t === TileType.RAIL_CROSSING || t === TileType.TRAIN_STATION;
                     const hasL = gridX > 0 && isR(state.map[gridY][gridX-1]); const hasR = gridX < MAP_WIDTH - 1 && isR(state.map[gridY][gridX+1]);
@@ -1028,7 +1096,6 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                         if (relX === 1 && relY === 1) { ctx.fillStyle = '#facc15'; ctx.fillRect(px + 20, py + 20, TILE_SIZE - 40, TILE_SIZE - 40); ctx.strokeStyle = '#a16207'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(px+20, py+20); ctx.lineTo(px+TILE_SIZE-20, py+TILE_SIZE-20); ctx.moveTo(px+TILE_SIZE-20, py+20); ctx.lineTo(px+20, py+TILE_SIZE-20); ctx.stroke(); renderList.push({ y: py, draw: () => { ctx.save(); ctx.translate(px + TILE_SIZE/2, py + TILE_SIZE/2); ctx.rotate(Date.now() / 5000); ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(0, -10, 400, 20); ctx.restore(); }}); }
                     }
                 } else if (tile === TileType.FOOTBALL_FIELD) {
-                    // ... existing football field ...
                     const fieldX = 73; const fieldY = 96; const fieldW = 14; const fieldH = 8;
                     const relX = x - fieldX; const relY = y - fieldY;
                     if (relX >= 0 && relX < fieldW && relY >= 0 && relY < fieldH) {
@@ -1084,8 +1151,8 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                          });
                      }
                 } else if (tile === TileType.FENCE_H || tile === TileType.FENCE_V) {
-                    drawRoad(ctx, px, py, TileType.MILITARY_GROUND, textures, state.map, x, y); // Ground under fence
-                    renderList.push({ y: py + TILE_SIZE, draw: () => drawFence(ctx, px, py, tile) });
+                    drawRoad(ctx, px, py, TileType.MILITARY_GROUND, textures, state.map, x, y, state.timeTicker); // Ground under fence
+                    renderList.push({ y: py + TILE_SIZE, draw: () => drawFence(ctx, px, py, tile, textures, state.map, x, y, state.timeTicker) });
                 } else if (tile === TileType.HELIPAD) {
                     drawHelipad(ctx, px, py);
                 } else if (tile === TileType.SHIP_DECK) {
@@ -1094,9 +1161,9 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
                 } else if (tile === TileType.WATER) {
                     ctx.fillStyle = COLORS.water; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE); ctx.fillStyle = 'rgba(255,255,255,0.1)'; const offset = (Date.now() / 50) % 20; ctx.beginPath(); ctx.arc(px + 20 + offset, py + 20, 5, 0, Math.PI*2); ctx.fill();
                 } else if (tile === TileType.ROAD_CROSS) {
-                    drawRoad(ctx, px, py, tile, textures, state.map, x, y); renderList.push({ y: py + 99999, draw: () => drawTrafficLight(ctx, px, py) });
+                    drawRoad(ctx, px, py, tile, textures, state.map, x, y, state.timeTicker); renderList.push({ y: py + 99999, draw: () => drawTrafficLight(ctx, px, py, state.timeTicker) });
                 } else {
-                    drawRoad(ctx, px, py, tile, textures, state.map, x, y);
+                    drawRoad(ctx, px, py, tile, textures, state.map, x, y, state.timeTicker);
                 }
             }
         }
