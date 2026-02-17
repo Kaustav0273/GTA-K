@@ -21,8 +21,9 @@ export const drawLightGlow = (ctx: CanvasRenderingContext2D, x: number, y: numbe
 
 // Polyfill helper for roundRect
 export const drawRoundRectPath = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
-    if (typeof ctx.roundRect === 'function') {
-        ctx.roundRect(x, y, w, h, r);
+    // Explicitly cast to any to avoid TypeScript errors if the method is missing in the interface definition
+    if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(x, y, w, h, r);
     } else {
         ctx.rect(x, y, w, h);
     }
