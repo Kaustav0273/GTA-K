@@ -1,7 +1,5 @@
-
-import { 
-    TileType, MutableGameState 
-} from '../types';
+import { TileType } from '../types';
+import type { MutableGameState } from '../types';
 import { 
     TILE_SIZE, PLAYER_SIZE, CAR_MODELS, 
     ACCELERATION_WALK, MAX_SPEED_WALK, MAX_SPEED_SPRINT, 
