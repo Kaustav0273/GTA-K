@@ -1,13 +1,13 @@
 
 import React, { useRef, useEffect, useCallback } from 'react';
 import { 
-    GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings 
+    GameState, Pedestrian, Vehicle, EntityType, Vector2, TileType, WeaponType, GameSettings, MutableGameState 
 } from '../types';
 import { 
     MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, CAR_SIZE, CAR_MODELS, STAMINA_MAX, COLORS, CAR_COLORS
 } from '../constants';
 import { generateMap, getTileAt, createNoiseTexture, isSolid } from '../utils/gameUtils';
-import { MutableGameState, updatePhysics, checkPointInVehicle, spawnParticle, isPoliceNearby, playerInteract } from '../game/physics';
+import { updatePhysics, checkPointInVehicle, spawnParticle, isPoliceNearby, playerInteract } from '../game/physics';
 import { renderGame } from '../game/renderer';
 import { audioManager } from '../services/audioService';
 

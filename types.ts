@@ -151,6 +151,31 @@ export interface GameState {
   safehouses: Safehouse[];
 }
 
+export interface MutableGameState {
+    player: Pedestrian;
+    vehicles: Vehicle[];
+    pedestrians: Pedestrian[];
+    bullets: Bullet[];
+    particles: Particle[];
+    drops: Drop[];
+    map: number[][];
+    camera: Vector2;
+    money: number;
+    wantedLevel: number;
+    timeOfDay: number;
+    lastShotTime: number;
+    timeTicker: number;
+    hospitalPos: Vector2;
+    isWeaponWheelOpen: boolean;
+    activeShop: 'none' | 'main';
+    lastDamageTaken: number; // Timestamp for health regen
+    lastWantedTime: number; // Timestamp for wanted level decay
+    isWasted: boolean;
+    wastedStartTime: number;
+    cheats: Cheats;
+    safehouses: Safehouse[];
+}
+
 export interface Mission {
   id: string;
   title: string;
