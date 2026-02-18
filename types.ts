@@ -151,6 +151,7 @@ export interface GameState {
   cheats: Cheats;
   safehouses: Safehouse[];
   lastShootingWantedTime: number; // Timestamp of last wanted level increase from shooting
+  aimTarget: Vector2; // Mouse/Aim position in world coordinates
 }
 
 export interface MutableGameState {
@@ -177,6 +178,7 @@ export interface MutableGameState {
     cheats: Cheats;
     safehouses: Safehouse[];
     lastShootingWantedTime: number;
+    aimTarget: Vector2;
 }
 
 export interface Mission {
@@ -229,7 +231,8 @@ export enum TileType {
   FACTORY = 34,
   TENEMENT = 35,
   PROJECTS = 36,
-  SAFEHOUSE = 37
+  SAFEHOUSE = 37,
+  BANK = 38
 }
 
 export interface GameSettings {

@@ -87,7 +87,8 @@ export const generateMap = (): number[][] => {
           t === TileType.MILITARY_GROUND || t === TileType.FENCE_H || t === TileType.FENCE_V || 
           t === TileType.BUNKER || t === TileType.WATCHTOWER || t === TileType.HELIPAD ||
           t === TileType.WAREHOUSE || t === TileType.FACTORY || 
-          t === TileType.TENEMENT || t === TileType.PROJECTS
+          t === TileType.TENEMENT || t === TileType.PROJECTS ||
+          t === TileType.BANK
       ) {
           return false;
       }
@@ -329,7 +330,8 @@ export const generateMap = (): number[][] => {
               t !== TileType.WAREHOUSE && t !== TileType.FACTORY && 
               t !== TileType.TENEMENT && t !== TileType.PROJECTS &&
               t !== TileType.SHIP_DECK &&
-              t !== TileType.FOOTBALL_FIELD
+              t !== TileType.FOOTBALL_FIELD &&
+              t !== TileType.BANK
           ) {
               map[y][x] = TileType.RAIL;
           }
@@ -634,6 +636,9 @@ export const generateMap = (): number[][] => {
   fillRect(28, 17 + SHIFT_Y, 3, 3, TileType.POLICE_STATION);
   safeSet(21, 25 + SHIFT_Y, TileType.PAINT_SHOP); 
   
+  // BANK (Requested Feature) - Placed in the North-West downtown grid
+  fillRect(24, 26, 5, 4, TileType.BANK);
+
   // Fix Road Intersections
   for(let y=1; y<MAP_HEIGHT-1; y++) {
       for(let x=1; x<MAP_WIDTH-1; x++) {
@@ -695,7 +700,8 @@ export const isSolid = (tile: number): boolean => {
            tile === TileType.WAREHOUSE || 
            tile === TileType.FACTORY ||
            tile === TileType.TENEMENT || 
-           tile === TileType.PROJECTS;
+           tile === TileType.PROJECTS ||
+           tile === TileType.BANK;
 }
 
 export const createNoiseTexture = (color: string, alpha: number = 0.1, density: number = 0.5) => {

@@ -69,7 +69,14 @@ export const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         ctx.fillRect(-length/6, -width/2, length/3, width); ctx.fillRect(-length/2, -width/4, length/6, width/2); 
     } 
     else if (v.model === 'tank') { ctx.fillRect(-length/2, -width/2, length, width); ctx.beginPath(); ctx.arc(0, 0, width/2, 0, Math.PI*2); ctx.fill(); ctx.fillRect(0, -2, length*0.8, 4); }
-    else if (isBike) { drawRoundRectPath(ctx, -length/2, -width/2, length, width, 4); ctx.fill(); }
+    else if (isBike) { 
+        if (v.model === 'bike' || v.model === 'dirtbike') {
+             drawRoundRectPath(ctx, -length/2, -width/3, length, width*0.66, 4); 
+        } else {
+             drawRoundRectPath(ctx, -length/2, -width/2, length, width, 4);
+        }
+        ctx.fill(); 
+    }
     else { drawRoundRectPath(ctx, -length/2, -width/2, length, width, 6); ctx.fill(); }
     ctx.fill(); ctx.restore();
 
@@ -148,67 +155,149 @@ export const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         }
     } 
     else if (isBike) {
-        // Draw Bike
-        const wheelW = 4;
-        const wheelL = 8;
+        const isScooter = v.model === 'scooter';
+        const isDirt = v.model === 'dirtbike';
+        const isSuper = v.model === 'superbike';
+        const isBicycle = v.model === 'bike';
+
+        // Tire settings
+        const tireColor = '#171717';
+        let fWheelL = 8, fWheelW = 2; // Default (Bicycle)
+        let rWheelL = 8, rWheelW = 2;
         
-        // Wheels
-        ctx.fillStyle = '#171717';
+        if (isScooter) { fWheelL = 6; fWheelW = 3; rWheelL = 6; rWheelW = 3; }
+        if (isDirt) { fWheelL = 9; fWheelW = 3; rWheelL = 9; rWheelW = 4; }
+        if (isSuper) { fWheelL = 8; fWheelW = 4; rWheelL = 9; rWheelW = 5; }
+
+        // Draw Tires
+        ctx.fillStyle = tireColor;
         // Front
-        ctx.fillRect(length/2 - wheelL, -wheelW/2, wheelL, wheelW);
+        ctx.fillRect(length/2 - fWheelL, -fWheelW/2, fWheelL, fWheelW);
         // Rear
-        ctx.fillRect(-length/2, -wheelW/2, wheelL, wheelW);
+        ctx.fillRect(-length/2, -rWheelW/2, rWheelL, rWheelW);
 
-        // Body
+        // Body Specifics
         ctx.fillStyle = v.color;
-        // Seat/Rear Fender
-        ctx.fillRect(-length/2 + 4, -width/2 + 2, length/2, width - 4);
-        // Tank/Front
-        ctx.fillRect(0, -width/2 + 3, length/2 - 4, width - 6);
-        
-        // Handlebars
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(length/3, -width/2 - 2);
-        ctx.lineTo(length/3, width/2 + 2);
-        ctx.stroke();
-        
-        // Headlight
-        ctx.fillStyle = '#fef08a';
-        ctx.beginPath(); ctx.arc(length/2 - 1, 0, 2, 0, Math.PI*2); ctx.fill();
 
-        // Driver (Player or NPC)
+        if (isBicycle) {
+            // Frame (Diamond)
+            ctx.strokeStyle = v.color;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-length/2 + 4, 0); ctx.lineTo(-length/4, 0); // Rear fork
+            ctx.lineTo(0, 0); // Seat tube base
+            ctx.lineTo(length/3, 0); // Down tube
+            ctx.stroke();
+            
+            // Handlebar
+            ctx.fillStyle = '#9ca3af';
+            ctx.fillRect(length/3 - 1, -5, 2, 10);
+            
+            // Seat
+            ctx.fillStyle = '#111';
+            ctx.beginPath(); ctx.ellipse(-length/4, 0, 3, 2, 0, 0, Math.PI*2); ctx.fill();
+        } 
+        else if (isScooter) {
+            // Body (Rear)
+            ctx.fillRect(-length/2 + 2, -width/2 + 2, length/3, width - 4);
+            // Floorboard (Darker)
+            ctx.fillStyle = '#333';
+            ctx.fillRect(-length/6, -width/3, length/2, width*0.66);
+            // Front Shield
+            ctx.fillStyle = v.color;
+            ctx.beginPath();
+            ctx.arc(length/2 - 6, 0, width/2 - 1, -Math.PI/2, Math.PI/2);
+            ctx.fill();
+            // Seat
+            ctx.fillStyle = '#a16207'; // Tan/Leather
+            ctx.fillRect(-length/2 + 4, -width/3, 8, width*0.66);
+            // Handlebar
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(length/2 - 6, -width/2 + 2); ctx.lineTo(length/2 - 6, width/2 - 2); ctx.stroke();
+        }
+        else if (isDirt) {
+            // Rear Fender (Pointy)
+            ctx.beginPath();
+            ctx.moveTo(-length/2 - 4, 0); ctx.lineTo(-length/3, -width/3); ctx.lineTo(-length/3, width/3);
+            ctx.fill();
+            // Tank / Body
+            ctx.fillRect(-length/4, -width/4, length/2, width/2);
+            // Front Fender
+            ctx.beginPath();
+            ctx.moveTo(length/2 + 4, 0); ctx.lineTo(length/3, -width/4); ctx.lineTo(length/3, width/4);
+            ctx.fill();
+            // Seat
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-length/3, -width/4 + 1, 14, width/2 - 2);
+            // Handlebars
+            ctx.strokeStyle = '#d4d4d8'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(length/3, -width/2 - 2); ctx.lineTo(length/3, width/2 + 2); ctx.stroke();
+        }
+        else if (isSuper) {
+            // Full Fairing Body (Teardrop)
+            ctx.beginPath();
+            ctx.moveTo(length/2 + 4, 0); // Nose
+            ctx.bezierCurveTo(length/3, -width/2 - 2, -length/3, -width/2, -length/2 + 4, 0); // Top Side
+            ctx.bezierCurveTo(-length/3, width/2, length/3, width/2 + 2, length/2 + 4, 0); // Bottom Side
+            ctx.fill();
+            
+            // Windshield
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath(); ctx.arc(length/2 - 4, 0, 4, -Math.PI/2, Math.PI/2); ctx.fill();
+            
+            // Seat
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-length/3, -width/3, 10, width * 0.66);
+            
+            // Exhaust
+            ctx.fillStyle = '#9ca3af';
+            ctx.fillRect(-length/2 + 2, width/2, 6, 2);
+        }
+
+        // Headlight
+        if (!isBicycle) {
+            ctx.fillStyle = '#fef08a';
+            ctx.shadowColor = '#fef08a'; ctx.shadowBlur = 5;
+            ctx.beginPath(); ctx.arc(length/2 - (isDirt ? 4 : 2), 0, 2, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        // Taillight
+        if (!isBicycle) {
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(-length/2 + (isDirt ? -2 : 0), -1.5, 2, 3);
+        }
+
+        // Driver Rendering
         if (v.driverId) {
              const isPlayer = v.driverId === 'player';
              
-             // Body (Shoulders)
-             ctx.fillStyle = isPlayer ? '#fff' : '#1f2937';
-             ctx.beginPath();
-             ctx.ellipse(-2, 0, 5, 7, 0, 0, Math.PI*2);
-             ctx.fill();
+             // Determine Handlebar Position based on bike type
+             let handleX = length/3;
+             if (isSuper) handleX = length/3 - 2;
+             if (isScooter) handleX = length/2 - 6;
              
-             // Helmet/Head
+             // Body
+             ctx.fillStyle = isPlayer ? '#fff' : '#1f2937';
+             // Leaned forward for Superbike/Dirtbike
+             const bodyX = (isSuper || isDirt) ? -2 : -4;
+             ctx.beginPath(); ctx.ellipse(bodyX, 0, 5, 6, 0, 0, Math.PI*2); ctx.fill();
+             
+             // Head/Helmet
              if (isPlayer) {
-                 // Player Head (No helmet unless we add one later)
-                 ctx.fillStyle = '#fca5a5'; 
-                 ctx.beginPath(); ctx.arc(-2, 0, 4, 0, Math.PI*2); ctx.fill();
-                 ctx.fillStyle = '#451a03'; // Hair
-                 ctx.beginPath(); ctx.arc(-3, 0, 4, 0, Math.PI*2); ctx.fill();
+                 ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(bodyX, 0, 3.5, 0, Math.PI*2); ctx.fill();
+                 ctx.fillStyle = '#451a03'; ctx.beginPath(); ctx.arc(bodyX-1, 0, 3.5, 0, Math.PI*2); ctx.fill();
              } else {
-                 // NPC Helmet
-                 ctx.fillStyle = '#111';
-                 ctx.beginPath(); ctx.arc(-2, 0, 4.5, 0, Math.PI*2); ctx.fill();
-                 ctx.fillStyle = '#333'; // Visor
-                 ctx.beginPath(); ctx.arc(-1, 0, 2, 0, Math.PI*2); ctx.fill();
+                 ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(bodyX, 0, 4, 0, Math.PI*2); ctx.fill(); // Helmet
+                 ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(bodyX+1, 0, 2, 0, Math.PI*2); ctx.fill(); // Visor
              }
              
-             // Arms reaching to bars
+             // Arms
              ctx.strokeStyle = isPlayer ? '#fca5a5' : '#1f2937'; 
-             ctx.lineWidth = 2;
+             ctx.lineWidth = 1.5;
              ctx.beginPath();
-             ctx.moveTo(-2, -4); ctx.lineTo(length/3, -width/2);
-             ctx.moveTo(-2, 4); ctx.lineTo(length/3, width/2);
+             ctx.moveTo(bodyX, -3); ctx.lineTo(handleX, -width/2 + (isBicycle ? 4 : 0));
+             ctx.moveTo(bodyX, 3); ctx.lineTo(handleX, width/2 - (isBicycle ? 4 : 0));
              ctx.stroke();
         }
     }

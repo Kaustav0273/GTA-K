@@ -55,8 +55,13 @@ export const createExplosion = (state: MutableGameState, pos: Vector2, radius: n
     });
     
     if (isPoliceNearby(state, pos)) {
-        state.wantedLevel = Math.min(state.wantedLevel + 2, 5);
-        state.lastWantedTime = state.timeTicker;
+        // Cooldown check for explosion wanted level
+        const timeSinceLast = state.timeTicker - (state.lastShootingWantedTime || 0);
+        if (timeSinceLast > 3600) {
+            state.wantedLevel = Math.min(state.wantedLevel + 2, 5);
+            state.lastWantedTime = state.timeTicker;
+            state.lastShootingWantedTime = state.timeTicker;
+        }
     }
 };
 
@@ -108,6 +113,7 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
                      spawnDrops(state, p);
                      if (source.id === 'player') {
                          if (isPoliceNearby(state, p.pos)) {
+                            // Melee kills always trigger wanted if seen
                             state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
                             state.lastWantedTime = state.timeTicker;
                          }
@@ -165,8 +171,13 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
     
     if (source.id === 'player' && wClass !== 'flame') {
          if (isPoliceNearby(state, source.pos)) {
-            state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-            state.lastWantedTime = state.timeTicker;
+            // Apply shooting cooldown logic
+            const timeSinceLast = state.timeTicker - (state.lastShootingWantedTime || 0);
+            if (timeSinceLast > 3600) {
+                state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                state.lastWantedTime = state.timeTicker;
+                state.lastShootingWantedTime = state.timeTicker;
+            }
          }
     }
     

@@ -106,7 +106,8 @@ const App: React.FC = () => {
         oneHitKill: false,
         vehicleGodMode: false
     },
-    lastShootingWantedTime: 0
+    lastShootingWantedTime: 0,
+    aimTarget: { x: 0, y: 0 }
   };
 
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
@@ -175,6 +176,11 @@ const App: React.FC = () => {
               // Ensure lastShootingWantedTime exist for legacy saves
               if (parsed.lastShootingWantedTime === undefined) {
                   parsed.lastShootingWantedTime = 0;
+              }
+              
+              // Ensure aimTarget exists
+              if (!parsed.aimTarget) {
+                  parsed.aimTarget = { x: 0, y: 0 };
               }
 
               setGameState(parsed);
@@ -479,7 +485,7 @@ const App: React.FC = () => {
                         <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-left">
                             <span>WASD</span> <span className="text-gray-400">Move</span>
                             <span>F</span> <span className="text-gray-400">Enter/Exit Car</span>
-                            <span>SPACE</span> <span className="text-gray-400">Shoot / Handbrake</span>
+                            <span>CLICK</span> <span className="text-gray-400">Shoot</span>
                             <span>TAB</span> <span className="text-gray-400">Weapon Wheel</span>
                             <span>M</span> <span className="text-gray-400">Add Cash</span>
                         </div>

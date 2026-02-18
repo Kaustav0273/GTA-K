@@ -13,7 +13,7 @@ import { audioManager } from '../services/audioService';
 // Imported Logic
 import { checkMapCollisionDetails, checkPointInVehicle, getVehicleCorners } from './collision';
 import { spawnParticle } from './particles';
-import { isPoliceNearby, spawnDrops } from './gamePlayUtils';
+import { isPoliceNearby, spawnDrops, spawnPedestrians } from './gamePlayUtils';
 import { createExplosion, handleCombat } from './combat';
 import { spawnTraffic, isDrivable, getNextTrafficDirection } from './traffic';
 import { playerInteract } from './interaction';
@@ -301,6 +301,16 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         }
     });
 
+    // Despawn distant pedestrians to allow respawning near player
+    if (state.timeTicker % 30 === 0) {
+        state.pedestrians = state.pedestrians.filter(p => {
+            const dx = p.pos.x - state.player.pos.x;
+            const dy = p.pos.y - state.player.pos.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            return dist < 1600; // Keep if within range
+        });
+    }
+
     state.drops.forEach(d => {
        const dx = state.player.pos.x - d.pos.x;
        const dy = state.player.pos.y - d.pos.y;
@@ -333,6 +343,54 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         for (const v of state.vehicles) {
              if (checkPointInVehicle(b.pos.x, b.pos.y, v, 0)) {
                  b.timeLeft = 0;
+                 
+                 // LOCALIZED DAMAGE CALCULATION
+                 // Transform bullet pos to vehicle local space
+                 const vdx = b.pos.x - v.pos.x;
+                 const vdy = b.pos.y - v.pos.y;
+                 const cos = Math.cos(-v.angle);
+                 const sin = Math.sin(-v.angle);
+                 const lx = vdx * cos - vdy * sin; // Length axis (Front is +)
+                 const ly = vdx * sin + vdy * cos; // Width axis (Right is +)
+
+                 const halfLen = v.size.y / 2;
+                 const halfWid = v.size.x / 2;
+                 
+                 // --- Tire Hit Logic ---
+                 // Approx locations: FL(+, -), FR(+, +), RL(-, -), RR(-, +)
+                 // Tire visual center from renderer: +/- (halfLen - 8), +/- (halfWid + 1)
+                 const tireX = halfLen - 8;
+                 const tireY = halfWid; 
+                 const tRad = 12; // Hit radius
+
+                 let tireHit = -1;
+                 if (Math.abs(lx - tireX) < tRad && Math.abs(ly - (-tireY)) < tRad) tireHit = 0; // FL
+                 else if (Math.abs(lx - tireX) < tRad && Math.abs(ly - tireY) < tRad) tireHit = 1; // FR
+                 else if (Math.abs(lx - (-tireX+4)) < tRad && Math.abs(ly - (-tireY)) < tRad) tireHit = 2; // RL
+                 else if (Math.abs(lx - (-tireX+4)) < tRad && Math.abs(ly - tireY) < tRad) tireHit = 3; // RR
+
+                 if (tireHit !== -1 && !v.damage.tires[tireHit]) {
+                     if (!state.cheats.vehicleGodMode || v.driverId !== 'player') {
+                         v.damage.tires[tireHit] = true;
+                         spawnParticle(state, b.pos, 'debris', 5, { color: '#111', speed: 2 });
+                         spawnParticle(state, b.pos, 'smoke', 3, { color: '#ccc', speed: 1 });
+                     }
+                 }
+
+                 // --- Window Hit Logic ---
+                 // Front: Near +length/4
+                 // Rear: Near -length/4
+                 let windowHit = -1;
+                 if (lx > 0 && lx < halfLen * 0.7 && Math.abs(ly) < halfWid * 0.9) windowHit = 0;
+                 else if (lx < 0 && lx > -halfLen * 0.7 && Math.abs(ly) < halfWid * 0.9) windowHit = 1;
+
+                 if (windowHit !== -1 && !v.damage.windows[windowHit]) {
+                     if (!state.cheats.vehicleGodMode || v.driverId !== 'player') {
+                         v.damage.windows[windowHit] = true;
+                         spawnParticle(state, b.pos, 'debris', 5, { color: '#88ccff', speed: 3, size: 1 }); // Glass shards
+                     }
+                 }
+
                  // Vehicle God Mode Check
                  if (state.cheats.vehicleGodMode && v.driverId === 'player') {
                      spawnParticle(state, b.pos, 'spark', 3, { color: '#4ade80', speed: 2 });
@@ -408,6 +466,31 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
     for (let i = state.vehicles.length - 1; i >= 0; i--) {
         const car = state.vehicles[i];
         
+        // Driving on flat tires (Sparks)
+        if (Math.abs(car.speed) > 2) {
+            const hl = car.size.y / 2;
+            const hw = car.size.x / 2;
+            const cos = Math.cos(car.angle);
+            const sin = Math.sin(car.angle);
+            const t = (lx: number, ly: number) => ({
+                x: car.pos.x + (lx * cos - ly * sin),
+                y: car.pos.y + (lx * sin + ly * cos)
+            });
+            
+            // FL, FR, RL, RR
+            const tireOffsets = [
+                {x: hl - 8, y: -hw}, {x: hl - 8, y: hw},
+                {x: -hl + 4, y: -hw}, {x: -hl + 4, y: hw}
+            ];
+            
+            car.damage.tires.forEach((isFlat, idx) => {
+                if (isFlat && Math.random() > 0.8) {
+                    const pos = t(tireOffsets[idx].x, tireOffsets[idx].y);
+                    spawnParticle(state, pos, 'spark', 1, { color: '#fbbf24', speed: 1, size: 1, life: 15 });
+                }
+            });
+        }
+
         // Continuous Smoke/Fire
         if (car.model !== 'tank' && car.model !== 'jet') {
             const modelData = CAR_MODELS[car.model];
@@ -602,7 +685,10 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         }
     }
 
-    if (state.timeTicker % 10 === 0) spawnTraffic(state, maxTraffic);
+    if (state.timeTicker % 10 === 0) {
+        spawnTraffic(state, maxTraffic);
+        spawnPedestrians(state, 60); // Target 60 active pedestrians
+    }
 
     // Player Vehicle Physics
     if (state.player.state === 'driving' && state.player.vehicleId) {
@@ -785,6 +871,12 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         const shootKey = keys.has('Space');
         const weaponStats = WEAPON_STATS[state.player.weapon];
         if (shootKey && !state.isWeaponWheelOpen && state.activeShop === 'none' && state.player.state !== 'entering_vehicle' && state.player.state !== 'exiting_vehicle' && state.player.state !== 'walking_to_car') {
+            
+            // Aiming Logic: Player rotates towards mouse target when shooting
+            const aimDx = state.aimTarget.x - state.player.pos.x;
+            const aimDy = state.aimTarget.y - state.player.pos.y;
+            state.player.angle = Math.atan2(aimDy, aimDx);
+
             if (state.lastShotTime <= 0) {
                 handleCombat(state, state.player);
                 state.lastShotTime = state.cheats.noReload ? 5 : weaponStats.fireRate;
@@ -868,19 +960,18 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                              if (!v1.deformation) v1.deformation = { fl: 0, fr: 0, bl: 0, br: 0 };
                              if (!v2.deformation) v2.deformation = { fl: 0, fr: 0, bl: 0, br: 0 };
                              
-                             c1_hits.forEach(idx => {
-                                 if(idx===0) v1.deformation.fl += damage;
-                                 if(idx===1) v1.deformation.fr += damage;
-                                 if(idx===2) v1.deformation.bl += damage;
-                                 if(idx===3) v1.deformation.br += damage;
-                             });
-                             
-                             c2_hits.forEach(idx => {
-                                 if(idx===0) v2.deformation.fl += damage;
-                                 if(idx===1) v2.deformation.fr += damage;
-                                 if(idx===2) v2.deformation.bl += damage;
-                                 if(idx===3) v2.deformation.br += damage;
-                             });
+                             const applyDeformation = (v: any, hits: number[]) => {
+                                 hits.forEach(idx => {
+                                     const deformAmount = Math.min(damage, 10); // Cap deformation per hit to prevent inversion
+                                     if(idx===0) v.deformation.fl = Math.min(v.deformation.fl + deformAmount, 20);
+                                     if(idx===1) v.deformation.fr = Math.min(v.deformation.fr + deformAmount, 20);
+                                     if(idx===2) v.deformation.bl = Math.min(v.deformation.bl + deformAmount, 20);
+                                     if(idx===3) v.deformation.br = Math.min(v.deformation.br + deformAmount, 20);
+                                 });
+                             };
+
+                             applyDeformation(v1, c1_hits);
+                             applyDeformation(v2, c2_hits);
                              
                              spawnParticle(state, {x: (v1.pos.x+v2.pos.x)/2, y: (v1.pos.y+v2.pos.y)/2}, 'debris', 3, {color: '#888', speed: 2});
                          }

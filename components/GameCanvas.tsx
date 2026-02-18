@@ -36,6 +36,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const groundTexturesRef = useRef<{ [key: string]: CanvasPattern | null }>({});
     const lastFrameTimeRef = useRef<number>(0);
     const wasPausedRef = useRef<boolean>(paused);
+    const mousePosRef = useRef({ x: 0, y: 0 }); // Track mouse relative to canvas
     
     // Refs to access latest props in gameLoop without closure staleness
     const propsRef = useRef({ isPhoneOpen, activeMission, settings, paused });
@@ -72,7 +73,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 vehicleGodMode: false
             },
             safehouses: initialGameState.safehouses || [],
-            lastShootingWantedTime: initialGameState.lastShootingWantedTime || 0
+            lastShootingWantedTime: initialGameState.lastShootingWantedTime || 0,
+            aimTarget: initialGameState.aimTarget || { x: 0, y: 0 }
         }
         : {
             player: {
@@ -111,7 +113,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 vehicleGodMode: false
             },
             safehouses: [],
-            lastShootingWantedTime: 0
+            lastShootingWantedTime: 0,
+            aimTarget: { x: 0, y: 0 }
         }
     );
 
@@ -421,6 +424,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 keysPressed.current.delete('Space');
             }
         };
+        
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!canvasRef.current) return;
+            const rect = canvasRef.current.getBoundingClientRect();
+            mousePosRef.current = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        };
 
         const handleTouchStart = () => {
             audioManager.init();
@@ -430,6 +442,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         window.addEventListener('keyup', handleKeyUp);
         window.addEventListener('mousedown', handleMouseDown);
         window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('touchstart', handleTouchStart, { passive: true });
         
         requestRef.current = requestAnimationFrame(gameLoop);
@@ -439,6 +452,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             window.removeEventListener('keyup', handleKeyUp);
             window.removeEventListener('mousedown', handleMouseDown);
             window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('touchstart', handleTouchStart);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
             audioManager.stopEngine();
@@ -468,6 +482,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         if (!canvasRef.current) return;
         const ctx = canvasRef.current.getContext('2d');
         if (!ctx) return;
+        
+        // --- Calculate Aim Target in World Coordinates ---
+        // Inverse of renderer logic
+        const width = canvasRef.current.width;
+        const height = canvasRef.current.height;
+        const isMobile = width < 768;
+        const zoom = isMobile ? 0.6 : 1;
+        
+        const camCenterX = gameStateRef.current.camera.x + width / 2;
+        const camCenterY = gameStateRef.current.camera.y + height / 2;
+        
+        // Canvas center in world coords = camCenterX, camCenterY
+        // Mouse Offset from center of screen = mousePos - (width/2, height/2)
+        const offsetX = (mousePosRef.current.x - width / 2) / zoom;
+        const offsetY = (mousePosRef.current.y - height / 2) / zoom;
+        
+        gameStateRef.current.aimTarget = {
+            x: camCenterX + offsetX,
+            y: camCenterY + offsetY
+        };
+        // --------------------------------------------------
         
         let maxTraffic = 50;
         if (settings.trafficDensity === 'LOW') maxTraffic = 25;

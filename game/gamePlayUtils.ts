@@ -1,5 +1,7 @@
 
-import { MutableGameState, Vector2, Pedestrian } from '../types';
+import { MutableGameState, Vector2, Pedestrian, EntityType, TileType } from '../types';
+import { MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, PLAYER_SIZE, STAMINA_MAX } from '../constants';
+import { getTileAt } from '../utils/gameUtils';
 
 // Helper: Check if police are nearby to witness a crime
 export const isPoliceNearby = (state: MutableGameState, pos: Vector2, range: number = 600): boolean => {
@@ -60,6 +62,82 @@ export const spawnDrops = (state: MutableGameState, p: Pedestrian) => {
                 weapon: p.role === 'army' ? 'uzi' : 'pistol',
                 life: 1800
             });
+        }
+    }
+};
+
+export const spawnPedestrians = (state: MutableGameState, targetCount: number = 60) => {
+    // 1. Count active living pedestrians
+    const activePeds = state.pedestrians.filter(p => p.state !== 'dead').length;
+    if (activePeds >= targetCount) return;
+
+    // 2. Limit spawns per tick to prevent stutter
+    const spawnsThisTick = 3; 
+    let spawned = 0;
+    let attempts = 0;
+
+    const minR = 800; // Just offscreen for 1920 width approx
+    const maxR = 1400;
+
+    while (spawned < spawnsThisTick && attempts < 15) {
+        attempts++;
+        
+        const angle = Math.random() * Math.PI * 2;
+        const dist = minR + Math.random() * (maxR - minR);
+        
+        const x = state.player.pos.x + Math.cos(angle) * dist;
+        const y = state.player.pos.y + Math.sin(angle) * dist;
+
+        if (x < 0 || x >= MAP_WIDTH * TILE_SIZE || y < 0 || y >= MAP_HEIGHT * TILE_SIZE) continue;
+
+        const tile = getTileAt(state.map, x, y);
+        
+        // Spawn Conditions
+        // Primarily sidewalks, footpaths. Occasional grass.
+        // Also allow military ground for army spawns.
+        const isMilitary = tile === TileType.MILITARY_GROUND || tile === TileType.BUNKER || tile === TileType.HELIPAD;
+        const isValid = tile === TileType.SIDEWALK || tile === TileType.FOOTPATH || tile === TileType.AIRPORT_TERMINAL || (tile === TileType.GRASS && Math.random() > 0.8) || isMilitary;
+        
+        if (isValid) {
+            // Role Determination based on location
+            let role: 'civilian' | 'police' | 'army' = 'civilian';
+            let weapon: any = 'fist';
+            let health = 100;
+            let color = Math.random() > 0.5 ? '#9ca3af' : '#4b5563';
+
+            if (isMilitary) {
+                role = 'army';
+                color = '#3f6212';
+                weapon = 'uzi';
+                health = 200;
+            } else if (Math.random() < 0.05) { // 5% chance of cop on streets
+                role = 'police';
+                color = '#1e3a8a';
+                weapon = 'pistol';
+                health = 150;
+            }
+
+            state.pedestrians.push({
+                id: `npc-${state.timeTicker}-${Math.random()}`,
+                type: EntityType.PEDESTRIAN,
+                role,
+                pos: { x, y },
+                size: PLAYER_SIZE,
+                angle: Math.random() * Math.PI * 2,
+                velocity: { x: 0, y: 0 },
+                color,
+                health,
+                maxHealth: health,
+                armor: role === 'civilian' ? 0 : 50,
+                stamina: STAMINA_MAX,
+                maxStamina: STAMINA_MAX,
+                staminaRechargeDelay: 0,
+                vehicleId: null,
+                weapon,
+                state: 'walking',
+                actionTimer: Math.random() * 200
+            });
+            spawned++;
         }
     }
 };

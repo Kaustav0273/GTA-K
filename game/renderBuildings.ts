@@ -40,6 +40,8 @@ export const getBuildingHeight = (tileType: TileType, px: number, py: number): n
         return 80; // Tall-ish
     } else if (tileType === TileType.PROJECTS) {
         return 110; // Tall
+    } else if (tileType === TileType.BANK) {
+        return 75;
     }
     return 50;
 };
@@ -152,6 +154,10 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
         baseColor = '#525252'; // Neutral-600
         roofColor = '#a3a3a3'; // Lighter roof
         windowColor = '#000';
+    } else if (tileType === TileType.BANK) {
+        baseColor = '#d4d4d8'; // Zinc-300
+        roofColor = '#71717a'; // Zinc-500
+        windowColor = '#065f46'; // Emerald-800
     }
 
     // -- Ground Occlusion Patch --
@@ -245,6 +251,17 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
                     ctx.fillRect(x + 8 + c * 24, y + TILE_SIZE - height + 8 + r * 16, 12, 10);
             }
         }
+    } else if (tileType === TileType.BANK) {
+        // Columns
+        ctx.fillStyle = '#f4f4f5'; // Zinc-100
+        const colW = 6;
+        const gap = (w - 10) / 4;
+        for(let i=0; i<4; i++) {
+            ctx.fillRect(x + 5 + i*gap, y + TILE_SIZE - height, colW, height);
+        }
+        // Pediment / Header
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillRect(x, y + TILE_SIZE - height, w, 10);
     } else if (tileType !== TileType.PAINT_SHOP && tileType !== TileType.SKYSCRAPER && tileType !== TileType.WATCHTOWER) {
         const stories = Math.floor(height / 15);
         const cols = Math.floor(w / 12);
@@ -346,6 +363,15 @@ export const drawBuilding = (ctx: CanvasRenderingContext2D, x: number, y: number
             const ry = roofY + Math.random() * (TILE_SIZE-10);
             ctx.fillRect(rx, ry, 6, 6);
         }
+    } else if (tileType === TileType.BANK) {
+        // Dollar Sign
+        ctx.fillStyle = '#166534';
+        ctx.beginPath(); ctx.arc(centerX, roofCY, 16, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#4ade80';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 24px monospace';
+        ctx.fillText('$', centerX, roofCY + 2);
     }
 
     ctx.restore();
