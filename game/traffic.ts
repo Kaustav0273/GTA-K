@@ -1,8 +1,61 @@
 
-import { MutableGameState, EntityType } from '../types';
+import { MutableGameState, EntityType, TileType } from '../types';
 import { MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, CAR_MODELS, CAR_SIZE, CAR_COLORS } from '../constants';
 import { getTileAt } from '../utils/gameUtils';
-import { TileType } from '../types';
+
+export const isDrivable = (tile: number) => tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS || tile === TileType.RAIL_CROSSING || tile === TileType.MILITARY_GROUND;
+
+export const getNextTrafficDirection = (map: number[][], gridX: number, gridY: number, currentAngle: number): number => {
+    const normalize = (a: number) => {
+        let rad = a % (Math.PI * 2);
+        if (rad < 0) rad += Math.PI * 2;
+        return rad;
+    };
+
+    // Snap current angle to nearest cardinal direction
+    const currentHeading = Math.round(normalize(currentAngle) / (Math.PI/2)) * (Math.PI/2);
+    const uTurnAngle = normalize(currentHeading + Math.PI);
+
+    const exits: number[] = [];
+    // Check NESW
+    // Note: getTileAt handles boundary checks safely
+    if (isDrivable(getTileAt(map, (gridX + 1) * TILE_SIZE, gridY * TILE_SIZE))) exits.push(0); // East
+    if (isDrivable(getTileAt(map, (gridX - 1) * TILE_SIZE, gridY * TILE_SIZE))) exits.push(Math.PI); // West
+    if (isDrivable(getTileAt(map, gridX * TILE_SIZE, (gridY + 1) * TILE_SIZE))) exits.push(Math.PI / 2); // South
+    if (isDrivable(getTileAt(map, gridX * TILE_SIZE, (gridY - 1) * TILE_SIZE))) exits.push(3 * Math.PI / 2); // North
+
+    // Filter U-turns (angle diff approx PI)
+    // We use a small epsilon 0.1
+    let validExits = exits.filter(e => Math.abs(normalize(e) - uTurnAngle) > 0.1);
+    
+    // If dead end (only exit is the way we came), allow U-turn
+    if (validExits.length === 0 && exits.length > 0) validExits = exits;
+    
+    if (validExits.length === 0) return currentHeading + Math.PI; // Stuck? Turn around.
+
+    const straightExit = validExits.find(e => Math.abs(normalize(e) - normalize(currentHeading)) < 0.1);
+    const turnExits = validExits.filter(e => Math.abs(normalize(e) - normalize(currentHeading)) > 0.1);
+
+    if (straightExit !== undefined && turnExits.length > 0) {
+        // 4-way or Intersection with choices
+        // 60% Straight, 40% Turn
+        if (Math.random() < 0.6) {
+            return straightExit;
+        } else {
+            return turnExits[Math.floor(Math.random() * turnExits.length)];
+        }
+    } else if (turnExits.length > 0) {
+        // Forced turn (T-junction facing wall, or corner)
+        // Prioritize turning as it's the only valid option besides U-turn
+        return turnExits[Math.floor(Math.random() * turnExits.length)];
+    } else if (straightExit !== undefined) {
+        // Only straight available (Straight road)
+        return straightExit;
+    }
+
+    // Fallback: If logic fails (shouldn't if validExits > 0), do U-turn or keep heading
+    return validExits.length > 0 ? validExits[0] : currentHeading + Math.PI;
+};
 
 export const spawnTraffic = (state: MutableGameState, maxTraffic: number) => {
     // Check current traffic count (Exclude planes and player's car if they are driving)
@@ -36,7 +89,7 @@ export const spawnTraffic = (state: MutableGameState, maxTraffic: number) => {
 
         const tile = getTileAt(state.map, spawnX, spawnY);
         
-        if (tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.RAIL_CROSSING) {
+        if (isDrivable(tile) && tile !== TileType.ROAD_CROSS) { // Avoid spawning inside intersections
              let modelKey: keyof typeof CAR_MODELS = 'sedan';
              let vehicleColor = '#ffffff';
 
@@ -105,5 +158,3 @@ export const spawnTraffic = (state: MutableGameState, maxTraffic: number) => {
         }
     }
 }
-
-export const isDrivable = (tile: number) => tile === TileType.ROAD_H || tile === TileType.ROAD_V || tile === TileType.ROAD_CROSS || tile === TileType.RAIL_CROSSING || tile === TileType.MILITARY_GROUND;

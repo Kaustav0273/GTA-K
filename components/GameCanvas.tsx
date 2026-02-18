@@ -71,7 +71,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 oneHitKill: false,
                 vehicleGodMode: false
             },
-            safehouses: initialGameState.safehouses || []
+            safehouses: initialGameState.safehouses || [],
+            lastShootingWantedTime: initialGameState.lastShootingWantedTime || 0
         }
         : {
             player: {
@@ -109,7 +110,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 oneHitKill: false,
                 vehicleGodMode: false
             },
-            safehouses: []
+            safehouses: [],
+            lastShootingWantedTime: 0
         }
     );
 
@@ -300,13 +302,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             });
 
             // SPAWN MILITARY VEHICLES (Deep South East)
-            // Base is around x: 105-140, y: 115-150
+            // Base is around x: 91-137, y: 106-139
             const milSpawns = [
-                {x: 115, y: 125, model: 'tank'},
-                {x: 118, y: 125, model: 'tank'},
-                {x: 125, y: 130, model: 'barracks'},
-                {x: 125, y: 135, model: 'barracks'},
-                {x: 120, y: 120, model: 'jet'} // On helipad area roughly
+                {x: 100, y: 125, model: 'tank'},
+                {x: 105, y: 125, model: 'tank'},
+                {x: 115, y: 125, model: 'barracks'},
+                {x: 120, y: 125, model: 'barracks'},
+                {x: 108, y: 122, model: 'jet'} // On/near helipad (helipad at 91+15=106, 106+15=121)
             ];
             
             milSpawns.forEach((spawn, idx) => {
@@ -351,8 +353,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             
             // Spawn Soldiers in Base
             for(let i=0; i<10; i++) {
-                const x = (110 + Math.random() * 25) * TILE_SIZE;
-                const y = (120 + Math.random() * 20) * TILE_SIZE;
+                const x = (95 + Math.random() * 35) * TILE_SIZE; // New range inside base
+                const y = (110 + Math.random() * 20) * TILE_SIZE; // New range inside base
                 
                 state.pedestrians.push({
                     id: `army-${i}`, type: EntityType.PEDESTRIAN, role: 'army', pos: { x, y }, size: PLAYER_SIZE,

@@ -105,7 +105,8 @@ const App: React.FC = () => {
         noReload: false,
         oneHitKill: false,
         vehicleGodMode: false
-    }
+    },
+    lastShootingWantedTime: 0
   };
 
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
@@ -169,6 +170,11 @@ const App: React.FC = () => {
               // Ensure safehouses exist for legacy saves
               if (!parsed.safehouses) {
                   parsed.safehouses = [];
+              }
+
+              // Ensure lastShootingWantedTime exist for legacy saves
+              if (parsed.lastShootingWantedTime === undefined) {
+                  parsed.lastShootingWantedTime = 0;
               }
 
               setGameState(parsed);

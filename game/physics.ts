@@ -1,3 +1,4 @@
+
 import { TileType } from '../types';
 import type { MutableGameState } from '../types';
 import { 
@@ -14,7 +15,7 @@ import { checkMapCollisionDetails, checkPointInVehicle, getVehicleCorners } from
 import { spawnParticle } from './particles';
 import { isPoliceNearby, spawnDrops } from './gamePlayUtils';
 import { createExplosion, handleCombat } from './combat';
-import { spawnTraffic, isDrivable } from './traffic';
+import { spawnTraffic, isDrivable, getNextTrafficDirection } from './traffic';
 import { playerInteract } from './interaction';
 
 // Re-export for compatibility with other components
@@ -50,8 +51,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         const tile = getTileAt(state.map, state.player.pos.x, state.player.pos.y);
         if (tile === TileType.MILITARY_GROUND || tile === TileType.BUNKER || tile === TileType.HELIPAD) {
             if (state.wantedLevel < 5) {
-                // If God Mode active, don't auto-increase wanted level just for being there?
-                // Or maybe keep it, god mode just stops damage.
                 state.wantedLevel = 5;
                 state.lastWantedTime = state.timeTicker;
             }
@@ -60,17 +59,14 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
 
     // DEATH / WASTED LOGIC
     if (state.player.health <= 0 && !state.isWasted) {
-        // Start Wasted Sequence
         state.isWasted = true;
         state.wastedStartTime = state.timeTicker;
-        state.player.state = 'dead'; // Trigger dead animation if any
+        state.player.state = 'dead';
         return;
     }
 
     if (state.isWasted) {
-        // Wait ~3 seconds (180 ticks at 60fps)
         if (state.timeTicker - state.wastedStartTime > 180) {
-             // RESPAWN
              state.isWasted = false;
              state.player.health = 100;
              state.player.stamina = state.player.maxStamina; 
@@ -81,7 +77,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
              state.lastDamageTaken = state.timeTicker; 
              state.money = Math.max(0, state.money - 500);
              
-             // Reset Police/Army Aggro
              state.pedestrians.forEach(p => {
                 if(p.role === 'police' || p.role === 'army') {
                     p.state = 'walking';
@@ -98,7 +93,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
 
     // PLAYER ANIMATION STATES (BLOCKS CONTROLS)
     if (state.player.state === 'walking_to_car') {
-        // CANCEL AUTO-WALK if player presses WASD
         const isMoveKey = keys.has('KeyW') || keys.has('ArrowUp') || 
                           keys.has('KeyS') || keys.has('ArrowDown') || 
                           keys.has('KeyA') || keys.has('ArrowLeft') || 
@@ -166,10 +160,14 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 state.player.pos = { ...v.pos };
                 
                 spawnParticle(state, v.pos, 'smoke', 5, { color: '#555', speed: 1, spread: 20 });
-                audioManager.playUI('success'); // Car start sound-ish
+                audioManager.playUI('success');
                 if (isPoliceNearby(state, v.pos)) {
-                    state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                    state.lastWantedTime = state.timeTicker;
+                    // Check if already reported stolen
+                    if (!v.theftReported) {
+                        state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                        state.lastWantedTime = state.timeTicker;
+                        v.theftReported = true; // Mark as stolen
+                    }
                 }
             } else {
                 state.player.state = 'idle';
@@ -195,9 +193,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         }
     }
 
-    // ------------------------------------------------------------------
     // PEDESTRIAN AI & PHYSICS
-    // ------------------------------------------------------------------
     state.pedestrians.forEach(p => {
         if (p.state === 'dead') return;
 
@@ -339,7 +335,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                  b.timeLeft = 0;
                  // Vehicle God Mode Check
                  if (state.cheats.vehicleGodMode && v.driverId === 'player') {
-                     spawnParticle(state, b.pos, 'spark', 3, { color: '#4ade80', speed: 2 }); // Green spark for invulnerable
+                     spawnParticle(state, b.pos, 'spark', 3, { color: '#4ade80', speed: 2 });
                  } else {
                      v.health -= b.damage;
                      spawnParticle(state, b.pos, 'spark', 3, { color: '#fbbf24', speed: 2 });
@@ -347,8 +343,13 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                  audioManager.playImpact(true);
                  
                  if (b.ownerId === 'player' && (v.model === 'police' || v.model === 'swat' || v.model === 'tank' || v.model === 'barracks')) {
-                      state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                      state.lastWantedTime = state.timeTicker;
+                      // Apply shooting cooldown logic
+                      const timeSinceLast = state.timeTicker - (state.lastShootingWantedTime || 0);
+                      if (timeSinceLast > 3600) {
+                          state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                          state.lastWantedTime = state.timeTicker;
+                          state.lastShootingWantedTime = state.timeTicker;
+                      }
                  }
                  break;
              }
@@ -367,8 +368,13 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                      spawnDrops(state, p);
                      if (b.ownerId === 'player') {
                          if (isPoliceNearby(state, p.pos)) {
-                              state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                              state.lastWantedTime = state.timeTicker;
+                              // Apply shooting cooldown logic
+                              const timeSinceLast = state.timeTicker - (state.lastShootingWantedTime || 0);
+                              if (timeSinceLast > 3600) {
+                                  state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                                  state.lastWantedTime = state.timeTicker;
+                                  state.lastShootingWantedTime = state.timeTicker;
+                              }
                          }
                      }
                  } else {
@@ -402,30 +408,24 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
     for (let i = state.vehicles.length - 1; i >= 0; i--) {
         const car = state.vehicles[i];
         
-        // Continuous Smoke/Fire for damaged vehicles
+        // Continuous Smoke/Fire
         if (car.model !== 'tank' && car.model !== 'jet') {
             const modelData = CAR_MODELS[car.model];
             const maxH = (modelData as any).health || 100;
             
             if (car.health < maxH * 0.3 && state.timeTicker % 5 === 0) {
-                // Smoke from engine (Front)
                 const cos = Math.cos(car.angle);
                 const sin = Math.sin(car.angle);
                 const engineX = car.pos.x + cos * (car.size.y/2);
                 const engineY = car.pos.y + sin * (car.size.y/2);
-                spawnParticle(state, {x: engineX, y: engineY}, 'smoke', 1, { 
-                    color: '#555', speed: 0.5, life: 60, size: 4 
-                });
+                spawnParticle(state, {x: engineX, y: engineY}, 'smoke', 1, { color: '#555', speed: 0.5, life: 60, size: 4 });
             }
             if (car.health < maxH * 0.15 && state.timeTicker % 3 === 0) {
-                // Fire
                 const cos = Math.cos(car.angle);
                 const sin = Math.sin(car.angle);
                 const engineX = car.pos.x + cos * (car.size.y/2);
                 const engineY = car.pos.y + sin * (car.size.y/2);
-                spawnParticle(state, {x: engineX, y: engineY}, 'fire', 1, { 
-                    color: '#ef4444', speed: 0.5, life: 40, size: 3 
-                });
+                spawnParticle(state, {x: engineX, y: engineY}, 'fire', 1, { color: '#ef4444', speed: 0.5, life: 40, size: 3 });
             }
         }
 
@@ -442,7 +442,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
             const tileY = Math.floor(car.pos.y / TILE_SIZE);
             const tile = getTileAt(state.map, car.pos.x, car.pos.y);
             
-            // --- POLICE CHASE LOGIC START ---
+            // --- POLICE CHASE LOGIC ---
             const isPolice = ['police', 'swat', 'tank', 'barracks', 'fbi'].includes(car.model);
             const isChasing = (isPolice && state.wantedLevel > 0);
 
@@ -460,7 +460,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 const distFwd = dx * fwdX + dy * fwdY;
                 const distSide = Math.abs(dx * -fwdY + dy * fwdX);
                 
-                // If chasing, we might ram the player, so don't brake for player
                 if (isChasing && other.driverId === 'player') continue;
 
                 if (distFwd > -30 && distFwd < sensorDist && distSide < sensorWidth) {
@@ -476,64 +475,49 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 if (distFwd > 0 && distFwd < sensorDist && distSide < sensorWidth) brake = true;
             }
 
-            // 2. Traffic Light Logic (Police ignore lights if chasing)
+            // 2. Traffic Light Logic
             if (!brake && !isChasing) {
-                // Look ahead for intersection
                 const lookAheadDist = 80;
                 const checkX = car.pos.x + fwdX * lookAheadDist;
                 const checkY = car.pos.y + fwdY * lookAheadDist;
                 const aheadTile = getTileAt(state.map, checkX, checkY);
                 
-                // If approaching an intersection (and not already inside one)
                 if (aheadTile === TileType.ROAD_CROSS && tile !== TileType.ROAD_CROSS) {
                     const lightState = getTrafficLightState(state.timeTicker, checkX, checkY);
-                    
-                    // Determine orientation: Horizontal or Vertical
-                    // |Cos| > 0.7 means horizontal movement
                     const isHorizontal = Math.abs(fwdX) > 0.7;
                     const myLight = isHorizontal ? lightState.ew : lightState.ns;
-                    
-                    if (myLight !== 'GREEN') {
-                        brake = true;
-                    }
+                    if (myLight !== 'GREEN') brake = true;
                 }
             }
 
             if (brake) {
                 car.speed *= 0.9;
                 if (car.speed < 0.1) car.speed = 0;
-            }
-            else {
-                // Police drive faster when chasing
+            } else {
                 const chaseBoost = isChasing ? 1.1 : 1.0; 
                 const maxChaseSpeed = car.maxSpeed * (isChasing ? 1.05 : 0.7); 
                 if (car.speed < maxChaseSpeed) car.speed += car.acceleration * chaseBoost;
             }
 
             if (isChasing) {
-                 // --- CHASE STEERING & MOVEMENT ---
+                 // --- CHASE STEERING ---
                  const dx = state.player.pos.x - car.pos.x;
                  const dy = state.player.pos.y - car.pos.y;
                  const distToPlayer = Math.sqrt(dx*dx + dy*dy);
                  
                  const targetAngle = Math.atan2(dy, dx);
                  
-                 // Smooth Turn towards player
                  let diff = targetAngle - car.angle;
                  while (diff <= -Math.PI) diff += Math.PI * 2;
                  while (diff > Math.PI) diff -= Math.PI * 2;
                  
                  const turnSpeed = car.handling * (distToPlayer < 300 ? 2.0 : 1.0); 
-                 
                  if (Math.abs(diff) < turnSpeed) car.angle = targetAngle;
                  else car.angle += Math.sign(diff) * turnSpeed;
                  
-                 // Apply Movement
                  const nextX = car.pos.x + Math.cos(car.angle) * car.speed;
                  const nextY = car.pos.y + Math.sin(car.angle) * car.speed;
                  
-                 // Collision Check with Buildings (Allow off-road)
-                 // We re-use map collision detail check
                  const corners = getVehicleCorners(car, {x: nextX, y: nextY});
                  let hitSolid = false;
                  for (let i = 0; i < corners.length; i++) {
@@ -542,21 +526,13 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                     }
                  }
                  
-                 if (!hitSolid) {
-                     car.pos.x = nextX;
-                     car.pos.y = nextY;
-                 } else {
-                     // Bounce
-                     car.speed *= -0.5;
-                     car.stuckTimer = (car.stuckTimer || 0) + 20; // Stuck faster if hitting walls
-                 }
+                 if (!hitSolid) { car.pos.x = nextX; car.pos.y = nextY; } 
+                 else { car.speed *= -0.5; car.stuckTimer = (car.stuckTimer || 0) + 20; }
 
             } else {
-                // --- STANDARD LANE MOVEMENT ---
+                // --- STANDARD MOVEMENT ---
                 if (!isDrivable(tile)) {
-                    // If tank or barracks on military ground, it's fine
                     if ((car.model === 'tank' || car.model === 'barracks') && (tile === TileType.MILITARY_GROUND || tile === TileType.BUNKER)) {
-                         // Military patrol logic - random turn
                          if (Math.random() > 0.95) car.angle += Math.PI/2;
                     } else {
                          state.vehicles.splice(i, 1);
@@ -586,19 +562,11 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                     const dist = Math.sqrt(toCenterX**2 + toCenterY**2);
                     const dot = toCenterX * Math.cos(car.angle) + toCenterY * Math.sin(car.angle);
                     
-                    if (dist < car.speed + 8 && dot > 0) {
+                    if (dist < car.speed + 12 && dot > 0) { 
                          car.pos.x = centerX;
                          car.pos.y = centerY;
-                         const exits: number[] = [];
-                         if (isDrivable(getTileAt(state.map, (tileX+1)*TILE_SIZE, tileY*TILE_SIZE))) exits.push(0);
-                         if (isDrivable(getTileAt(state.map, (tileX-1)*TILE_SIZE, tileY*TILE_SIZE))) exits.push(Math.PI);
-                         if (isDrivable(getTileAt(state.map, tileX*TILE_SIZE, (tileY+1)*TILE_SIZE))) exits.push(Math.PI/2);
-                         if (isDrivable(getTileAt(state.map, tileX*TILE_SIZE, (tileY-1)*TILE_SIZE))) exits.push(3*Math.PI/2);
-                         
-                         let newAngle = car.angle;
-                         if (exits.length > 0) newAngle = exits[Math.floor(Math.random() * exits.length)];
-                         else newAngle += Math.PI;
-                         car.angle = newAngle;
+                         // DELEGATE TO TRAFFIC.TS
+                         car.angle = getNextTrafficDirection(state.map, tileX, tileY, car.angle);
                     } else {
                         car.pos.x += Math.cos(car.angle) * car.speed;
                         car.pos.y += Math.sin(car.angle) * car.speed;
@@ -607,7 +575,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                     car.speed = 0;
                 }
             }
-            // --- END MOVEMENT LOGIC ---
 
             car.targetAngle = car.angle;
             
@@ -625,10 +592,9 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 if (!state.cheats.godMode) {
                     state.player.health = 0;
                 } else {
-                    // Eject player if car explodes in god mode
                     state.player.vehicleId = null;
                     state.player.state = 'idle';
-                    state.player.pos.x += 50; // offset slightly
+                    state.player.pos.x += 50; 
                 }
             }
             state.vehicles.splice(i, 1);
@@ -671,7 +637,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
 
             if (isHandbrake && car.model === 'tank') {
                  if (state.lastShotTime <= 0) {
-                     // Create a tank shell
                      const shellSpeed = 40;
                      const muzzleX = car.pos.x + Math.cos(car.angle) * 45;
                      const muzzleY = car.pos.y + Math.sin(car.angle) * 45;
@@ -687,8 +652,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                      });
                      spawnParticle(state, {x: muzzleX, y: muzzleY}, 'explosion', 5, {size: 4, life: 10});
                      audioManager.playShoot('rocket');
-                     
-                     // Fast reload if cheat enabled
                      state.lastShotTime = state.cheats.noReload ? 5 : 60; 
                  }
             } else if (isHandbrake) {
@@ -733,7 +696,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
             const nextX = car.pos.x + car.velocity.x;
             const nextY = car.pos.y + car.velocity.y;
 
-            // Updated Map Collision to create directional damage
             const collidingCorners = checkMapCollisionDetails(car, state.map, {x: nextX, y: nextY});
 
             if (collidingCorners.length === 0) {
@@ -741,7 +703,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 car.pos.y = nextY;
             } else {
                 const impactSpeed = Math.abs(car.speed);
-                // Bounce with high damping
                 car.velocity.x *= -0.3;
                 car.velocity.y *= -0.3;
                 car.speed *= -0.3; 
@@ -754,7 +715,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                             car.health -= damage;
                         }
                         
-                        // Directional Deformation
                         const def = Math.min(impactSpeed * 0.8, 15);
                         collidingCorners.forEach(i => {
                              if(i===0) car.deformation.fl += def;
@@ -763,7 +723,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                              if(i===3) car.deformation.br += def;
                         });
 
-                        // Break Windows
                         if ((collidingCorners.includes(0) || collidingCorners.includes(1)) && impactSpeed > 6) car.damage.windows[0] = true;
                         if ((collidingCorners.includes(2) || collidingCorners.includes(3)) && impactSpeed > 6) car.damage.windows[1] = true;
 
@@ -778,7 +737,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
             state.player.angle = car.angle;
         }
     } else {
-        // Player Walking Logic
         if (!state.isWeaponWheelOpen && state.activeShop === 'none' && state.player.state !== 'entering_vehicle' && state.player.state !== 'exiting_vehicle' && state.player.state !== 'walking_to_car') {
             let dx = 0, dy = 0;
             if (keys.has('KeyW') || keys.has('ArrowUp')) dy = -1;
@@ -829,7 +787,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         if (shootKey && !state.isWeaponWheelOpen && state.activeShop === 'none' && state.player.state !== 'entering_vehicle' && state.player.state !== 'exiting_vehicle' && state.player.state !== 'walking_to_car') {
             if (state.lastShotTime <= 0) {
                 handleCombat(state, state.player);
-                // Cheat: No Reload / Rapid Fire
                 state.lastShotTime = state.cheats.noReload ? 5 : weaponStats.fireRate;
             }
         }
@@ -897,7 +854,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                          v1.velocity.x *= -0.4; v1.velocity.y *= -0.4;
                          v2.velocity.x *= -0.4; v2.velocity.y *= -0.4;
                          
-                         // Damage & Deformation
                          if (totalV > 4) {
                              audioManager.playImpact(totalV > 8);
                              const damage = Math.min(totalV * 0.5, 10);
@@ -912,7 +868,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                              if (!v1.deformation) v1.deformation = { fl: 0, fr: 0, bl: 0, br: 0 };
                              if (!v2.deformation) v2.deformation = { fl: 0, fr: 0, bl: 0, br: 0 };
                              
-                             // Apply Deform to colliding parts
                              c1_hits.forEach(idx => {
                                  if(idx===0) v1.deformation.fl += damage;
                                  if(idx===1) v1.deformation.fr += damage;
@@ -934,45 +889,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
             }
         }
     }
-
-    // Vehicle-Pedestrian Collision
-    state.vehicles.forEach(car => {
-        if (Math.abs(car.speed) < 1) return;
-        state.pedestrians.forEach(p => {
-            if (p.state === 'dead' || p.vehicleId === car.id) return;
-            if (p.id === 'player' && state.player.targetVehicleId === car.id) return;
-            if (checkPointInVehicle(p.pos.x, p.pos.y, car, 2)) {
-                const impactSpeed = Math.abs(car.speed);
-                const angleToPed = Math.atan2(p.pos.y - car.pos.y, p.pos.x - car.pos.x);
-                p.pos.x += Math.cos(angleToPed) * 5; p.pos.y += Math.sin(angleToPed) * 5;
-                if (impactSpeed > 2) {
-                    const damage = impactSpeed * 15;
-                    audioManager.playPedHit();
-                    
-                    if (p.id === 'player' && state.cheats.godMode) {
-                        // No damage
-                    } else {
-                        p.health -= damage;
-                    }
-
-                    spawnParticle(state, p.pos, 'blood', 4, { color: '#7f1d1d', speed: 2 });
-                    p.velocity.x += Math.cos(car.angle) * impactSpeed; p.velocity.y += Math.sin(car.angle) * impactSpeed;
-                    if (p.health <= 0) {
-                        p.state = 'dead'; spawnDrops(state, p);
-                        if (car.driverId === 'player') {
-                            if (isPoliceNearby(state, p.pos)) {
-                                state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
-                                state.lastWantedTime = state.timeTicker;
-                            }
-                        }
-                    } else {
-                        p.state = 'fleeing'; p.actionTimer = 120;
-                        p.angle = Math.atan2(p.pos.y - car.pos.y, p.pos.x - car.pos.x);
-                    }
-                }
-            }
-        });
-    });
 
     const targetCamX = state.player.pos.x - window.innerWidth / 2;
     const targetCamY = state.player.pos.y - window.innerHeight / 2;

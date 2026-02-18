@@ -46,6 +46,7 @@ export interface Vehicle extends Entity {
   stuckTimer?: number; // Frames stuck at 0 speed
   targetAngle: number;
   lastPaintTime?: number; // Debounce for paint shop
+  theftReported?: boolean; // If true, police have already flagged this car as stolen by player
 }
 
 export type WeaponType = 
@@ -149,6 +150,7 @@ export interface GameState {
   wastedStartTime: number;
   cheats: Cheats;
   safehouses: Safehouse[];
+  lastShootingWantedTime: number; // Timestamp of last wanted level increase from shooting
 }
 
 export interface MutableGameState {
@@ -174,6 +176,7 @@ export interface MutableGameState {
     wastedStartTime: number;
     cheats: Cheats;
     safehouses: Safehouse[];
+    lastShootingWantedTime: number;
 }
 
 export interface Mission {

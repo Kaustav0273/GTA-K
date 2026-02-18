@@ -592,10 +592,10 @@ export const generateMap = (): number[][] => {
   // ==========================================
   // PHASE 8: MILITARY BASE
   // ==========================================
-  const baseX = 105;
-  const baseY = 115;
-  const baseW = 35;
-  const baseH = 35;
+  const baseX = 91;
+  const baseY = 106;
+  const baseW = 47;
+  const baseH = 34;
 
   fillRect(baseX, baseY, baseW, baseH, TileType.MILITARY_GROUND);
 
@@ -605,14 +605,14 @@ export const generateMap = (): number[][] => {
   for(let y=baseY; y<baseY+baseH; y++) safeSet(baseX, y, TileType.FENCE_V);
   for(let y=baseY; y<baseY+baseH; y++) safeSet(baseX+baseW-1, y, TileType.FENCE_V);
 
-  // Entrance
+  // Entrance (West Side connecting to road at x=90)
   safeSet(baseX, baseY + 10, TileType.MILITARY_GROUND);
   safeSet(baseX, baseY + 11, TileType.MILITARY_GROUND);
-  for(let x=88; x<=105; x++) drawRoad(x, baseY + 10, true);
-
+  
   // Bunkers & Hangars
   fillRect(baseX + 5, baseY + baseH - 10, 8, 6, TileType.BUNKER);
   fillRect(baseX + 20, baseY + baseH - 10, 8, 6, TileType.BUNKER);
+  fillRect(baseX + 35, baseY + baseH - 10, 8, 6, TileType.BUNKER); // Extra bunker
   fillRect(baseX + 15, baseY + 15, 6, 6, TileType.HELIPAD);
 
   // Watchtowers
@@ -623,7 +623,7 @@ export const generateMap = (): number[][] => {
 
   // Interior Roads
   for(let x=baseX + 2; x<baseX + baseW - 2; x++) safeSet(x, baseY + 10, TileType.ROAD_H); 
-  for(let y=baseY + 2; y<baseY + baseH - 2; y++) safeSet(baseX + 10, y, TileType.ROAD_V); 
+  for(let y=baseY + 2; y<baseY + baseH - 2; y++) safeSet(baseX + 15, y, TileType.ROAD_V); 
 
 
   // ==========================================

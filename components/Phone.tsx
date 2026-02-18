@@ -54,13 +54,17 @@ const CHEAT_LIST = [
 ];
 
 const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMission, settings, onUpdateSettings, onUpdateGameState }) => {
-  const [activeApp, setActiveApp] = useState<'home' | 'missions' | 'settings' | 'dialer' | 'camera' | 'music' | 'cheats' | 'map' | 'weather' | 'wallet'>('home');
+  const [activeApp, setActiveApp] = useState<'home' | 'missions' | 'settings' | 'dialer' | 'camera' | 'music' | 'cheats' | 'map' | 'weather' | 'wallet' | 'browser'>('home');
   const [isLocked, setIsLocked] = useState(true);
   const [loading, setLoading] = useState(false);
   const [generatedMission, setGeneratedMission] = useState<Mission | null>(null);
   const [dialOutput, setDialOutput] = useState("");
   const [dialStatus, setDialStatus] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // Browser State
+  const [browserUrl, setBrowserUrl] = useState("");
+  const [browserSrc, setBrowserSrc] = useState<string | null>(null);
   
   // Track last active app for smooth exit animations
   const [lastApp, setLastApp] = useState<string | null>(null);
@@ -120,6 +124,8 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
             setGeneratedMission(null);
             setDialOutput("");
             setDialStatus(null);
+            setBrowserSrc(null);
+            setBrowserUrl("");
         }, 300);
         return () => clearTimeout(t);
     }
@@ -328,6 +334,17 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
       }, 3000);
   };
 
+  const handleBrowserGo = () => {
+      let url = browserUrl.trim();
+      if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+          url = 'https://' + url;
+      }
+      if (url) {
+          setBrowserSrc(url);
+          audioManager.playUI('click');
+      }
+  };
+
   if (!isOpen) return null;
 
   const formatTime = (date: Date) => {
@@ -421,12 +438,13 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                             <AppIcon icon="fa-camera" color="bg-yellow-500" label="Camera" onClick={() => audioManager.playUI('error')} />
                             <AppIcon icon="fa-cloud" color="bg-sky-400" label="Weather" onClick={() => handleAppOpen('weather')} />
                             <AppIcon icon="fa-wallet" color="bg-indigo-500" label="Wallet" onClick={() => handleAppOpen('wallet')} />
+                            <AppIcon icon="fa-globe" color="bg-blue-600" label="Web" onClick={() => handleAppOpen('browser')} />
                         </div>
 
                         {/* Dock */}
                         <div className="mt-auto mb-2 bg-white/10 backdrop-blur-xl rounded-3xl p-3 flex justify-around items-center mx-1">
                             <AppIcon icon="fa-phone" color="bg-green-600" onClick={() => handleAppOpen('dialer')} />
-                            <AppIcon icon="fa-globe" color="bg-blue-600" onClick={() => audioManager.playUI('error')} />
+                            <AppIcon icon="fa-globe" color="bg-blue-600" onClick={() => handleAppOpen('browser')} />
                             <AppIcon icon="fa-comment" color="bg-green-500" onClick={() => audioManager.playUI('error')} />
                             <AppIcon icon="fa-music" color="bg-red-500" onClick={() => audioManager.playUI('error')} />
                         </div>
@@ -449,6 +467,98 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                     {/* Content Container */}
                     <div className="w-full h-full overflow-hidden rounded-[30px]">
                         
+                        {/* --- BROWSER APP --- */}
+                        {overlayApp === 'browser' && (
+                            <div className="flex flex-col h-full bg-white text-black">
+                                {/* Browser Header */}
+                                <div className="bg-gray-100 p-2 border-b flex items-center gap-2 pt-10 pb-2">
+                                    <button onClick={() => { setBrowserSrc(null); setBrowserUrl(""); }} className="text-gray-500 hover:text-blue-500 px-2">
+                                        <i className="fas fa-home"></i>
+                                    </button>
+                                    <form 
+                                        onSubmit={(e) => { e.preventDefault(); handleBrowserGo(); }} 
+                                        className="flex-1"
+                                    >
+                                        <input 
+                                            type="text" 
+                                            value={browserUrl}
+                                            onChange={(e) => setBrowserUrl(e.target.value)}
+                                            className="w-full bg-gray-200 rounded-full px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-sans"
+                                            placeholder="Search or type URL"
+                                        />
+                                    </form>
+                                    <button onClick={handleBrowserGo} className="text-blue-500 hover:text-blue-600 px-2">
+                                        <i className="fas fa-arrow-right"></i>
+                                    </button>
+                                </div>
+
+                                {/* Browser Content */}
+                                <div className="flex-1 bg-white relative overflow-hidden">
+                                    {browserSrc ? (
+                                        <iframe 
+                                            src={browserSrc} 
+                                            className="w-full h-full border-0" 
+                                            title="Eyefind Browser"
+                                            sandbox="allow-scripts allow-same-origin allow-forms"
+                                        />
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center h-full p-6 text-center space-y-4 animate-fade-in">
+                                            <div className="text-4xl font-bold text-blue-600 font-gta tracking-widest drop-shadow-sm">Eyefind</div>
+                                            <div className="text-gray-400 text-sm">The search engine that sees all.</div>
+                                            
+                                            <div className="w-full max-w-[240px] mt-8">
+                                                <div className="text-[10px] text-gray-400 mb-2 font-bold text-left uppercase tracking-wider">Top Sites</div>
+                                                <button 
+                                                    onClick={() => { 
+                                                        const url = "https://en.wikipedia.org/wiki/Grand_Theft_Auto";
+                                                        setBrowserUrl(url); 
+                                                        setBrowserSrc(url);
+                                                        audioManager.playUI('click');
+                                                    }} 
+                                                    className="w-full text-left bg-gray-50 border border-gray-200 p-3 rounded-xl mb-3 text-sm hover:bg-gray-100 transition-colors flex items-center gap-3 shadow-sm group"
+                                                >
+                                                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-black group-hover:bg-white transition-colors">
+                                                        <i className="fab fa-wikipedia-w"></i>
+                                                    </div>
+                                                    <span className="font-medium text-gray-700">Wikipedia (GTA)</span>
+                                                </button>
+                                                
+                                                <button 
+                                                    onClick={() => { 
+                                                        const url = "https://www.bing.com";
+                                                        setBrowserUrl(url); 
+                                                        setBrowserSrc(url);
+                                                        audioManager.playUI('click');
+                                                    }} 
+                                                    className="w-full text-left bg-gray-50 border border-gray-200 p-3 rounded-xl mb-3 text-sm hover:bg-gray-100 transition-colors flex items-center gap-3 shadow-sm group"
+                                                >
+                                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 group-hover:bg-white transition-colors">
+                                                        <i className="fas fa-search"></i>
+                                                    </div>
+                                                    <span className="font-medium text-gray-700">Bing Search</span>
+                                                </button>
+
+                                                <button 
+                                                    onClick={() => { 
+                                                        const url = "https://www.openstreetmap.org";
+                                                        setBrowserUrl(url); 
+                                                        setBrowserSrc(url);
+                                                        audioManager.playUI('click');
+                                                    }} 
+                                                    className="w-full text-left bg-gray-50 border border-gray-200 p-3 rounded-xl mb-3 text-sm hover:bg-gray-100 transition-colors flex items-center gap-3 shadow-sm group"
+                                                >
+                                                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-600 group-hover:bg-white transition-colors">
+                                                        <i className="fas fa-map"></i>
+                                                    </div>
+                                                    <span className="font-medium text-gray-700">OpenStreetMap</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* --- MAP APP --- */}
                         {overlayApp === 'map' && (
                             <div className="flex flex-col h-full bg-zinc-900 relative">
