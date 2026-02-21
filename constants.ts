@@ -1,11 +1,7 @@
-
-
 export const TILE_SIZE = 128;
 export const MAP_WIDTH = 160; 
 export const MAP_HEIGHT = 160; 
-
 export const MAX_TRAFFIC = 75; 
-
 export const PLAYER_SIZE = { x: 14, y: 14 };
 export const CAR_SIZE = { x: 24, y: 56 }; 
 
@@ -66,8 +62,15 @@ export const PEDESTRIAN_RUN_SPEED = 3.5;
 export const PANIC_DISTANCE = 400; // Pixel radius for hearing gunshots
 
 export const WEAPON_STATS: Record<string, any> = {
-    fist: { class: 'melee', damage: 10, range: 20, fireRate: 30, automatic: false, color: 'transparent' },
-    
+    // --- MELEE ---
+    fist:          { class: 'melee', damage: 10, range: 20, fireRate: 30, automatic: false, color: 'transparent', label: 'Fist' },
+    bat:           { class: 'melee', damage: 30, range: 35, fireRate: 40, automatic: false, color: '#d4a373', label: 'Baseball Bat' },
+    knife:         { class: 'melee', damage: 35, range: 25, fireRate: 25, automatic: false, color: '#9ca3af', label: 'Combat Knife' },
+    crowbar:       { class: 'melee', damage: 40, range: 30, fireRate: 35, automatic: false, color: '#ef4444', label: 'Crowbar' },
+    katana:        { class: 'melee', damage: 75, range: 45, fireRate: 30, automatic: false, color: '#e5e5e5', label: 'Katana' },
+    machete:       { class: 'melee', damage: 50, range: 40, fireRate: 32, automatic: false, color: '#525252', label: 'Machete' },
+    sledgehammer:  { class: 'melee', damage: 95, range: 40, fireRate: 70, automatic: false, color: '#7f1d1d', label: 'Sledge Hammer' },
+
     // --- PISTOLS ---
     pistol:        { class: 'pistol', damage: 35, range: 400, fireRate: 20, automatic: false, spread: 0.05, bulletSpeed: 25, count: 1, label: "Pistol" },
     street_hawk:   { class: 'pistol', damage: 40, range: 450, fireRate: 18, automatic: false, spread: 0.04, bulletSpeed: 28, count: 1, label: "Street Hawk" },
@@ -133,8 +136,6 @@ export const CAR_MODELS = {
   van: { color: '#64748b', maxSpeed: 7, acceleration: 0.10, handling: 0.025, health: 280, size: { x: 32, y: 64 } },
   limo: { color: '#000000', maxSpeed: 9, acceleration: 0.12, handling: 0.015, health: 260, size: { x: 30, y: 90 } },
   ambulance: { color: '#ffffff', maxSpeed: 10, acceleration: 0.15, handling: 0.025, health: 320, size: { x: 34, y: 70 } },
-  
-  // New Models
   supercar: { color: '#8b5cf6', maxSpeed: 18, acceleration: 0.45, handling: 0.06, health: 140, size: { x: 26, y: 56 } },
   compact: { color: '#06b6d4', maxSpeed: 9, acceleration: 0.25, handling: 0.05, health: 120, size: { x: 22, y: 44 } },
   suv: { color: '#166534', maxSpeed: 9, acceleration: 0.15, handling: 0.03, health: 280, size: { x: 30, y: 66 } },

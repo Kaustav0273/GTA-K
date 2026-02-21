@@ -36,20 +36,42 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
       }
   }, []); // Run once on mount
 
+  const handleZoomBtn = (direction: 1 | -1) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+
+      const zoomFactor = 1.3;
+      const newScale = direction > 0 
+          ? Math.min(5, view.k * zoomFactor)
+          : Math.max(0.05, view.k / zoomFactor);
+
+      // World point at center
+      const worldX = (cx - view.x) / view.k;
+      const worldY = (cy - view.y) / view.k;
+
+      // New offset
+      const newX = cx - worldX * newScale;
+      const newY = cy - worldY * newScale;
+
+      setView({ k: newScale, x: newX, y: newY });
+  };
+
   const handleWheel = (e: React.WheelEvent) => {
       e.stopPropagation();
-      const zoomFactor = 0.1;
-      const direction = e.deltaY > 0 ? -1 : 1;
-      const newScale = Math.min(Math.max(0.1, view.k + direction * zoomFactor * view.k), 5);
-      
-      // Zoom towards center of screen to keep it simple, or just simple zoom
-      // Calculate offset adjustment to zoom around center
       const canvas = canvasRef.current;
       if (!canvas) return;
       
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
+
+      const zoomFactor = 0.15;
+      const direction = e.deltaY > 0 ? -1 : 1;
+      const newScale = Math.min(5, Math.max(0.05, view.k + direction * zoomFactor * view.k));
       
       // World point under mouse before zoom
       const worldX = (mouseX - view.x) / view.k;
@@ -104,12 +126,6 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
     ctx.scale(view.k, view.k);
 
     // Calculate visible bounds to optimize
-    // Only draw what's in visible canvas area (inverse transform)
-    // For simplicity, just drawing all tiles for now as canvas clipping handles it, 
-    // but we can skip loops.
-    // Let's assume standard full draw for code simplicity unless perf hit.
-    // 160x160 tiles = 25600 rects. Might be heavy.
-    // Optimization:
     const startX = Math.max(0, Math.floor((-view.x / view.k) / TILE_SIZE));
     const startY = Math.max(0, Math.floor((-view.y / view.k) / TILE_SIZE));
     const endX = Math.min(MAP_WIDTH, Math.ceil(((canvas.width - view.x) / view.k) / TILE_SIZE));
@@ -146,6 +162,19 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
                      case TileType.HANGAR: color = '#94a3b8'; break; // Slate
                      case TileType.CONSTRUCTION: color = '#78350f'; break; // Brown
                      case TileType.FOOTBALL_FIELD: color = '#15803d'; break; // Green
+                     case TileType.RAIL: color = '#292524'; break;
+                     case TileType.RAIL_CROSSING: color = '#292524'; break;
+                     case TileType.MILITARY_GROUND: color = '#4b5563'; break;
+                     case TileType.FENCE_H:
+                     case TileType.FENCE_V: color = '#a3a3a3'; break;
+                     case TileType.BUNKER: color = '#3f4f3a'; break;
+                     case TileType.WATCHTOWER: color = '#171717'; break;
+                     case TileType.HELIPAD: color = '#3f3f46'; break;
+                     case TileType.WAREHOUSE: color = '#374151'; break;
+                     case TileType.FACTORY: color = '#7f1d1d'; break;
+                     case TileType.TENEMENT: color = '#9f1239'; break;
+                     case TileType.PROJECTS: color = '#525252'; break;
+                     case TileType.BANK: color = '#d4d4d8'; break;
                      case TileType.ROAD_V:
                      case TileType.ROAD_H:
                      case TileType.ROAD_CROSS:
@@ -160,7 +189,6 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
 
     // Draw Vehicles
     vehicles.forEach(v => {
-        // Optimization: check bounds
         if (v.pos.x < startX * TILE_SIZE || v.pos.x > endX * TILE_SIZE) return;
         if (v.pos.y < startY * TILE_SIZE || v.pos.y > endY * TILE_SIZE) return;
 
@@ -176,9 +204,7 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
     });
 
     // Draw Pedestrians
-    // Optimization: Skip rendering civs on full map to save perf, usually only need key items
-    // But keeping it for completeness if zoomed in
-    if (view.k > 0.5) { // Only draw peds if zoomed in enough
+    if (view.k > 0.5) { 
         pedestrians.forEach(p => {
              if (p.state === 'dead' || p.id === 'player') return;
              if (p.pos.x < startX * TILE_SIZE || p.pos.x > endX * TILE_SIZE) return;
@@ -198,7 +224,11 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
     ctx.fillStyle = '#fff';
     ctx.shadowColor = 'black';
     ctx.shadowBlur = 10;
-    // Larger marker on full map
+    
+    // Scale marker inversely with zoom so it remains visible
+    const markerScale = Math.max(1, 1 / view.k);
+    ctx.scale(markerScale, markerScale);
+    
     ctx.beginPath();
     ctx.moveTo(20, 0);
     ctx.lineTo(-15, 12);
@@ -253,16 +283,16 @@ const MapMenu: React.FC<MapMenuProps> = ({ gameState, onResume, onQuit, onOption
                  </div>
                  <div className="flex gap-2 justify-end">
                      <button 
-                        className="w-10 h-10 bg-black/70 text-white rounded border border-white/20 hover:bg-white/20 text-xl font-bold"
-                        onClick={() => setView(v => ({ ...v, k: Math.min(5, v.k * 1.2) }))}
+                        className="w-10 h-10 bg-black/70 text-white rounded border border-white/20 hover:bg-white/20 text-xl font-bold flex items-center justify-center"
+                        onClick={() => handleZoomBtn(1)}
                      >
-                         +
+                         <i className="fas fa-plus"></i>
                      </button>
                      <button 
-                        className="w-10 h-10 bg-black/70 text-white rounded border border-white/20 hover:bg-white/20 text-xl font-bold"
-                        onClick={() => setView(v => ({ ...v, k: Math.max(0.1, v.k / 1.2) }))}
+                        className="w-10 h-10 bg-black/70 text-white rounded border border-white/20 hover:bg-white/20 text-xl font-bold flex items-center justify-center"
+                        onClick={() => handleZoomBtn(-1)}
                      >
-                         -
+                         <i className="fas fa-minus"></i>
                      </button>
                  </div>
              </div>

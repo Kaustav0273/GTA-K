@@ -316,7 +316,7 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-4 mt-6 ml-4">
                             <span className="font-gta text-3xl text-pink-500 tracking-widest drop-shadow-[2px_2px_0_#000]">BETA</span>
                             <div className="h-1.5 w-16 bg-pink-500 shadow-[2px_2px_0_#000]"></div>
-                            <span className="font-gta text-3xl text-white tracking-widest drop-shadow-[2px_2px_0_#000]">V7</span>
+                            <span className="font-gta text-3xl text-white tracking-widest drop-shadow-[2px_2px_0_#000]">V7.5</span>
                         </div>
                     </div>
                 )}

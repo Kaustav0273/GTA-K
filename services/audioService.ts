@@ -1,6 +1,8 @@
 
 import { GameSettings } from '../types';
 
+type TrackId = 'neon' | '8bit' | 'ambient';
+
 class AudioService {
     ctx: AudioContext | null = null;
     sfxVolume: number = 0.5;
@@ -17,6 +19,12 @@ class AudioService {
     
     // iOS Silent Switch Unlock Flag
     unlocked: boolean = false;
+
+    // Music Sequencer
+    musicInterval: number | null = null;
+    currentTrackId: string | null = null;
+    isMusicPlaying: boolean = false;
+    step: number = 0;
 
     init() {
         if (!this.ctx) {
@@ -73,6 +81,134 @@ class AudioService {
         }
         return buffer;
     }
+
+    // --- MUSIC SEQUENCER ---
+
+    playTone(freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.1) {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        
+        const volume = vol * this.musicVolume;
+        gain.gain.setValueAtTime(volume, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+    }
+
+    playMusic(trackId: string) {
+        if (this.currentTrackId === trackId && this.isMusicPlaying) return;
+        
+        this.stopMusic();
+        this.currentTrackId = trackId;
+        this.isMusicPlaying = true;
+        this.step = 0;
+
+        let bpm = 110;
+        if (trackId === '8bit') bpm = 140;
+        if (trackId === 'ambient') bpm = 80;
+
+        const intervalMs = (60000 / bpm) / 4; // 16th notes
+
+        this.musicInterval = window.setInterval(() => {
+            this.playStep(trackId);
+            this.step++;
+        }, intervalMs);
+    }
+
+    playStep(trackId: string) {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const s = this.step;
+
+        // SCALE HELPERS
+        // A Minor: A, B, C, D, E, F, G
+        // Frequencies: A2=110, C3=130.8, D3=146.8, E3=164.8, G3=196, A3=220, C4=261.6
+        
+        if (trackId === 'neon') {
+            // Bass (Sawtooth)
+            // Pattern: A... A... F... G...
+            const bassNote = (s % 32 < 16) ? 110 : (s % 32 < 24 ? 87.3 : 98); // A2 -> F2 -> G2
+            if (s % 4 === 0) this.playTone(bassNote, 'sawtooth', 0.2, t, 0.15);
+            if (s % 4 === 2) this.playTone(bassNote, 'sawtooth', 0.1, t, 0.1); // Offbeat echo
+
+            // Lead (Sine/Square)
+            if (s % 16 === 0) this.playTone(440, 'sine', 0.3, t, 0.1); // A4
+            if (s % 16 === 3) this.playTone(523.25, 'sine', 0.3, t, 0.1); // C5
+            if (s % 16 === 6) this.playTone(392, 'sine', 0.3, t, 0.1); // G4
+            if (s % 16 === 10) this.playTone(349.23, 'sine', 0.3, t, 0.1); // F4
+            
+            // Hi-hat (High freq noise approx)
+            if (s % 2 === 0) this.playTone(4000, 'triangle', 0.05, t, 0.02);
+        }
+        else if (trackId === '8bit') {
+            // Fast Arp
+            const root = 220; // A3
+            const notes = [root, root*1.5, root*1.2, root*2]; // A, E, C, A
+            const note = notes[s % 4];
+            
+            // Melody change every 32 steps
+            const shift = Math.floor(s / 32) % 2 === 0 ? 1 : 0.8; // A -> F approx
+            
+            this.playTone(note * shift, 'square', 0.1, t, 0.08);
+            
+            // Kick
+            if (s % 4 === 0) this.playTone(100, 'sine', 0.1, t, 0.3);
+            // Snare
+            if (s % 8 === 4) this.playTone(200, 'sawtooth', 0.1, t, 0.1);
+        }
+        else if (trackId === 'ambient') {
+            // Slow Chords (Pad-ish)
+            // Chord change every 16 steps (1 bar)
+            if (s % 32 === 0) {
+                // Chord 1: Am (A, C, E)
+                this.playTone(220, 'triangle', 2, t, 0.05);
+                this.playTone(261.6, 'triangle', 2, t, 0.05);
+                this.playTone(329.6, 'triangle', 2, t, 0.05);
+                // Bass
+                this.playTone(55, 'sine', 2, t, 0.2);
+            }
+            if (s % 32 === 16) {
+                // Chord 2: F (F, A, C)
+                this.playTone(174.6, 'triangle', 2, t, 0.05);
+                this.playTone(220, 'triangle', 2, t, 0.05);
+                this.playTone(261.6, 'triangle', 2, t, 0.05);
+                // Bass
+                this.playTone(43.65, 'sine', 2, t, 0.2);
+            }
+            
+            // Random sparkly bits
+            if (Math.random() > 0.8) {
+                const scale = [440, 523.25, 659.25, 783.99, 880]; // Pentatonicish
+                const rNote = scale[Math.floor(Math.random() * scale.length)];
+                this.playTone(rNote * 2, 'sine', 0.5, t, 0.03);
+            }
+        }
+    }
+
+    stopMusic() {
+        if (this.musicInterval) {
+            clearInterval(this.musicInterval);
+            this.musicInterval = null;
+        }
+        this.isMusicPlaying = false;
+        // We don't clear currentTrackId so UI knows what was last selected
+    }
+
+    toggleMusic() {
+        if (this.isMusicPlaying) {
+            this.stopMusic();
+        } else if (this.currentTrackId) {
+            this.playMusic(this.currentTrackId);
+        }
+    }
+
+    // --- SFX & ENGINE (Existing) ---
 
     playShoot(weapon: string) {
         if (!this.ctx || this.sfxVolume <= 0) return;
@@ -359,10 +495,6 @@ class AudioService {
             const isHeavy = model === 'truck' || model === 'bus' || model === 'tank' || model === 'barracks';
 
             // Frequency Range (Pitch)
-            // Lowered significantly to avoid siren effect.
-            // Heavy: 30Hz -> 80Hz
-            // Sport: 50Hz -> 150Hz
-            // Normal: 40Hz -> 120Hz
             let baseFreq = 40;
             let topFreq = 120;
             
@@ -372,15 +504,12 @@ class AudioService {
             const targetFreq = baseFreq + (speedRatio * (topFreq - baseFreq));
 
             // Modulator Frequency (The "Rumble" rate)
-            // Faster rumble at higher RPM
             const modRate = targetFreq * 0.5; 
             
             // Modulation Depth (How "rough" the sound is)
-            // Smoother at high RPM
             const modDepth = isHeavy ? 30 : (20 * (1 - speedRatio * 0.5));
 
             // Filter Cutoff (Brightness)
-            // Opens up with speed
             const filterFreq = isSport ? (200 + speedRatio * 800) : (100 + speedRatio * 400);
 
             // Apply updates

@@ -5,6 +5,7 @@ import { GameState, Mission, GameSettings, EntityType } from '../types';
 import { CAR_MODELS, CAR_COLORS, CAR_SIZE } from '../constants';
 import { audioManager } from '../services/audioService';
 import Radar from './Radar';
+import CasinoApp from './CasinoApp';
 
 // Helper Components defined first to avoid ReferenceErrors
 const AppIcon = ({ icon, color, label, onClick }: { icon: string, color: string, label?: string, onClick?: () => void }) => (
@@ -53,8 +54,14 @@ const CHEAT_LIST = [
     { code: "112233445566778899", desc: "Add Money $500" }
 ];
 
+const TRACKS = [
+    { id: 'neon', title: 'Neon Drive', artist: 'Synther', icon: 'fa-car', color: 'bg-purple-600' },
+    { id: '8bit', title: '8-Bit Heist', artist: 'Pixel Punks', icon: 'fa-gamepad', color: 'bg-yellow-500' },
+    { id: 'ambient', title: 'City Ambient', artist: 'Night Owl', icon: 'fa-cloud-moon', color: 'bg-blue-600' },
+];
+
 const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMission, settings, onUpdateSettings, onUpdateGameState }) => {
-  const [activeApp, setActiveApp] = useState<'home' | 'missions' | 'settings' | 'dialer' | 'camera' | 'music' | 'cheats' | 'map' | 'weather' | 'wallet' | 'browser'>('home');
+  const [activeApp, setActiveApp] = useState<'home' | 'missions' | 'settings' | 'dialer' | 'music' | 'cheats' | 'map' | 'weather' | 'wallet' | 'browser' | 'casino'>('home');
   const [isLocked, setIsLocked] = useState(true);
   const [loading, setLoading] = useState(false);
   const [generatedMission, setGeneratedMission] = useState<Mission | null>(null);
@@ -62,6 +69,10 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
   const [dialStatus, setDialStatus] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   
+  // Music State
+  const [currentTrack, setCurrentTrack] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
   // Browser State
   const [browserUrl, setBrowserUrl] = useState("");
   const [browserSrc, setBrowserSrc] = useState<string | null>(null);
@@ -72,6 +83,14 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
   // Mobile Scaling State
   const [scale, setScale] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Sync music state with AudioService
+  useEffect(() => {
+      if (isOpen) {
+          setCurrentTrack(audioManager.currentTrackId);
+          setIsPlaying(audioManager.isMusicPlaying);
+      }
+  }, [isOpen]);
 
   // Clock Update
   useEffect(() => {
@@ -154,6 +173,32 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
       audioManager.playUI('back');
       setDialOutput(prev => prev.slice(0, -1));
       setDialStatus(null);
+  };
+
+  // Music Controls
+  const handlePlayTrack = (trackId: string) => {
+      audioManager.playMusic(trackId);
+      setCurrentTrack(trackId);
+      setIsPlaying(true);
+      audioManager.playUI('click');
+  };
+
+  const handleTogglePlay = () => {
+      audioManager.toggleMusic();
+      setIsPlaying(audioManager.isMusicPlaying);
+      audioManager.playUI('click');
+  };
+
+  const handleNextTrack = () => {
+      const idx = TRACKS.findIndex(t => t.id === currentTrack);
+      const next = TRACKS[(idx + 1) % TRACKS.length];
+      handlePlayTrack(next.id);
+  };
+
+  const handlePrevTrack = () => {
+      const idx = TRACKS.findIndex(t => t.id === currentTrack);
+      const prev = TRACKS[(idx - 1 + TRACKS.length) % TRACKS.length];
+      handlePlayTrack(prev.id);
   };
 
   const spawnVehicle = (modelKey: keyof typeof CAR_MODELS) => {
@@ -438,7 +483,8 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                             <AppIcon icon="fa-camera" color="bg-yellow-500" label="Camera" onClick={() => audioManager.playUI('error')} />
                             <AppIcon icon="fa-cloud" color="bg-sky-400" label="Weather" onClick={() => handleAppOpen('weather')} />
                             <AppIcon icon="fa-wallet" color="bg-indigo-500" label="Wallet" onClick={() => handleAppOpen('wallet')} />
-                            <AppIcon icon="fa-globe" color="bg-blue-600" label="Web" onClick={() => handleAppOpen('browser')} />
+                            <AppIcon icon="fa-music" color="bg-red-500" label="Music" onClick={() => handleAppOpen('music')} />
+                            <AppIcon icon="fa-dice" color="bg-yellow-600" label="Casino" onClick={() => handleAppOpen('casino')} />
                         </div>
 
                         {/* Dock */}
@@ -446,7 +492,7 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                             <AppIcon icon="fa-phone" color="bg-green-600" onClick={() => handleAppOpen('dialer')} />
                             <AppIcon icon="fa-globe" color="bg-blue-600" onClick={() => handleAppOpen('browser')} />
                             <AppIcon icon="fa-comment" color="bg-green-500" onClick={() => audioManager.playUI('error')} />
-                            <AppIcon icon="fa-music" color="bg-red-500" onClick={() => audioManager.playUI('error')} />
+                            <AppIcon icon="fa-music" color="bg-red-500" onClick={() => handleAppOpen('music')} />
                         </div>
                     </div>
                 </div>
@@ -454,19 +500,30 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                 {/* --- APP OVERLAY LAYER (Slides Up) --- */}
                 <div className={`absolute inset-0 z-20 flex flex-col transition-transform duration-300 cubic-bezier(0.4, 0, 0.2, 1) ${showOverlay ? 'translate-y-0' : 'translate-y-full'}`}>
                     
-                    {/* Back Button (Only visible if app is open) */}
-                    <div className="absolute top-10 left-4 z-50">
-                        <button 
-                            onClick={() => { setActiveApp('home'); audioManager.playUI('back'); }}
-                            className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30 text-white shadow-lg active:scale-95 transition-transform"
-                        >
-                            <i className="fas fa-chevron-down text-sm"></i>
-                        </button>
-                    </div>
+                    {/* Back Button (Only visible if app is open AND not Casino as it has internal nav) */}
+                    {overlayApp !== 'casino' && (
+                        <div className="absolute top-10 left-4 z-50">
+                            <button 
+                                onClick={() => { setActiveApp('home'); audioManager.playUI('back'); }}
+                                className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30 text-white shadow-lg active:scale-95 transition-transform"
+                            >
+                                <i className="fas fa-chevron-down text-sm"></i>
+                            </button>
+                        </div>
+                    )}
 
                     {/* Content Container */}
                     <div className="w-full h-full overflow-hidden rounded-[30px]">
                         
+                        {/* --- CASINO APP --- */}
+                        {overlayApp === 'casino' && (
+                            <CasinoApp 
+                                money={gameState.money} 
+                                onUpdateMoney={(amt) => onUpdateGameState({ money: amt })}
+                                onClose={() => { setActiveApp('home'); audioManager.playUI('back'); }}
+                            />
+                        )}
+
                         {/* --- BROWSER APP --- */}
                         {overlayApp === 'browser' && (
                             <div className="flex flex-col h-full bg-white text-black">
@@ -565,6 +622,83 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                                 <Radar gameState={gameState} zoomLevel={0.03} className="w-full h-full object-cover" />
                                 <div className="absolute top-12 right-4 bg-black/60 px-3 py-1 rounded text-xs font-mono backdrop-blur-sm pointer-events-none">
                                     <i className="fas fa-location-arrow mr-1"></i> GPS ACTIVE
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- MUSIC APP --- */}
+                        {overlayApp === 'music' && (
+                            <div className="flex flex-col h-full bg-zinc-900 text-white relative">
+                                {/* Header */}
+                                <div className="pt-12 pb-4 px-6 bg-gradient-to-b from-zinc-800 to-zinc-900 shadow-md z-10">
+                                    <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                                        <i className="fas fa-headphones-simple text-green-500"></i> Vibez Music
+                                    </h2>
+                                </div>
+
+                                {/* Track List */}
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 px-1">Your Library</h3>
+                                    {TRACKS.map(track => {
+                                        const isActive = currentTrack === track.id;
+                                        return (
+                                            <button 
+                                                key={track.id}
+                                                onClick={() => handlePlayTrack(track.id)}
+                                                className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all ${isActive ? 'bg-zinc-800 ring-1 ring-green-500/50' : 'hover:bg-zinc-800/50'}`}
+                                            >
+                                                <div className={`w-12 h-12 rounded-lg flex items-center justify-center shadow-lg ${track.color} relative overflow-hidden`}>
+                                                    <i className={`fas ${track.icon} text-xl text-white/90 relative z-10`}></i>
+                                                    {/* Animated bars if playing this track */}
+                                                    {isActive && isPlaying && (
+                                                        <div className="absolute inset-0 flex items-end justify-center gap-0.5 pb-1 opacity-50">
+                                                            <div className="w-1 bg-white animate-bounce-slow" style={{height: '60%', animationDuration: '0.4s'}}></div>
+                                                            <div className="w-1 bg-white animate-bounce-slow" style={{height: '90%', animationDuration: '0.5s'}}></div>
+                                                            <div className="w-1 bg-white animate-bounce-slow" style={{height: '70%', animationDuration: '0.3s'}}></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 text-left">
+                                                    <div className={`font-bold text-sm ${isActive ? 'text-green-400' : 'text-white'}`}>{track.title}</div>
+                                                    <div className="text-xs text-zinc-400">{track.artist}</div>
+                                                </div>
+                                                {isActive && (
+                                                    <div className="text-green-500">
+                                                        <i className={`fas ${isPlaying ? 'fa-volume-high' : 'fa-volume-off'}`}></i>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Now Playing / Controls */}
+                                <div className="bg-zinc-800 p-4 border-t border-zinc-700/50 pb-8">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <div className="text-xs text-zinc-400">{isPlaying ? 'NOW PLAYING' : 'PAUSED'}</div>
+                                        <div className="text-xs text-zinc-400 font-mono">2:30</div>
+                                    </div>
+                                    
+                                    {/* Progress Bar (Fake) */}
+                                    <div className="w-full h-1 bg-zinc-700 rounded-full mb-6 overflow-hidden">
+                                        <div className={`h-full bg-green-500 rounded-full ${isPlaying ? 'animate-progress' : 'w-1/3'}`} style={{animationDuration: '10s'}}></div>
+                                    </div>
+
+                                    {/* Buttons */}
+                                    <div className="flex justify-center items-center gap-8">
+                                        <button onClick={handlePrevTrack} className="text-zinc-400 hover:text-white transition-colors">
+                                            <i className="fas fa-backward-step text-xl"></i>
+                                        </button>
+                                        <button 
+                                            onClick={handleTogglePlay}
+                                            className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-all shadow-lg"
+                                        >
+                                            <i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play pl-1'} text-2xl`}></i>
+                                        </button>
+                                        <button onClick={handleNextTrack} className="text-zinc-400 hover:text-white transition-colors">
+                                            <i className="fas fa-forward-step text-xl"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -880,48 +1014,28 @@ const Phone: React.FC<PhoneProps> = ({ isOpen, onClose, gameState, onAcceptMissi
                                     <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-green-500 to-transparent"></div>
                                 </div>
                                 
-                                <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-green-800 scrollbar-track-black">
-                                    <div className="text-[10px] text-green-600 mb-2 text-center opacity-70">
-                                        -- SECURE CONNECTION ESTABLISHED --
-                                    </div>
-                                    
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3">
                                     {CHEAT_LIST.map((cheat, i) => (
-                                        <div key={i} className="group border border-green-900/50 bg-green-900/10 p-2.5 rounded hover:bg-green-900/30 transition-all cursor-default relative overflow-hidden">
-                                            {/* Scanline effect on hover */}
-                                            <div className="absolute inset-0 bg-green-500/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 pointer-events-none"></div>
-                                            
-                                            <div className="flex justify-between items-start mb-1">
-                                                <div className="font-bold text-xs text-green-300 group-hover:text-white transition-colors uppercase tracking-tight">{cheat.desc}</div>
-                                                <i className="fas fa-terminal text-[10px] text-green-700"></i>
-                                            </div>
-                                            <div className="font-mono text-sm tracking-wider text-green-500/80 group-hover:text-green-400 select-all selection:bg-green-900 selection:text-white">
-                                                {cheat.code}
-                                            </div>
+                                        <div key={i} className="group border border-green-800 bg-green-950/30 p-3 rounded hover:bg-green-900/50 transition-colors cursor-pointer"
+                                             onClick={() => {
+                                                 setDialOutput(cheat.code);
+                                                 setActiveApp('dialer');
+                                                 audioManager.playUI('click');
+                                             }}
+                                        >
+                                            <div className="text-xs text-green-300 opacity-70 mb-1">Code: {cheat.code}</div>
+                                            <div className="font-bold text-green-400 group-hover:text-green-200">{cheat.desc}</div>
                                         </div>
                                     ))}
-                                    
-                                    <div className="h-8"></div>
                                 </div>
                             </div>
                         )}
 
                     </div>
                 </div>
-
             </div>
         )}
-
       </div>
-
-      {/* Home Indicator */}
-      <div 
-          className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 w-32 h-1.5 bg-white/40 rounded-full z-50 cursor-pointer hover:bg-white/60 active:scale-95 transition-all"
-          onClick={() => {
-              audioManager.playUI('click');
-              if (activeApp !== 'home') setActiveApp('home');
-              else if (!isLocked) onClose(); // Second tap closes phone
-          }}
-      ></div>
     </div>
   );
 };

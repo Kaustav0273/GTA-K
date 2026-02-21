@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { WeaponType } from '../types';
 import { WEAPON_STATS } from '../constants';
@@ -12,7 +13,7 @@ interface WeaponWheelProps {
 
 // Group weapons by class for the UI
 const WEAPON_GROUPS: { label: string; icon: string; class: string; weapons: WeaponType[] }[] = [
-    { label: 'Unarmed', icon: 'fa-hand-fist', class: 'melee', weapons: ['fist'] },
+    { label: 'Melee', icon: 'fa-hand-fist', class: 'melee', weapons: ['fist', 'bat', 'knife', 'crowbar', 'katana', 'machete', 'sledgehammer'] },
     { label: 'Pistol', icon: 'fa-gun', class: 'pistol', weapons: ['pistol', 'street_hawk', 'silver_fang', 'night_viper', 'pulse_9x', 'iron_whisper', 'neon_ace'] },
     { label: 'SMG', icon: 'fa-bolt', class: 'smg', weapons: ['uzi', 'rapid_wolf', 'urban_ripper', 'vortex_smg', 'shadow_spray', 'bullet_hive', 'turbo_stinger'] },
     { label: 'Shotgun', icon: 'fa-skull', class: 'shotgun', weapons: ['shotgun', 'doom_breaker', 'thunder_judge', 'skull_shatter', 'iron_boom', 'road_cleaner', 'hell_bison'] },

@@ -603,14 +603,24 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                  
                  const corners = getVehicleCorners(car, {x: nextX, y: nextY});
                  let hitSolid = false;
+                 let hitCornerIdx = -1;
                  for (let i = 0; i < corners.length; i++) {
                     if (isSolid(getTileAt(state.map, corners[i].x, corners[i].y))) {
-                        hitSolid = true; break;
+                        hitSolid = true; 
+                        hitCornerIdx = i;
+                        break;
                     }
                  }
                  
                  if (!hitSolid) { car.pos.x = nextX; car.pos.y = nextY; } 
-                 else { car.speed *= -0.5; car.stuckTimer = (car.stuckTimer || 0) + 20; }
+                 else { 
+                     car.speed *= -0.5; 
+                     car.stuckTimer = (car.stuckTimer || 0) + 20; 
+                     // ADDED: NPC hitting wall sparks
+                     if (hitCornerIdx !== -1 && Math.abs(car.speed) > 2) {
+                         spawnParticle(state, corners[hitCornerIdx], 'spark', 2, {color: '#fbbf24', speed: 2});
+                     }
+                 }
 
             } else {
                 // --- STANDARD MOVEMENT ---
@@ -795,6 +805,9 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 
                 if (impactSpeed > 2) {
                     audioManager.playImpact(impactSpeed > 5);
+                    
+                    const cornerCoords = getVehicleCorners(car, {x: nextX, y: nextY});
+
                     if (car.model !== 'tank') {
                         const damage = impactSpeed * 8;
                         if (!state.cheats.vehicleGodMode) {
@@ -807,13 +820,21 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                              if(i===1) car.deformation.fr += def;
                              if(i===2) car.deformation.bl += def;
                              if(i===3) car.deformation.br += def;
+                             
+                             // Add sparks at impact corner
+                             spawnParticle(state, cornerCoords[i], 'spark', Math.max(2, Math.floor(impactSpeed/2)), { speed: 2 + Math.random(), color: '#fbbf24', spread: 5 });
+                             spawnParticle(state, cornerCoords[i], 'smoke', 1, { speed: 0.5, color: '#9ca3af' });
                         });
 
                         if ((collidingCorners.includes(0) || collidingCorners.includes(1)) && impactSpeed > 6) car.damage.windows[0] = true;
                         if ((collidingCorners.includes(2) || collidingCorners.includes(3)) && impactSpeed > 6) car.damage.windows[1] = true;
 
-                        spawnParticle(state, car.pos, 'spark', 5, { speed: 2, color: '#fff' });
                         spawnParticle(state, car.pos, 'debris', 4, { speed: 3, color: car.color });
+                    } else {
+                        collidingCorners.forEach(i => {
+                             spawnParticle(state, cornerCoords[i], 'spark', 2, { speed: 2, color: '#fbbf24' });
+                             spawnParticle(state, cornerCoords[i], 'smoke', 2, { speed: 1, color: '#57534e' });
+                        });
                     }
                 }
             }
@@ -941,7 +962,16 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                     const totalV = v1v + v2v;
 
                     if (v1v > 0.1 || v2v > 0.1) {
-                         spawnParticle(state, {x: (v1.pos.x+v2.pos.x)/2, y: (v1.pos.y+v2.pos.y)/2}, 'spark', 1, { color: '#fbbf24', speed: 2 });
+                         // Spawn particles at specific corners of contact
+                         c1_hits.forEach(idx => {
+                             spawnParticle(state, c1[idx], 'spark', 2, { color: '#fbbf24', speed: 2, spread: 5 });
+                             spawnParticle(state, c1[idx], 'debris', 1, { color: v1.color, speed: 2 });
+                         });
+                         c2_hits.forEach(idx => {
+                             spawnParticle(state, c2[idx], 'spark', 2, { color: '#fbbf24', speed: 2, spread: 5 });
+                             spawnParticle(state, c2[idx], 'debris', 1, { color: v2.color, speed: 2 });
+                         });
+
                          v1.speed *= -0.4; v2.speed *= -0.4;
                          v1.velocity.x *= -0.4; v1.velocity.y *= -0.4;
                          v2.velocity.x *= -0.4; v2.velocity.y *= -0.4;

@@ -446,6 +446,37 @@ export const drawCharacter = (ctx: CanvasRenderingContext2D, p: Pedestrian) => {
         const armSwing = isMoving ? Math.cos(Date.now() / 100) * 3 : 0;
         ctx.beginPath(); ctx.ellipse(0 + armSwing, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 + armSwing, -9, 2.5, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = p.color; ctx.beginPath(); ctx.ellipse(0 - armSwing, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 - armSwing, 9, 2.5, 0, Math.PI*2); ctx.fill();
+
+        // Melee Weapon Rendering
+        if (p.weapon !== 'fist') {
+             ctx.save();
+             // Position relative to Right Hand (Bottom side in top-down view when facing right)
+             // Hand position is approx (3 - armSwing, 9)
+             ctx.translate(3 - armSwing, 9);
+             ctx.rotate(0.5); // Angle outwards
+             
+             if (p.weapon === 'bat') {
+                 ctx.fillStyle = '#d4a373'; // Wood
+                 ctx.fillRect(0, -2, 24, 4);
+             } else if (p.weapon === 'knife') {
+                 ctx.fillStyle = '#333'; ctx.fillRect(0, -1, 4, 2); // Handle
+                 ctx.fillStyle = '#d4d4d8'; ctx.beginPath(); ctx.moveTo(4, -1); ctx.lineTo(12, 0); ctx.lineTo(4, 1); ctx.fill(); // Blade
+             } else if (p.weapon === 'crowbar') {
+                 ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3;
+                 ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(15, 0); ctx.arc(18, 2, 3, Math.PI, 0); ctx.stroke();
+             } else if (p.weapon === 'katana') {
+                 ctx.fillStyle = '#171717'; ctx.fillRect(0, -1, 6, 2); // Hilt
+                 ctx.fillStyle = '#e5e5e5'; ctx.fillRect(6, -1, 30, 2); // Blade
+             } else if (p.weapon === 'machete') {
+                 ctx.fillStyle = '#3f2e26'; ctx.fillRect(0, -1.5, 5, 3);
+                 ctx.fillStyle = '#525252'; ctx.beginPath(); ctx.moveTo(5, -1.5); ctx.lineTo(20, -3); ctx.lineTo(20, 3); ctx.lineTo(5, 1.5); ctx.fill();
+             } else if (p.weapon === 'sledgehammer') {
+                 ctx.fillStyle = '#a16207'; ctx.fillRect(0, -1, 20, 2); // Handle
+                 ctx.fillStyle = '#1f2937'; ctx.fillRect(20, -6, 8, 12); // Head
+             }
+             ctx.restore();
+        }
+
     } else {
         ctx.beginPath(); ctx.ellipse(2, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(2, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#fca5a5'; ctx.save(); ctx.translate(10, 0); 

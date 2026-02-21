@@ -50,7 +50,7 @@ export interface Vehicle extends Entity {
 }
 
 export type WeaponType = 
-  | 'fist'
+  | 'fist' | 'bat' | 'knife' | 'crowbar' | 'katana' | 'machete' | 'sledgehammer'
   // Pistols
   | 'pistol' | 'street_hawk' | 'silver_fang' | 'night_viper' | 'pulse_9x' | 'iron_whisper' | 'neon_ace'
   // SMGs
