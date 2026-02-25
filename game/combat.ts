@@ -150,6 +150,7 @@ export const handleCombat = (state: MutableGameState, source: Pedestrian) => {
         const startX = source.pos.x + Math.cos(source.angle) * 20;
         const startY = source.pos.y + Math.sin(source.angle) * 20;
         
+        if (!state.bullets) state.bullets = [];
         state.bullets.push({
             id: `b-${Date.now()}-${i}-${Math.random()}`,
             pos: { x: startX, y: startY },

@@ -194,13 +194,81 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
     }
 
     // PEDESTRIAN AI & PHYSICS
+    // 1. Detect Loud Events
+    const loudEvents: {pos: {x: number, y: number}, type: 'gunshot' | 'explosion'}[] = [];
+    state.bullets.forEach(b => { if (b.timeLeft > 50) loudEvents.push({pos: b.pos, type: 'gunshot'}); });
+    state.particles.forEach(p => { if (p.type === 'explosion') loudEvents.push({pos: p.pos, type: 'explosion'}); });
+
     state.pedestrians.forEach(p => {
         if (p.state === 'dead') return;
+        
+        // Migration
+        if (p.fear === undefined) p.fear = 0.5;
+        if (p.curiosity === undefined) p.curiosity = 0.5;
+        if (p.aggression === undefined) p.aggression = 0.1;
 
         let moveSpeed = 0;
-        
-        let threat = null;
+        let threat: any = null;
+
         for (const v of state.vehicles) {
+             // Collision / Run over logic
+             if (Math.abs(v.speed) > 2 && checkPointInVehicle(p.pos.x, p.pos.y, v, 0)) {
+                 const damage = Math.abs(v.speed) * 5;
+                 p.health -= damage;
+                 spawnParticle(state, p.pos, 'blood', 3, { color: '#991b1b', speed: 2 });
+                 audioManager.playPedHit();
+                 
+                 // Add Blood Stain to Vehicle
+                 const dx = p.pos.x - v.pos.x;
+                 const dy = p.pos.y - v.pos.y;
+                 const cos = Math.cos(-v.angle);
+                 const sin = Math.sin(-v.angle);
+                 const localX = dx * cos - dy * sin;
+                 const localY = dx * sin + dy * cos;
+                 
+                 if (!v.bloodStains) v.bloodStains = [];
+                 v.bloodStains.push({
+                     x: localX,
+                     y: localY,
+                     size: Math.random() * 4 + 4
+                 });
+                 if (v.bloodStains.length > 10) v.bloodStains.shift();
+
+                 // Add Blood to Tires
+                 const halfLen = v.size.y / 2;
+                 const halfWid = v.size.x / 2;
+                 const tireLocs = [
+                     {x: halfLen - 8, y: -halfWid}, 
+                     {x: halfLen - 8, y: halfWid},
+                     {x: -halfLen + 4, y: -halfWid}, 
+                     {x: -halfLen + 4, y: halfWid}
+                 ];
+                 
+                 if (!v.tireBloodLevels) v.tireBloodLevels = [0, 0, 0, 0];
+                 tireLocs.forEach((t, idx) => {
+                     const dist = Math.sqrt((localX - t.x)**2 + (localY - t.y)**2);
+                     if (dist < 20) v.tireBloodLevels[idx] = 100;
+                 });
+
+                 // Knockback
+                 const direction = Math.sign(v.speed) || 1;
+                 const kForce = Math.max(5, Math.abs(v.speed) * 1.2);
+                 p.pos.x += Math.cos(v.angle) * kForce * direction;
+                 p.pos.y += Math.sin(v.angle) * kForce * direction;
+                 
+                 if (p.health <= 0) {
+                     p.state = 'dead';
+                     spawnDrops(state, p);
+                     if (v.driverId === 'player') {
+                         state.wantedLevel = Math.min(state.wantedLevel + 1, 5);
+                         state.lastWantedTime = state.timeTicker;
+                     }
+                 } else {
+                     p.state = 'fleeing';
+                     p.actionTimer = 60;
+                 }
+             }
+
              if (Math.abs(v.speed) > 5) {
                  const dist = Math.sqrt((p.pos.x - v.pos.x)**2 + (p.pos.y - v.pos.y)**2);
                  if (dist < 120) {
@@ -211,7 +279,6 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                      const dot = dx * vx + dy * vy;
                      if (dot > 0) {
                          threat = v;
-                         break;
                      }
                  }
              }
@@ -228,35 +295,91 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
              p.angle = dodgeDir;
              moveSpeed = PEDESTRIAN_RUN_SPEED * 1.5;
         } 
-        else if ((p.role === 'police' || p.role === 'army') && state.wantedLevel > 0) {
-             const playerPos = state.player.pos;
-             const dist = Math.sqrt((p.pos.x - playerPos.x)**2 + (p.pos.y - playerPos.y)**2);
+        // Event Threat Logic
+        else if (p.state === 'idle' || p.state === 'walking' || p.state === 'chatting' || p.state === 'wandering') {
+             let nearestEventDist = 800;
+             let nearestEvent: {pos: {x: number, y: number}, type: string} | null = null;
              
-             if (dist < 600) { 
-                  const angleToPlayer = Math.atan2(playerPos.y - p.pos.y, playerPos.x - p.pos.x);
-                  p.angle = angleToPlayer;
-                  
-                  if (dist > 250) {
-                      p.state = 'running';
-                      moveSpeed = PEDESTRIAN_RUN_SPEED;
-                  } else {
-                      p.state = 'shooting';
-                      moveSpeed = 0; 
-                      
-                      if (!p.actionTimer) p.actionTimer = 0;
-                      if (p.actionTimer <= 0) {
-                           handleCombat(state, p);
-                           p.actionTimer = 60 + Math.random() * 30;
-                      } else {
-                           p.actionTimer--;
-                      }
-                  }
-             } else {
-                 p.state = 'walking';
-                 moveSpeed = PEDESTRIAN_SPEED;
+             for (const e of loudEvents) {
+                 const d = Math.sqrt((p.pos.x - e.pos.x)**2 + (p.pos.y - e.pos.y)**2);
+                 if (d < nearestEventDist) {
+                     nearestEventDist = d;
+                     nearestEvent = e;
+                 }
              }
-        } 
-        else if (p.state === 'fleeing') {
+             
+             if (nearestEvent) {
+                 if (p.fear > 0.6) {
+                     p.state = 'fleeing';
+                     p.actionTimer = 180;
+                     p.angle = Math.atan2(p.pos.y - nearestEvent.pos.y, p.pos.x - nearestEvent.pos.x) + (Math.random()-0.5);
+                 } else if (p.fear > 0.3) {
+                     p.state = 'cowering';
+                     p.actionTimer = 120;
+                 } else if (p.curiosity > 0.6) {
+                     p.state = 'watching';
+                     p.actionTimer = 120;
+                     p.angle = Math.atan2(nearestEvent.pos.y - p.pos.y, nearestEvent.pos.x - p.pos.x);
+                 }
+             }
+        }
+
+        // Player Threat Logic
+        if (!threat && p.state !== 'dead' && p.state !== 'fleeing' && p.state !== 'cowering') {
+            if ((p.role === 'police' || p.role === 'army') && state.wantedLevel > 0) {
+                 const playerPos = state.player.pos;
+                 const dist = Math.sqrt((p.pos.x - playerPos.x)**2 + (p.pos.y - playerPos.y)**2);
+                 
+                 if (dist < 600) { 
+                      const angleToPlayer = Math.atan2(playerPos.y - p.pos.y, playerPos.x - p.pos.x);
+                      p.angle = angleToPlayer;
+                      
+                      if (dist > 250) {
+                          p.state = 'running';
+                          moveSpeed = PEDESTRIAN_RUN_SPEED;
+                      } else {
+                          p.state = 'shooting';
+                          moveSpeed = 0; 
+                          
+                          if (!p.actionTimer) p.actionTimer = 0;
+                          if (p.actionTimer <= 0) {
+                               handleCombat(state, p);
+                               p.actionTimer = 60 + Math.random() * 30;
+                          } else {
+                               p.actionTimer--;
+                          }
+                      }
+                 } else {
+                     p.state = 'walking';
+                     moveSpeed = PEDESTRIAN_SPEED;
+                 }
+            } else if (state.player.weapon !== 'fist') {
+                 const dist = Math.sqrt((p.pos.x - state.player.pos.x)**2 + (p.pos.y - state.player.pos.y)**2);
+                 if (dist < 400) {
+                     const aimDist = Math.sqrt((p.pos.x - state.aimTarget.x)**2 + (p.pos.y - state.aimTarget.y)**2);
+                     if (aimDist < 60) {
+                         if (p.aggression > 0.7) {
+                             // Fight back if armed or brave
+                             if (p.weapon !== 'fist') {
+                                 p.state = 'shooting';
+                                 p.actionTimer = 60;
+                             } else {
+                                 p.state = 'fleeing';
+                                 p.actionTimer = 120;
+                                 p.angle = Math.atan2(p.pos.y - state.player.pos.y, p.pos.x - state.player.pos.x);
+                             }
+                         } else {
+                             p.state = 'cowering';
+                             p.actionTimer = 120;
+                             p.angle = Math.atan2(state.player.pos.y - p.pos.y, state.player.pos.x - p.pos.x);
+                         }
+                     }
+                 }
+            }
+        }
+
+        // State Execution
+        if (p.state === 'fleeing') {
             if (p.actionTimer && p.actionTimer > 0) {
                 p.actionTimer--;
                 moveSpeed = PEDESTRIAN_RUN_SPEED;
@@ -264,8 +387,29 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                 p.state = 'walking';
                 p.actionTimer = 100;
             }
-        } 
-        else {
+        } else if (p.state === 'cowering') {
+             moveSpeed = 0;
+             if (p.actionTimer && p.actionTimer > 0) p.actionTimer--;
+             else p.state = 'idle';
+        } else if (p.state === 'watching') {
+             moveSpeed = 0;
+             if (p.actionTimer && p.actionTimer > 0) p.actionTimer--;
+             else p.state = 'walking';
+        } else if (p.state === 'chatting') {
+             moveSpeed = 0;
+             if (p.actionTimer && p.actionTimer > 0) p.actionTimer--;
+             else {
+                 p.state = 'walking';
+                 p.chatPartnerId = undefined;
+             }
+        } else if (p.state === 'shooting') {
+             // Handled in threat logic mostly, but ensure timer decrements if stuck
+             if (p.actionTimer && p.actionTimer > 0) p.actionTimer--;
+             else p.state = 'walking';
+        } else if (p.state === 'running') {
+             // Handled in threat logic
+        } else {
+             // Idle/Walking/Wandering
              if (!p.actionTimer || p.actionTimer <= 0) {
                  if (Math.random() > 0.4) {
                      p.state = 'walking';
@@ -279,11 +423,33 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                      p.state = 'idle';
                      p.actionTimer = 60 + Math.random() * 60;
                  }
+                 
+                 // Chance to Chat
+                 if (p.state === 'idle' && Math.random() < 0.1) {
+                     const neighbor = state.pedestrians.find(n => n.id !== p.id && n.state === 'idle' && !n.chatPartnerId && Math.sqrt((n.pos.x - p.pos.x)**2 + (n.pos.y - p.pos.y)**2) < 50);
+                     if (neighbor) {
+                        p.state = 'chatting';
+                        neighbor.state = 'chatting';
+                        p.chatPartnerId = neighbor.id;
+                        neighbor.chatPartnerId = p.id;
+                        p.actionTimer = 300;
+                        neighbor.actionTimer = 300;
+                        p.angle = Math.atan2(neighbor.pos.y - p.pos.y, neighbor.pos.x - p.pos.x);
+                        neighbor.angle = Math.atan2(p.pos.y - neighbor.pos.y, p.pos.x - neighbor.pos.x);
+                     }
+                 }
              } else {
                  p.actionTimer--;
              }
              
-             if (p.state === 'walking') moveSpeed = PEDESTRIAN_SPEED;
+             if (p.state === 'walking') {
+                 moveSpeed = PEDESTRIAN_SPEED;
+                 // Sidewalk Logic
+                 const currentTile = getTileAt(state.map, p.pos.x, p.pos.y);
+                 if (currentTile === TileType.ROAD_H || currentTile === TileType.ROAD_V) {
+                     moveSpeed *= 1.5; // Hurry up
+                 }
+             }
         }
 
         p.velocity.x = Math.cos(p.angle) * moveSpeed;
@@ -335,6 +501,14 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
         p.pos.x += p.velocity.x; p.pos.y += p.velocity.y; p.life--;
     });
     state.particles = state.particles.filter(p => p.life > 0);
+
+    if (state.tracks) {
+        state.tracks.forEach(t => {
+            t.life--;
+            t.opacity = Math.min(1, t.life / 60);
+        });
+        state.tracks = state.tracks.filter(t => t.life > 0);
+    }
 
     state.bullets.forEach(b => {
         b.pos.x += b.velocity.x;
@@ -496,6 +670,41 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
             const modelData = CAR_MODELS[car.model];
             const maxH = (modelData as any).health || 100;
             
+            // Bloody Tire Tracks
+            if (Math.abs(car.speed) > 1 && state.timeTicker % 5 === 0) {
+                if (!car.tireBloodLevels) car.tireBloodLevels = [0, 0, 0, 0];
+                
+                const hl = car.size.y / 2;
+                const hw = car.size.x / 2;
+                const cos = Math.cos(car.angle);
+                const sin = Math.sin(car.angle);
+                const t = (lx: number, ly: number) => ({
+                    x: car.pos.x + (lx * cos - ly * sin),
+                    y: car.pos.y + (lx * sin + ly * cos)
+                });
+                
+                // FL, FR, RL, RR
+                const tireOffsets = [
+                    {x: hl - 8, y: -hw}, {x: hl - 8, y: hw},
+                    {x: -hl + 4, y: -hw}, {x: -hl + 4, y: hw}
+                ];
+                
+                car.tireBloodLevels.forEach((level, idx) => {
+                    if (level > 0) {
+                        const pos = t(tireOffsets[idx].x, tireOffsets[idx].y);
+                        if (!state.tracks) state.tracks = []; // Safety check
+                        state.tracks.push({
+                            pos: pos,
+                            angle: car.angle,
+                            opacity: level / 100,
+                            life: 300, // 5 seconds
+                            type: 'blood'
+                        });
+                        car.tireBloodLevels[idx] = Math.max(0, level - 2); // Fade out
+                    }
+                });
+            }
+
             if (car.health < maxH * 0.3 && state.timeTicker % 5 === 0) {
                 const cos = Math.cos(car.angle);
                 const sin = Math.sin(car.angle);
@@ -736,6 +945,7 @@ export const updatePhysics = (state: MutableGameState, keys: Set<string>, maxTra
                      const shellSpeed = 40;
                      const muzzleX = car.pos.x + Math.cos(car.angle) * 45;
                      const muzzleY = car.pos.y + Math.sin(car.angle) * 45;
+                     if (!state.bullets) state.bullets = [];
                      state.bullets.push({
                         id: `tank-shell-${Date.now()}`,
                         pos: { x: muzzleX, y: muzzleY },

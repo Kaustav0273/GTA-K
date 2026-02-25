@@ -2,6 +2,7 @@
 import { MutableGameState, Vector2, Particle } from '../types';
 
 export const spawnParticle = (state: MutableGameState, pos: Vector2, type: Particle['type'], count: number = 1, options?: { color?: string, speed?: number, spread?: number, size?: number, life?: number }) => {
+    if (!state.particles) state.particles = [];
     if (state.particles.length > 200) {
         state.particles.splice(0, count);
     }

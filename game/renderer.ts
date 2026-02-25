@@ -137,6 +137,28 @@ export const renderGame = (ctx: CanvasRenderingContext2D, state: MutableGameStat
     }
     
     state.drops.forEach(d => { if (d.pos.x < camX || d.pos.x > camX + camW || d.pos.y < camY || d.pos.y > camY + camH) return; renderList.push({ y: d.pos.y, draw: () => drawDrop(ctx, d) }); });
+    
+    if (state.tracks) {
+        state.tracks.forEach(t => {
+            if (t.pos.x < camX || t.pos.x > camX + camW || t.pos.y < camY || t.pos.y > camY + camH) return;
+            renderList.push({
+                y: t.pos.y, // Ground level, sort by Y
+                draw: () => {
+                    ctx.save();
+                    ctx.translate(t.pos.x, t.pos.y);
+                    ctx.rotate(t.angle);
+                    ctx.globalAlpha = t.opacity;
+                    if (t.type === 'blood') {
+                        ctx.fillStyle = '#7f1d1d';
+                        ctx.fillRect(-2, -2, 4, 4);
+                    }
+                    ctx.globalAlpha = 1;
+                    ctx.restore();
+                }
+            });
+        });
+    }
+
     state.pedestrians.forEach(p => { if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return; if (p.state === 'dead') { ctx.save(); ctx.translate(p.pos.x, p.pos.y); ctx.fillStyle = '#7f1d1d'; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.ellipse(0, 0, 15, 12, Math.random(), 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; ctx.rotate(p.angle); ctx.fillStyle = p.color; ctx.fillRect(-8,-4,16,8); ctx.restore(); } });
     state.vehicles.forEach(v => { if (v.pos.x < camX - 100 || v.pos.x > camX + camW + 100 || v.pos.y < camY - 100 || v.pos.y > camY + camH + 100) return; renderList.push({ y: v.pos.y, draw: () => drawVehicle(ctx, v) }); });
     state.pedestrians.forEach(p => { if (p.pos.x < camX || p.pos.x > camX + camW || p.pos.y < camY || p.pos.y > camY + camH) return; if (p.state !== 'dead') renderList.push({ y: p.pos.y, draw: () => drawCharacter(ctx, p) }); });

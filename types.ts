@@ -37,6 +37,8 @@ export interface Vehicle extends Entity {
       tires: [boolean, boolean, boolean, boolean]; // FL, FR, RL, RR
       windows: [boolean, boolean]; // Front, Rear
   };
+  bloodStains: { x: number, y: number, size: number }[]; // Relative position on car
+  tireBloodLevels: [number, number, number, number]; // 0-100 for each tire
   deformation: {
       fl: number; // Front Left
       fr: number; // Front Right
@@ -74,12 +76,17 @@ export interface Pedestrian extends Entity {
   stamina: number; // Current stamina frames
   maxStamina: number; // Max stamina frames
   staminaRechargeDelay: number; // Frames until recharge starts
-  state: 'idle' | 'walking' | 'driving' | 'running' | 'fleeing' | 'dead' | 'texting' | 'chatting' | 'punching' | 'chasing' | 'shooting' | 'entering_vehicle' | 'exiting_vehicle' | 'walking_to_car';
+  state: 'idle' | 'walking' | 'driving' | 'running' | 'fleeing' | 'dead' | 'texting' | 'chatting' | 'punching' | 'chasing' | 'shooting' | 'entering_vehicle' | 'exiting_vehicle' | 'walking_to_car' | 'cowering' | 'watching' | 'wandering';
   target?: Vector2; // For AI movement
   weapon: WeaponType;
   actionTimer?: number; // Time until next state change
   chatPartnerId?: string; // ID of the pedestrian they are chatting with
   targetVehicleId?: string | null; // For entering animation
+  fear: number; // 0-1
+  curiosity: number; // 0-1
+  aggression: number; // 0-1
+  interactionTargetId?: string;
+  coverPos?: Vector2;
 }
 
 export interface Bullet {
@@ -102,6 +109,14 @@ export interface Particle {
   color: string;
   size: number;
   type: 'smoke' | 'blood' | 'spark' | 'muzzle' | 'debris' | 'fire' | 'explosion';
+}
+
+export interface Track {
+    pos: Vector2;
+    angle: number;
+    opacity: number;
+    life: number;
+    type: 'tire' | 'blood';
 }
 
 export interface Drop {
@@ -135,6 +150,7 @@ export interface GameState {
   pedestrians: Pedestrian[];
   bullets: Bullet[];
   particles: Particle[];
+  tracks: Track[];
   drops: Drop[];
   map: number[][]; // Grid representation
   camera: Vector2;
@@ -160,6 +176,7 @@ export interface MutableGameState {
     pedestrians: Pedestrian[];
     bullets: Bullet[];
     particles: Particle[];
+    tracks: Track[];
     drops: Drop[];
     map: number[][];
     camera: Vector2;

@@ -134,6 +134,7 @@ export const spawnTraffic = (state: MutableGameState, maxTraffic: number) => {
             }
             if (overlap) continue;
 
+            if (!state.vehicles) state.vehicles = [];
             state.vehicles.push({
                 id: `traffic-${Date.now()}-${Math.random()}`,
                 type: EntityType.VEHICLE,
@@ -150,6 +151,8 @@ export const spawnTraffic = (state: MutableGameState, maxTraffic: number) => {
                 handling: model.handling,
                 health: model.health,
                 damage: { tires: [false, false, false, false], windows: [false, false] },
+                bloodStains: [],
+                tireBloodLevels: [0, 0, 0, 0],
                 deformation: { fl: 0, fr: 0, bl: 0, br: 0 },
                 stuckTimer: 0,
                 targetAngle: angle

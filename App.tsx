@@ -81,6 +81,7 @@ const App: React.FC = () => {
     pedestrians: [],
     bullets: [],
     particles: [],
+    tracks: [],
     drops: [],
     map: [],
     camera: { x: 0, y: 0 },
@@ -182,6 +183,20 @@ const App: React.FC = () => {
               if (!parsed.aimTarget) {
                   parsed.aimTarget = { x: 0, y: 0 };
               }
+
+              // Ensure vehicles have new properties
+              parsed.vehicles.forEach((v: any) => {
+                  if (!v.bloodStains) v.bloodStains = [];
+                  if (!v.tireBloodLevels) v.tireBloodLevels = [0, 0, 0, 0];
+              });
+              
+              // Ensure tracks exist
+              if (!parsed.tracks) parsed.tracks = [];
+              if (!parsed.bullets) parsed.bullets = [];
+              if (!parsed.particles) parsed.particles = [];
+              if (!parsed.drops) parsed.drops = [];
+              if (!parsed.pedestrians) parsed.pedestrians = [];
+              if (!parsed.vehicles) parsed.vehicles = [];
 
               setGameState(parsed);
               enterGame();

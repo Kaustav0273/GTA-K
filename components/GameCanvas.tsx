@@ -261,6 +261,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                         vehicleColor = Math.random() > 0.5 ? '#000000' : '#ffffff';
                     }
                     
+                    if (!state.vehicles) state.vehicles = [];
                     state.vehicles.push({
                         id: `traffic-${trafficCount}`, type: EntityType.VEHICLE, pos: { x: posX, y: posY },
                         size: (model as any).size || { x: CAR_SIZE.x, y: CAR_SIZE.y }, angle, velocity: { x: 0, y: 0 },
@@ -284,6 +285,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             planeSpawns.forEach((spawn, idx) => {
                  const modelKey = spawn.model as keyof typeof CAR_MODELS;
                  const model = CAR_MODELS[modelKey];
+                 if (!state.vehicles) state.vehicles = [];
                  state.vehicles.push({
                     id: `plane-${idx}`, type: EntityType.VEHICLE, 
                     pos: { x: spawn.x * TILE_SIZE + TILE_SIZE/2, y: spawn.y * TILE_SIZE + TILE_SIZE/2 },
@@ -317,6 +319,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             milSpawns.forEach((spawn, idx) => {
                  const modelKey = spawn.model as keyof typeof CAR_MODELS;
                  const model = CAR_MODELS[modelKey];
+                 if (!state.vehicles) state.vehicles = [];
                  state.vehicles.push({
                     id: `mil-${idx}`, type: EntityType.VEHICLE, 
                     pos: { x: spawn.x * TILE_SIZE + TILE_SIZE/2, y: spawn.y * TILE_SIZE + TILE_SIZE/2 },
@@ -346,11 +349,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                     y = Math.floor(Math.random() * MAP_HEIGHT) * TILE_SIZE + TILE_SIZE / 2;
                 } while (getTileAt(state.map, x, y) !== TileType.SIDEWALK);
                 
+                if (!state.pedestrians) state.pedestrians = [];
                 state.pedestrians.push({
                     id: `cop-${i}`, type: EntityType.PEDESTRIAN, role: 'police', pos: { x, y }, size: PLAYER_SIZE,
                     angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 }, color: '#1e3a8a', health: 150, maxHealth: 150,
                     armor: 50, stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
-                    vehicleId: null, weapon: 'pistol', actionTimer: Math.random() * 200, state: 'walking'
+                    vehicleId: null, weapon: 'pistol', actionTimer: Math.random() * 200, state: 'walking',
+                    fear: 0.1, curiosity: 0.5, aggression: 0.8
                 });
             }
             
@@ -359,11 +364,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 const x = (95 + Math.random() * 35) * TILE_SIZE; // New range inside base
                 const y = (110 + Math.random() * 20) * TILE_SIZE; // New range inside base
                 
+                if (!state.pedestrians) state.pedestrians = [];
                 state.pedestrians.push({
                     id: `army-${i}`, type: EntityType.PEDESTRIAN, role: 'army', pos: { x, y }, size: PLAYER_SIZE,
                     angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 }, color: '#3f6212', health: 200, maxHealth: 200,
                     armor: 100, stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
-                    vehicleId: null, weapon: 'uzi', actionTimer: Math.random() * 200, state: 'walking'
+                    vehicleId: null, weapon: 'uzi', actionTimer: Math.random() * 200, state: 'walking',
+                    fear: 0, curiosity: 0.2, aggression: 1.0
                 });
             }
             
@@ -380,8 +387,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                     angle: Math.random() * Math.PI * 2, velocity: { x: 0, y: 0 },
                     color: Math.random() > 0.5 ? '#9ca3af' : '#4b5563', health: 100, maxHealth: 100, armor: 0,
                     stamina: STAMINA_MAX, maxStamina: STAMINA_MAX, staminaRechargeDelay: 0,
-                    vehicleId: null, weapon: 'fist', actionTimer: Math.random() * 200, state: 'walking'
+                    vehicleId: null, weapon: 'fist', actionTimer: Math.random() * 200, state: 'walking',
+                    fear: 0.3 + Math.random() * 0.7, curiosity: Math.random(), aggression: Math.random() * 0.3
                 } as Pedestrian;
+                if (!state.pedestrians) state.pedestrians = [];
                 state.pedestrians.push(basePed);
                 pedsToSpawn--;
             }

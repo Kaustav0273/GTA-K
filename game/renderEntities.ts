@@ -320,6 +320,16 @@ export const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
         ctx.moveTo(flX, flY); ctx.lineTo(frX, frY); ctx.lineTo(brX, brY); ctx.lineTo(blX, blY);
         ctx.closePath(); ctx.fill();
 
+        // Blood Stains
+        if (v.bloodStains && v.bloodStains.length > 0) {
+            ctx.fillStyle = '#7f1d1d';
+            v.bloodStains.forEach(stain => {
+                ctx.beginPath();
+                ctx.arc(stain.x, stain.y, stain.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
         ctx.fillStyle = 'rgba(255,255,255,0.1)';
         const safeL = (frX - brX) * 0.9;
         ctx.fillRect(-safeL/2, -width/4, safeL, width/2);
@@ -424,79 +434,101 @@ export const drawVehicle = (ctx: CanvasRenderingContext2D, v: Vehicle) => {
 
 export const drawCharacter = (ctx: CanvasRenderingContext2D, p: Pedestrian) => {
     ctx.save();
+    
+    // Shadow
     ctx.save();
     ctx.translate(p.pos.x + 8 * SHADOW_OFFSET_X, p.pos.y + 8 * SHADOW_OFFSET_Y);
     ctx.fillStyle = SHADOW_COLOR;
     ctx.beginPath(); ctx.ellipse(0, 0, 7, 7, 0, 0, Math.PI*2); ctx.fill();
     ctx.restore();
+
+    // Body (Rotated)
+    ctx.save();
     ctx.translate(p.pos.x, p.pos.y); ctx.rotate(p.angle);
+    
     const isMoving = p.velocity.x !== 0 || p.velocity.y !== 0;
     const walkCycle = isMoving ? Math.sin(Date.now() / 100) * 5 : 0;
+    
+    // Cowering: Shrink slightly
+    if (p.state === 'cowering') {
+        ctx.scale(0.9, 0.9);
+    }
+
     ctx.fillStyle = '#1c1917'; ctx.beginPath(); ctx.ellipse(3 + walkCycle, -5, 4, 2.5, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(3 - walkCycle, 5, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = p.color; ctx.beginPath(); drawRoundRectPath(ctx, -4, -8, 10, 16, 4); ctx.fill();
     ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+    
     if (p.role === 'police') { ctx.fillStyle = '#1e3a8a'; ctx.beginPath(); ctx.ellipse(-1, 0, 5.5, 5.5, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(3, 0, 3, 5, 0, -Math.PI/2, Math.PI/2); ctx.fill(); } 
     else if (p.role === 'army') { ctx.fillStyle = '#3f6212'; ctx.beginPath(); ctx.ellipse(-1, 0, 5.5, 5.5, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#2f3e26'; ctx.beginPath(); ctx.ellipse(3, 0, 3, 5, 0, -Math.PI/2, Math.PI/2); ctx.fill(); }
     else { const hairColor = p.id.length % 2 === 0 ? '#451a03' : '#000000'; ctx.fillStyle = hairColor; ctx.beginPath(); ctx.arc(-1, 0, 5, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = p.color; 
     
-    const wClass = WEAPON_STATS[p.weapon].class;
+    // Cowering Arms (Hands Up)
+    if (p.state === 'cowering') {
+        ctx.fillStyle = '#fca5a5';
+        ctx.beginPath(); ctx.arc(4, -6, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(4, 6, 3, 0, Math.PI*2); ctx.fill();
+    } 
+    else {
+        ctx.fillStyle = p.color; 
+        const wClass = WEAPON_STATS[p.weapon].class;
 
-    if (wClass === 'melee') {
-        const armSwing = isMoving ? Math.cos(Date.now() / 100) * 3 : 0;
-        ctx.beginPath(); ctx.ellipse(0 + armSwing, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 + armSwing, -9, 2.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = p.color; ctx.beginPath(); ctx.ellipse(0 - armSwing, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 - armSwing, 9, 2.5, 0, Math.PI*2); ctx.fill();
+        if (wClass === 'melee') {
+            const armSwing = isMoving ? Math.cos(Date.now() / 100) * 3 : 0;
+            ctx.beginPath(); ctx.ellipse(0 + armSwing, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 + armSwing, -9, 2.5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = p.color; ctx.beginPath(); ctx.ellipse(0 - armSwing, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(3 - armSwing, 9, 2.5, 0, Math.PI*2); ctx.fill();
 
-        // Melee Weapon Rendering
-        if (p.weapon !== 'fist') {
-             ctx.save();
-             // Position relative to Right Hand (Bottom side in top-down view when facing right)
-             // Hand position is approx (3 - armSwing, 9)
-             ctx.translate(3 - armSwing, 9);
-             ctx.rotate(0.5); // Angle outwards
-             
-             if (p.weapon === 'bat') {
-                 ctx.fillStyle = '#d4a373'; // Wood
-                 ctx.fillRect(0, -2, 24, 4);
-             } else if (p.weapon === 'knife') {
-                 ctx.fillStyle = '#333'; ctx.fillRect(0, -1, 4, 2); // Handle
-                 ctx.fillStyle = '#d4d4d8'; ctx.beginPath(); ctx.moveTo(4, -1); ctx.lineTo(12, 0); ctx.lineTo(4, 1); ctx.fill(); // Blade
-             } else if (p.weapon === 'crowbar') {
-                 ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3;
-                 ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(15, 0); ctx.arc(18, 2, 3, Math.PI, 0); ctx.stroke();
-             } else if (p.weapon === 'katana') {
-                 ctx.fillStyle = '#171717'; ctx.fillRect(0, -1, 6, 2); // Hilt
-                 ctx.fillStyle = '#e5e5e5'; ctx.fillRect(6, -1, 30, 2); // Blade
-             } else if (p.weapon === 'machete') {
-                 ctx.fillStyle = '#3f2e26'; ctx.fillRect(0, -1.5, 5, 3);
-                 ctx.fillStyle = '#525252'; ctx.beginPath(); ctx.moveTo(5, -1.5); ctx.lineTo(20, -3); ctx.lineTo(20, 3); ctx.lineTo(5, 1.5); ctx.fill();
-             } else if (p.weapon === 'sledgehammer') {
-                 ctx.fillStyle = '#a16207'; ctx.fillRect(0, -1, 20, 2); // Handle
-                 ctx.fillStyle = '#1f2937'; ctx.fillRect(20, -6, 8, 12); // Head
-             }
-             ctx.restore();
+            // Melee Weapon Rendering
+            if (p.weapon !== 'fist') {
+                 ctx.save();
+                 ctx.translate(3 - armSwing, 9);
+                 ctx.rotate(0.5); 
+                 
+                 if (p.weapon === 'bat') { ctx.fillStyle = '#d4a373'; ctx.fillRect(0, -2, 24, 4); } 
+                 else if (p.weapon === 'knife') { ctx.fillStyle = '#333'; ctx.fillRect(0, -1, 4, 2); ctx.fillStyle = '#d4d4d8'; ctx.beginPath(); ctx.moveTo(4, -1); ctx.lineTo(12, 0); ctx.lineTo(4, 1); ctx.fill(); } 
+                 else if (p.weapon === 'crowbar') { ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(15, 0); ctx.arc(18, 2, 3, Math.PI, 0); ctx.stroke(); } 
+                 else if (p.weapon === 'katana') { ctx.fillStyle = '#171717'; ctx.fillRect(0, -1, 6, 2); ctx.fillStyle = '#e5e5e5'; ctx.fillRect(6, -1, 30, 2); } 
+                 else if (p.weapon === 'machete') { ctx.fillStyle = '#3f2e26'; ctx.fillRect(0, -1.5, 5, 3); ctx.fillStyle = '#525252'; ctx.beginPath(); ctx.moveTo(5, -1.5); ctx.lineTo(20, -3); ctx.lineTo(20, 3); ctx.lineTo(5, 1.5); ctx.fill(); } 
+                 else if (p.weapon === 'sledgehammer') { ctx.fillStyle = '#a16207'; ctx.fillRect(0, -1, 20, 2); ctx.fillStyle = '#1f2937'; ctx.fillRect(20, -6, 8, 12); }
+                 ctx.restore();
+            }
+
+        } else {
+            ctx.beginPath(); ctx.ellipse(2, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(2, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fca5a5'; ctx.save(); ctx.translate(10, 0); 
+            
+            if (wClass === 'pistol') { 
+                ctx.fillStyle = '#374151'; ctx.fillRect(-2, -1.5, 10, 3); 
+                ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 2, 2.5, 0, Math.PI*2); ctx.fill(); 
+            } 
+            else if (wClass === 'smg') { 
+                ctx.fillStyle = '#111'; ctx.fillRect(-2, -2, 12, 4); 
+                ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, -2, 2.5, 0, Math.PI*2); ctx.fill(); 
+            } 
+            else if (wClass === 'shotgun' || wClass === 'sniper' || wClass === 'rocket' || wClass === 'flame') { 
+                ctx.fillStyle = '#1f2937'; 
+                const len = wClass === 'sniper' ? 24 : 18; 
+                const width = wClass === 'rocket' ? 6 : 3; 
+                ctx.fillRect(-4, -width/2, len, width); 
+                ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, -1, 2.5, 0, Math.PI*2); ctx.fill(); 
+            }
+            ctx.restore();
         }
+    }
+    ctx.restore();
 
-    } else {
-        ctx.beginPath(); ctx.ellipse(2, -9, 3, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(2, 9, 3, 3, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fca5a5'; ctx.save(); ctx.translate(10, 0); 
-        
-        if (wClass === 'pistol') { 
-            ctx.fillStyle = '#374151'; ctx.fillRect(-2, -1.5, 10, 3); 
-            ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 2, 2.5, 0, Math.PI*2); ctx.fill(); 
-        } 
-        else if (wClass === 'smg') { 
-            ctx.fillStyle = '#111'; ctx.fillRect(-2, -2, 12, 4); 
-            ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, -2, 2.5, 0, Math.PI*2); ctx.fill(); 
-        } 
-        else if (wClass === 'shotgun' || wClass === 'sniper' || wClass === 'rocket' || wClass === 'flame') { 
-            ctx.fillStyle = '#1f2937'; 
-            const len = wClass === 'sniper' ? 24 : 18; 
-            const width = wClass === 'rocket' ? 6 : 3; 
-            ctx.fillRect(-4, -width/2, len, width); 
-            ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, 3, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, -1, 2.5, 0, Math.PI*2); ctx.fill(); 
-        }
+    // Chat Bubble
+    if (p.state === 'chatting') {
+        ctx.save();
+        ctx.translate(p.pos.x, p.pos.y - 20);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.beginPath(); ctx.ellipse(0, 0, 8, 6, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(-3, 10); ctx.lineTo(3, 6); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(-3, 0, 1, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3, 0, 1, 0, Math.PI*2); ctx.fill();
         ctx.restore();
     }
+    
     ctx.restore();
 };

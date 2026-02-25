@@ -43,6 +43,7 @@ export const spawnDrops = (state: MutableGameState, p: Pedestrian) => {
         cash = Math.floor(Math.random() * 2500) + 2501;
     }
 
+    if (!state.drops) state.drops = [];
     state.drops.push({
         id: `d-c-${Date.now()}-${Math.random()}`,
         pos: { x: p.pos.x + (Math.random()-0.5)*10, y: p.pos.y + (Math.random()-0.5)*10 },
@@ -55,6 +56,7 @@ export const spawnDrops = (state: MutableGameState, p: Pedestrian) => {
     if (p.role === 'police' || p.role === 'army') {
         const dropWeapon = Math.random();
         if (dropWeapon < 0.4) { 
+             if (!state.drops) state.drops = [];
              state.drops.push({
                 id: `d-w-p-${Date.now()}-${Math.random()}`,
                 pos: { x: p.pos.x + (Math.random()-0.5)*20, y: p.pos.y + (Math.random()-0.5)*20 },
@@ -117,6 +119,25 @@ export const spawnPedestrians = (state: MutableGameState, targetCount: number = 
                 health = 150;
             }
 
+            let fear = 0;
+            let curiosity = 0;
+            let aggression = 0;
+
+            if (role === 'civilian') {
+                fear = 0.3 + Math.random() * 0.7; // 0.3 - 1.0
+                curiosity = Math.random();
+                aggression = Math.random() * 0.3; // Mostly peaceful
+            } else if (role === 'police') {
+                fear = Math.random() * 0.3;
+                curiosity = 0.5;
+                aggression = 0.7 + Math.random() * 0.3;
+            } else if (role === 'army') {
+                fear = 0;
+                curiosity = 0.2;
+                aggression = 1.0;
+            }
+
+            if (!state.pedestrians) state.pedestrians = [];
             state.pedestrians.push({
                 id: `npc-${state.timeTicker}-${Math.random()}`,
                 type: EntityType.PEDESTRIAN,
@@ -135,7 +156,10 @@ export const spawnPedestrians = (state: MutableGameState, targetCount: number = 
                 vehicleId: null,
                 weapon,
                 state: 'walking',
-                actionTimer: Math.random() * 200
+                actionTimer: Math.random() * 200,
+                fear,
+                curiosity,
+                aggression
             });
             spawned++;
         }
